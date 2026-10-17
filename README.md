@@ -1,15 +1,15 @@
 # dd-modern
 
-Inoffizielle Modernisierungs-Mod für **Divine Divinity** (Larian Studios, 2002), Steam/GOG-Version 1.0062A.
+Unofficial modernization mod for **Divine Divinity** (Larian Studios, 2002), Steam/GOG version 1.0062A.
 
-> Status: in Entwicklung (Phase 0 – Setup und Bestandsaufnahme). Noch nichts installierbar.
+> Status: in development (Phase 0 – setup and inventory). Nothing installable yet.
 
-Geplant: Komfortfunktionen, bessere Lesbarkeit bei hohen Auflösungen, WASD- und Controller-Steuerung, Audiologs für Bücher und Briefe. Details siehe [PLAN.md](PLAN.md).
+Planned: quality-of-life features, better readability at high resolutions, WASD and controller support, audio logs for books and letters. See [PLAN.md](PLAN.md) for details.
 
-## Hinweis
+## Notice
 
-Dieses Projekt enthält **keine Spieldateien** und benötigt eine legal erworbene Kopie von Divine Divinity. Es steht in keiner Verbindung zu Larian Studios.
+This project contains **no game files** and requires a legally purchased copy of Divine Divinity. It is not affiliated with Larian Studios.
 
-## Lizenz
+## License
 
-Eigener Code unter [MIT-Lizenz](LICENSE).
+Own code under the [MIT License](LICENSE).

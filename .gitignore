@@ -1,4 +1,4 @@
-# --- Spieldateien von Larian: niemals einchecken (PLAN.md, Regel 1) ---
+# --- Game files by Larian: never commit (PLAN.md, rule 1) ---
 *.exe
 *.dll
 *.asi
@@ -31,14 +31,14 @@
 /capture/
 /savegames/
 
-# --- Abgeleitete, lokal erzeugte Inhalte (Regel 5) ---
+# --- Derived, locally generated content (rule 5) ---
 cache/
 generated/
 tools/upscale/output/
 tools/tts/output/
 tools/extract/output/
 
-# --- Disassembly-Projekte und Dumps (Regel 2) ---
+# --- Disassembly projects and dumps (rule 2) ---
 *.gpr
 *.rep/
 *.gzf
@@ -59,7 +59,7 @@ cmake-build-*/
 *.pdb
 *.ilk
 
-# --- Laufzeit ---
+# --- Runtime ---
 ddmod.log
 *.log
 

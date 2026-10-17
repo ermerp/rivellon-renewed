@@ -1,13 +1,13 @@
-# RE-Notizen
+# RE notes
 
-Erkenntnisse in eigenen Worten. **Kein dekompilierter Code, kein Pseudocode** (siehe CLAUDE.md, Regel 2).
+Findings in our own words. **No decompiled code, no pseudocode** (see CLAUDE.md, rule 2).
 
-## 1. Spielversion (Steam, deutsche Sprachfassung)
+## 1. Game version (Steam, German language version)
 
-- Version laut Ressourcen von `div.exe`: FileVersion `1, 0, 0, 62` (= 1.0062A)
-- Installationsordner: 363 Dateien, ca. 2,4 GB; Sprache laut `config.lcl`: `language 2` (Deutsch)
+- Version according to the resources of `div.exe`: FileVersion `1, 0, 0, 62` (= 1.0062A)
+- Installation folder: 363 files, approx. 2.4 GB; language according to `config.lcl`: `language 2` (German)
 
-| Datei | Größe (Bytes) | SHA-256 |
+| File | Size (bytes) | SHA-256 |
 |---|---|---|
 | div.exe | 2 461 696 | `CD9F7A07C7A605C21052B3517346C7A63083063FB491276A3E4C9836C9B42A67` |
 | configtool.exe | 280 576 | `053B19740948523FD5F785750BCD1771E8017A94A064F9AE203E5ED6AF339419` |
@@ -17,96 +17,96 @@ Erkenntnisse in eigenen Worten. **Kein dekompilierter Code, kein Pseudocode** (s
 | binkw32.dll | 357 939 | `65D87646770FA871A58D9D27CDFB5A1AD991DD64900F0EA35B0678457C902D41` |
 | fmod.dll | 127 488 | `1DF3354B63EC6668A4831FCD02D12F36A6E4707435505F5C55DAD2F4AB62EEE9` |
 
-### PE-Header `div.exe` (1.0062A)
+### PE header `div.exe` (1.0062A)
 
-- Linker 9.00 (VS 2008), Zeitstempel 19.04.2013, Laufzeit `MSVCR90.dll`
-- Image-Base `0x00400000`, **Relocations entfernt, kein ASLR** (DLL characteristics `0x8000` = nur Terminal-Server-aware) → Adressen innerhalb dieses Builds sind bei jedem Start gleich. Regel 8 gilt trotzdem (Signatur-Scan, feste Adressen nur als Fallback).
-- **Large-Address-Aware nicht gesetzt** (Characteristics `0x103`) → ohne 4GB-Patch max. 2 GB Adressraum.
+- Linker 9.00 (VS 2008), timestamp 2013-04-19, runtime `MSVCR90.dll`
+- Image base `0x00400000`, **relocations stripped, no ASLR** (DLL characteristics `0x8000` = terminal-server-aware only) → addresses within this build are the same on every start. Rule 8 still applies (signature scan, fixed addresses only as a fallback).
+- **Large Address Aware not set** (characteristics `0x103`) → max. 2 GB of address space without the 4GB patch.
 
-## 2. Imports und Laufzeit-Architektur (1.0062A)
+## 2. Imports and runtime architecture (1.0062A)
 
-Statische Abhängigkeiten von `div.exe` (Anzahl importierter Funktionen):
+Static dependencies of `div.exe` (number of imported functions):
 
-| DLL | # | Zweck / wichtigste Funktionen |
+| DLL | # | Purpose / key functions |
 |---|---|---|
-| fmod.dll | 32 | Audio über **FMOD 3.x** (`FSOUND_*`: Samples, Streams, 3D-Sound, Lautstärke) |
-| binkw32.dll | 9 | Videos über **Bink** (`BinkOpen`, `BinkDoFrame`, `BinkCopyToBuffer`, `BinkOpenDirectSound`) |
-| DivDialogSystem.dll | 12 | Dialog-Engine als C++-Klasse `CDivDialogSystem` |
-| OsirisDLL.dll | 14 | Osiris-Skript-VM als C++-Klasse `COsiris` (globale Instanz exportiert) |
-| USER32.dll | 28 | Fenster/Nachrichten, `GetAsyncKeyState`, `GetKeyState`, `MapVirtualKeyA`, `GetCursorPos` |
-| GDI32.dll | 8 | Schriften (`CreateFontA`, `GetGlyphOutlineA`) – vermutlich Text-Rendering für Unicode-Sprachen |
-| IMM32.dll | 3 | IME-Texteingabe |
-| KERNEL32.dll | 54 | u. a. `LoadLibraryA`, `GetProcAddress`, `SetThreadAffinityMask` |
+| fmod.dll | 32 | Audio via **FMOD 3.x** (`FSOUND_*`: samples, streams, 3D sound, volume) |
+| binkw32.dll | 9 | Videos via **Bink** (`BinkOpen`, `BinkDoFrame`, `BinkCopyToBuffer`, `BinkOpenDirectSound`) |
+| DivDialogSystem.dll | 12 | Dialog engine as the C++ class `CDivDialogSystem` |
+| OsirisDLL.dll | 14 | Osiris script VM as the C++ class `COsiris` (global instance exported) |
+| USER32.dll | 28 | Windows/messages, `GetAsyncKeyState`, `GetKeyState`, `MapVirtualKeyA`, `GetCursorPos` |
+| GDI32.dll | 8 | Fonts (`CreateFontA`, `GetGlyphOutlineA`) – probably text rendering for Unicode languages |
+| IMM32.dll | 3 | IME text input |
+| KERNEL32.dll | 54 | among others `LoadLibraryA`, `GetProcAddress`, `SetThreadAffinityMask` |
 | VERSION.dll | 3 | `GetFileVersionInfo*` |
-| WINMM.dll | 1 | nur `timeGetTime` |
-| MSVCR90.dll | 170 | C-Laufzeit |
+| WINMM.dll | 1 | only `timeGetTime` |
+| MSVCR90.dll | 170 | C runtime |
 
-Ergebnisse zu den Fragen aus PLAN.md Phase 0, Schritt 3:
+Results for the questions from PLAN.md Phase 0, step 3:
 
-- **Grafik:** `div.exe` importiert **kein** DirectDraw/Direct3D. Die Renderer sind Plugins, die zur Laufzeit per `LoadLibraryA`/`GetProcAddress` geladen werden. Alle vier exportieren dieselbe Schnittstelle (`DllSlashedInit`, `DllSlashedStartFrame`, `DllSlashedEndFrame`, `DllSlashedGetResolutions`, `DllSlashedGlowDraw*`, `DllSlashedShutdown`, …):
+- **Graphics:** `div.exe` imports **no** DirectDraw/Direct3D. The renderers are plugins loaded at runtime via `LoadLibraryA`/`GetProcAddress`. All four export the same interface (`DllSlashedInit`, `DllSlashedStartFrame`, `DllSlashedEndFrame`, `DllSlashedGetResolutions`, `DllSlashedGlowDraw*`, `DllSlashedShutdown`, …):
 
-  | DLL | Renderer | Konfig | Grafik-API |
+  | DLL | Renderer | Config | Graphics API |
   |---|---|---|---|
   | slash1.dll | Direct3D 6.x | `slashed-d3d6.cfg` | `ddraw.dll` (DirectDraw + Direct3D 6) |
-  | slash2.dll | Glide 3.x | `slashed-glide.cfg` | `glide3x.dll` (nicht vorhanden) |
+  | slash2.dll | Glide 3.x | `slashed-glide.cfg` | `glide3x.dll` (not present) |
   | slash3.dll | DirectDraw | `slashed-directx.cfg` | `ddraw.dll` |
-  | slash4.dll | Software | `slashed-software.cfg` | `ddraw.dll` (nur Ausgabe) |
+  | slash4.dll | Software | `slashed-software.cfg` | `ddraw.dll` (output only) |
 
-  Auch der Direct3D-Renderer läuft also über `ddraw.dll` (D3D6 wird über das DirectDraw-Objekt erzeugt; `D3DImm.dll` lädt `ddraw.dll` intern). dgVoodoo2 (`ddraw.dll` + `D3DImm.dll`) deckt damit Direct3D, DirectDraw und Software ab.
-  **Folge für die Mod:** `DllSlashedStartFrame`/`DllSlashedEndFrame` sind ein renderer-unabhängiger Frame-Takt – guter Hook-Punkt für Logik pro Frame (z. B. durch Abfangen von `GetProcAddress` für diese Namen).
-- **Eingabe:** **Kein DirectInput.** Tastatur/Maus über Fenster-Nachrichten (`PeekMessageA`/`GetMessageA`) sowie `GetAsyncKeyState`/`GetKeyState`/`GetCursorPos`. → Input-Hook über Fensterprozedur (Subclassing) und Hooks auf diese USER32-Funktionen.
-- **Audio:** FMOD 3.x (`fmod.dll`, nutzt intern DirectSound/WINMM). Kein Miles. Für Ducking (Phase 7) bieten sich `FSOUND_SetVolume`/Stream-Funktionen an.
-- **Video:** Bink (`binkw32.dll`), Ton über `BinkOpenDirectSound`.
-- **Dialoge:** `DivDialogSystem.dll` exportiert u. a. `StartDialog`, `GetNumQuestions`, `GetQuestion` (liefert Wide-String), `GetAnswerText`, `GetAnswerSoundName`, `SelectQuestion`, `GetQuestionNodeID`, `GetAnswerNodeID`. → Für Phase 6 (eigene Dialogbox) lassen sich Text und Auswahl direkt an diesen Exporten abgreifen, ohne die EXE zu analysieren.
-- **Osiris:** `OsirisDLL.dll` exportiert `COsiris::Event`, `Load`, `Save`, `InitGame`, `GetStoryVersion`, `ApplyPatchFile` u. a. – Basis von OsirisRE.
+  So the Direct3D renderer also runs through `ddraw.dll` (D3D6 is created via the DirectDraw object; `D3DImm.dll` is loaded internally by `ddraw.dll`). dgVoodoo2 (`ddraw.dll` + `D3DImm.dll`) therefore covers Direct3D, DirectDraw and Software.
+  **Consequence for the mod:** `DllSlashedStartFrame`/`DllSlashedEndFrame` provide a renderer-independent frame tick – a good hook point for per-frame logic (e.g. by intercepting `GetProcAddress` for these names).
+- **Input:** **No DirectInput.** Keyboard/mouse via window messages (`PeekMessageA`/`GetMessageA`) plus `GetAsyncKeyState`/`GetKeyState`/`GetCursorPos`. → Input hook via the window procedure (subclassing) and hooks on these USER32 functions.
+- **Audio:** FMOD 3.x (`fmod.dll`, uses DirectSound/WINMM internally). No Miles. For ducking (Phase 7), `FSOUND_SetVolume`/the stream functions are suitable.
+- **Video:** Bink (`binkw32.dll`), sound via `BinkOpenDirectSound`.
+- **Dialogs:** `DivDialogSystem.dll` exports among others `StartDialog`, `GetNumQuestions`, `GetQuestion` (returns a wide string), `GetAnswerText`, `GetAnswerSoundName`, `SelectQuestion`, `GetQuestionNodeID`, `GetAnswerNodeID`. → For Phase 6 (custom dialog box), text and selection can be captured directly at these exports without analyzing the EXE.
+- **Osiris:** `OsirisDLL.dll` exports `COsiris::Event`, `Load`, `Save`, `InitGame`, `GetStoryVersion`, `ApplyPatchFile` and others – the basis of OsirisRE.
 
-Weitere DLLs im Ordner: `configtool.exe` importiert `DDRAW.dll` (Auflösungsliste); `NlsEng/NlsFr/NlsGer.dll` brauchen `mfc90.dll`; `DrvMgt.dll`/`SECDRV.SYS` sind Kopierschutz-Reste und werden von `div.exe` nicht importiert.
+Other DLLs in the folder: `configtool.exe` imports `DDRAW.dll` (resolution list); `NlsEng/NlsFr/NlsGer.dll` need `mfc90.dll`; `DrvMgt.dll`/`SECDRV.SYS` are copy protection leftovers and are not imported by `div.exe`.
 
-## 3. Entscheidungen
+## 3. Decisions
 
-### Proxy-DLL (Phase 0, Schritt 4) – Vorschlag
+### Proxy DLL (Phase 0, step 4) – proposal
 
-`div.exe` importiert statisch nur zwei Systembibliotheken, die sich als Proxy eignen: **`winmm.dll`** (1 Funktion) und **`version.dll`** (3 Funktionen). `dinput.dll` kommt **nicht in Frage** (wird nie geladen). `ddraw.dll`/`D3DImm.dll` sind für dgVoodoo2 reserviert.
-→ Bestätigt den Favoriten: **Ultimate ASI Loader als `winmm.dll`**, Mod als `.asi`. `version.dll` als Ausweichlösung. Beide Namen importiert auch die 1.0034A-EXE. Hinweis: `fmod.dll` und `binkw32.dll` importieren ebenfalls `WINMM.dll` – sie erhalten dann dieselbe Proxy-Instanz, daher muss der Loader alle WINMM-Exporte vollständig weiterleiten (beim Ultimate ASI Loader der Fall).
+`div.exe` statically imports only two system libraries that are suitable as a proxy: **`winmm.dll`** (1 function) and **`version.dll`** (3 functions). `dinput.dll` is **out of the question** (it is never loaded). `ddraw.dll`/`D3DImm.dll` are reserved for dgVoodoo2.
+→ Confirms the favorite: **Ultimate ASI Loader as `winmm.dll`**, the mod as an `.asi`. `version.dll` as a fallback. The 1.0034A EXE imports both names as well. Note: `fmod.dll` and `binkw32.dll` also import `WINMM.dll` – they then get the same proxy instance, so the loader must forward all WINMM exports completely (which is the case for Ultimate ASI Loader).
 
-### Overlay (Phase 0, Schritt 5) – offen, mit dem Menschen abzustimmen
+### Overlay (Phase 0, step 5) – open, to be agreed with the human
 
-_Siehe Bewertung im Gesprächsverlauf; Entscheidung wird hier eingetragen._
+_See the evaluation in the conversation; the decision will be recorded here._
 
-## 4. Patch 1.34A (englisch) – Inhaltsanalyse
+## 4. Patch 1.34A (English) – content analysis
 
-Quelle: `C:\dev\downloads\DivPatch_English.exe` (10 883 072 Bytes, SHA-256 `132BE8A2ED741FB055449FB4983D0CCD5016C0D967ACCE6B0A21088D979B3D01`, nicht signiert). Selbstentpackendes RAR in einer PE-Ressource; mit 7-Zip (`7z x -trar`) entpackt nach `C:\dev\downloads\patch134_en\files`, **nicht ausgeführt**. `patch.log`: „Divine Divinity Patch V1.0 - 13-03-03 - English.“
+Source: `C:\dev\downloads\DivPatch_English.exe` (10 883 072 bytes, SHA-256 `132BE8A2ED741FB055449FB4983D0CCD5016C0D967ACCE6B0A21088D979B3D01`, not signed). Self-extracting RAR inside a PE resource; unpacked with 7-Zip (`7z x -trar`) to `C:\dev\downloads\patch134_en\files`, **not executed**. `patch.log`: "Divine Divinity Patch V1.0 - 13-03-03 - English."
 
-Inhalt (80 Dateien) und Vergleich mit der deutschen Steam-Installation:
+Contents (80 files) and comparison with the German Steam installation:
 
-| Datei(en) | Steam (DE, 1.0062A) | Sprachabhängig? |
+| File(s) | Steam (DE, 1.0062A) | Language-dependent? |
 |---|---|---|
-| `div.exe` (1.0.0.34, 02.05.2003) | anders | nein – EXE ist mehrsprachig (enthält deutsche CD-Meldungen, Sprachtabellen DE/EN/FR) |
-| `Osiris.dll` | fehlt (Steam heißt `OsirisDLL.dll`) | nein |
-| `DivDialogSystem.dll` (1.5.0.1) | anders | nein – aber **andere Schnittstelle** (Strings als `unsigned short*` statt `wchar_t*` im Namen) → passt nur zur 1.0034A-EXE |
-| `slash1–4.dll` | anders (ältere Builds) | nein |
-| `DoSomething.exe` („DivHeroPatch MFC Application“) | fehlt | Hilfsprogramm des Installers, nicht nötig |
-| `Dat\global.cmp`, `Dat\treasure.cmp` | anders | nein (Wortstatistik identisch zur Steam-Datei) |
-| übrige `Dat\*` | identisch | – |
-| `Global\region.000–007` | anders (gleiche Größe) | nein |
-| `Global\eggs.000`, `location.*` | identisch | – |
-| `Main\startup.v2\*` (60 Dateien) | fehlt; gegenüber `main\startup` sind 21 Dateien geändert (u. a. `story.000/001`, `items.000`, `data.000`, `world.x0`, `shroud.x*`, `inv.*`), Rest identisch | nein – keine Sprachtexte gefunden; `static\books.000` und `quest_log.000` sind identisch mit Steam-DE |
-| `Localizations\English\dlg.v2\dialogids.dat` | identisch mit DE | nein |
-| `Localizations\English\dlg.v2\dialogs.div` | **identisch mit Steam `german\dlg.v2\Male\dialogs.div`** | nein (Dialogstruktur) |
-| `Localizations\English\dlg.v2\dialogtxt.dat` | anders | **ja – englischer Dialogtext** |
+| `div.exe` (1.0.0.34, 2003-05-02) | different | no – the EXE is multilingual (contains German CD messages, language tables DE/EN/FR) |
+| `Osiris.dll` | missing (Steam's is called `OsirisDLL.dll`) | no |
+| `DivDialogSystem.dll` (1.5.0.1) | different | no – but a **different interface** (strings as `unsigned short*` instead of `wchar_t*` in the mangled name) → only matches the 1.0034A EXE |
+| `slash1–4.dll` | different (older builds) | no |
+| `DoSomething.exe` ("DivHeroPatch MFC Application") | missing | helper program of the installer, not needed |
+| `Dat\global.cmp`, `Dat\treasure.cmp` | different | no (word statistics identical to the Steam file) |
+| other `Dat\*` | identical | – |
+| `Global\region.000–007` | different (same size) | no |
+| `Global\eggs.000`, `location.*` | identical | – |
+| `Main\startup.v2\*` (60 files) | missing; compared to `main\startup`, 21 files are changed (among others `story.000/001`, `items.000`, `data.000`, `world.x0`, `shroud.x*`, `inv.*`), the rest identical | no – no language texts found; `static\books.000` and `quest_log.000` are identical to Steam DE |
+| `Localizations\English\dlg.v2\dialogids.dat` | identical to DE | no |
+| `Localizations\English\dlg.v2\dialogs.div` | **identical to Steam `german\dlg.v2\Male\dialogs.div`** | no (dialog structure) |
+| `Localizations\English\dlg.v2\dialogtxt.dat` | different | **yes – English dialog text** |
 
-Wichtige Beobachtungen:
-- Die deutsche Steam-Version enthält **bereits** `localizations\german\dlg.v2\Male|Female` mit der 1.33-Dialogstruktur. Es fehlt nur `main\startup.v2`.
-- Die 1.0062A-EXE kennt weder `dlg.v%d` noch `startup.v%d` (Strings fehlen) – sie nutzt `dlg.v2` und `startup.v2` also nicht. Die 1.0034A-EXE sucht genau `localizations\%s\dlg.v%d` und `main\startup.v%d`.
-- Einzige sprachabhängige Datei im Patch: `dialogtxt.dat` (englisch). Für eine deutsche Installation wird sie nicht gebraucht, weil das deutsche Gegenstück schon vorhanden ist.
-- Die 1.0034A-EXE enthält CD-Abfragetexte („Bitte legen Sie die CD namens %s …“, `cdrom path`) und importiert `unrar.dll` (in Steam vorhanden), `MSVCRT.dll`, `Osiris.dll`.
+Important observations:
+- The German Steam version **already** contains `localizations\german\dlg.v2\Male|Female` with the 1.33 dialog structure. Only `main\startup.v2` is missing.
+- The 1.0062A EXE knows neither `dlg.v%d` nor `startup.v%d` (the strings are missing) – so it does not use `dlg.v2` and `startup.v2`. The 1.0034A EXE looks for exactly `localizations\%s\dlg.v%d` and `main\startup.v%d`.
+- The only language-dependent file in the patch: `dialogtxt.dat` (English). It is not needed for a German installation, because the German counterpart already exists.
+- The 1.0034A EXE contains CD prompt texts ("Bitte legen Sie die CD namens %s …", `cdrom path`) and imports `unrar.dll` (present in Steam), `MSVCRT.dll`, `Osiris.dll`.
 
-### PE-Header `div.exe` (1.0034A)
+### PE header `div.exe` (1.0034A)
 
-SHA-256 `E5664343DA564BF015CD0136E50FD1A79FC1AF1B84EAFE4D9A8760C17E427639`, Linker 6.00 (VC6), Image-Base `0x00400000`, kein ASLR, kein Large-Address-Aware.
+SHA-256 `E5664343DA564BF015CD0136E50FD1A79FC1AF1B84EAFE4D9A8760C17E427639`, linker 6.00 (VC6), image base `0x00400000`, no ASLR, not Large Address Aware.
 
-## 5. Versionslage
+## 5. Version situation
 
-- Steam/GOG 1.0062A basiert auf dem Code-Stand 1.0029A (Quellcode von 1.0034A verloren); hat Widescreen und Windows-7-Anpassungen, aber nicht alle Fixes aus 1.0034A. Spielstände zwischen den Versionen nicht kompatibel.
-- Laut Larian (Raze, Steam-Forum) unterstützt 1.0034A offiziell keine Auflösungen über 1024×768; Community-Berichte sagen, dass es mit dgVoodoo trotzdem läuft → muss getestet werden.
-- Laut RPG Codex (2003) erschien 1.34 auch für die deutsche und französische Fassung (deutsch über CDV). Eine offizielle Bezugsquelle des deutschen Patches ist noch nicht bestätigt.
+- Steam/GOG 1.0062A is based on the 1.0029A code base (source code of 1.0034A lost); it has widescreen and Windows 7 adjustments, but not all fixes from 1.0034A. Savegames are not compatible between the versions.
+- According to Larian (Raze, Steam forum), 1.0034A officially does not support resolutions above 1024×768; community reports say it works anyway with dgVoodoo → needs to be tested.
+- According to RPG Codex (2003), 1.34 was also released for the German and French versions (German via CDV). An official source for the German patch has not been confirmed yet.

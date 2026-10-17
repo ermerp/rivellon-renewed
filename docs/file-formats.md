@@ -1,12 +1,12 @@
-# Dateiformate
+# File formats
 
-Eigene Beschreibungen der Datenformate von Divine Divinity.
+Our own descriptions of Divine Divinity's data formats.
 
-## ML_FONT_01 (Schriften)
+## ML_FONT_01 (fonts)
 
-- Offset-Tabelle mit 256 Einträgen ab Byte 22; Basis-Offset 38.
-- Pro Glyph ein Header: Vorschubbreite, Zeichencode, Datengröße, Abmessungen.
-- Pixel als RGB565, nur für belegte Spannen gespeichert.
-- Negative Tabelleneinträge sind Aliase auf andere Glyphen.
+- Offset table with 256 entries starting at byte 22; base offset 38.
+- One header per glyph: advance width, character code, data size, dimensions.
+- Pixels stored as RGB565, only for occupied spans.
+- Negative table entries are aliases to other glyphs.
 
-_Details werden beim Bau von `tools/extract` ergänzt._
+_Details will be added when `tools/extract` is built._
