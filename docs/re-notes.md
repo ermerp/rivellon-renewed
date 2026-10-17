@@ -64,14 +64,21 @@ Other DLLs in the folder: `configtool.exe` imports `DDRAW.dll` (resolution list)
 
 ## 3. Decisions
 
-### Proxy DLL (Phase 0, step 4) – proposal
+### Proxy DLL (Phase 0, step 4) – decided
 
 `div.exe` statically imports only two system libraries that are suitable as a proxy: **`winmm.dll`** (1 function) and **`version.dll`** (3 functions). `dinput.dll` is **out of the question** (it is never loaded). `ddraw.dll`/`D3DImm.dll` are reserved for dgVoodoo2.
 → Confirms the favorite: **Ultimate ASI Loader as `winmm.dll`**, the mod as an `.asi`. `version.dll` as a fallback. The 1.0034A EXE imports both names as well. Note: `fmod.dll` and `binkw32.dll` also import `WINMM.dll` – they then get the same proxy instance, so the loader must forward all WINMM exports completely (which is the case for Ultimate ASI Loader).
 
-### Overlay (Phase 0, step 5) – open, to be agreed with the human
+dgVoodoo2 also ships an optional `WinMM.dll` ("OS uptime fixer", patches `timeGetTime`/`QueryPerformanceCounter`). DD does not need it; it would collide with the ASI loader's `winmm.dll` and must not be installed alongside it.
 
-_See the evaluation in the conversation; the decision will be recorded here._
+### Overlay (Phase 0, step 5) – decided: option (b)
+
+Agreed with the human on 2026-10-17:
+- **Primary backend:** dgVoodoo2 translates the game's DirectDraw/D3D6 output to Direct3D 11. The overlay hooks the D3D11/DXGI present of that output and draws with the ImGui DX11 backend.
+- **Swappable backend:** the overlay talks to the graphics layer only through a small backend interface in `src/overlay/` (init, begin frame, render draw data, resize, shutdown), so backends can be exchanged without touching overlay or feature code.
+- **Fallback backend:** drawing via the `DllSlashedEndFrame` hook, i.e. onto the renderer's own back buffer before it is presented; works without dgVoodoo (e.g. under Proton if dgVoodoo does not work there).
+- **Frame logic** (input polling, feature updates) always runs on `DllSlashedStartFrame`/`DllSlashedEndFrame`, independent of the graphics backend.
+- Options (a) (drawing on the DirectDraw surface as the *only* path) and (c) (separate transparent window: problems with full screen, focus and Proton) were not chosen; (a) survives as the fallback backend.
 
 ## 4. Patch 1.34A (English) – content analysis
 
@@ -90,7 +97,7 @@ Contents (80 files) and comparison with the German Steam installation:
 | other `Dat\*` | identical | – |
 | `Global\region.000–007` | different (same size) | no |
 | `Global\eggs.000`, `location.*` | identical | – |
-| `Main\startup.v2\*` (60 files) | missing; compared to `main\startup`, 21 files are changed (among others `story.000/001`, `items.000`, `data.000`, `world.x0`, `shroud.x*`, `inv.*`), the rest identical | no – no language texts found; `static\books.000` and `quest_log.000` are identical to Steam DE |
+| `Main\startup.v2\*` (49 files) | missing; compared to `main\startup`, 20 files are changed (among others `story.000/001`, `items.000`, `data.000`, `world.x0`, `shroud.x*`, `inv.*`), 2 are new (`mapv.1`, `mapv.2`), 27 identical | no – no language texts found; `static\books.000` and `quest_log.000` are identical to Steam DE |
 | `Localizations\English\dlg.v2\dialogids.dat` | identical to DE | no |
 | `Localizations\English\dlg.v2\dialogs.div` | **identical to Steam `german\dlg.v2\Male\dialogs.div`** | no (dialog structure) |
 | `Localizations\English\dlg.v2\dialogtxt.dat` | different | **yes – English dialog text** |
@@ -105,7 +112,19 @@ Important observations:
 
 SHA-256 `E5664343DA564BF015CD0136E50FD1A79FC1AF1B84EAFE4D9A8760C17E427639`, linker 6.00 (VC6), image base `0x00400000`, no ASLR, not Large Address Aware.
 
-## 5. Version situation
+### Working copy `C:\dev\dd-test-134` (variant A)
+
+Copy of `C:\dev\dd-test` (German, 1.0062A) with these files taken over from the English patch (hashes verified after copying):
+`div.exe`, `Osiris.dll`, `DivDialogSystem.dll`, `Dat\global.cmp`, `Dat\treasure.cmp`, `Global\region.000`–`region.007`, `main\startup.v2\` (49 files).
+Not taken: `Localizations\English\`, `slash1–4.dll` (Steam versions kept), `DoSomething.exe`, `patch.log`. Left in place from Steam: `OsirisDLL.dll` (unused by 1.0034A), `main\startup\`, `localizations\german\` incl. `dlg.v2`.
+
+## 5. dgVoodoo2
+
+- Version 2.87.5, official release `github.com/dege-diosg/dgVoodoo2`, `dgVoodoo2_87_5.zip` SHA-256 `5ffde6927f7355ca3fdd5d785b581256a8e6539fa13e395a891ade6ba1040850` (matches the GitHub digest).
+- Installed in `C:\dev\dd-test` and `C:\dev\dd-test-134`: `DDraw.dll` and `D3DImm.dll` from `MS\x86`, `dgVoodooCpl.exe`, default `dgVoodoo.conf` (so the control panel stores settings per folder).
+- Release note from the author: 32-bit games should be Large Address Aware with a modern GPU driver, because dgVoodoo adds address-space overhead → matches the 4GB patch recommendation in PLAN.md.
+
+## 6. Version situation
 
 - Steam/GOG 1.0062A is based on the 1.0029A code base (source code of 1.0034A lost); it has widescreen and Windows 7 adjustments, but not all fixes from 1.0034A. Savegames are not compatible between the versions.
 - According to Larian (Raze, Steam forum), 1.0034A officially does not support resolutions above 1024×768; community reports say it works anyway with dgVoodoo → needs to be tested.
