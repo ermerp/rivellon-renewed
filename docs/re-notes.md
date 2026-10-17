@@ -2,6 +2,29 @@
 
 Findings in our own words. **No decompiled code, no pseudocode** (see CLAUDE.md, rule 2).
 
+## 0. Setup
+
+Development machine: Windows 11 Home (build 26200).
+
+| Tool | Version | Location / source |
+|---|---|---|
+| Git | 2.55.0 | winget |
+| VS Build Tools 2022 (MSVC x86) | 17.14 | `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools` (winget) |
+| CMake / Ninja | 4.4.4 / 1.13.2 | winget |
+| Python | 3.13.15 | winget |
+| JDK (Temurin) | 21.0.12 | winget |
+| Node.js | 24.20.0 | winget |
+| x64dbg (incl. x32dbg) | 2026.05.27 | winget |
+| 7-Zip | 26.04 | winget |
+| Ghidra | 12.1.4 | `C:\tools\ghidra_12.1.4_PUBLIC` (official NSA GitHub release, SHA-256 verified) |
+| Cheat Engine | 7.7 | `C:\Program Files\Cheat Engine` (installed by the human; the 64-bit build can attach to the 32-bit game, `cheatengine-i386.exe` is also available) |
+| dgVoodoo2 | 2.87.5 | in the working copies, see §5 |
+
+**Smart App Control is disabled** on the development machine (by the human, 2026-10-17). Reason: it blocked Cheat Engine and would also block our own unsigned proxy DLL / `.asi`. Verified via registry: `HKLM\SYSTEM\CurrentControlSet\Control\CI\Policy\VerifiedAndReputablePolicyState = 0` (off).
+Consequences:
+- Unsigned binaries (our builds, game tools) can run without SAC prompts; Microsoft Defender remains active.
+- **Relevant for users (Phase 10):** on systems with Smart App Control enabled, the unsigned mod DLL and ASI loader may be blocked. Document this in the README / known issues; consider code signing for releases.
+
 ## 1. Game version (Steam, German language version)
 
 - Version according to the resources of `div.exe`: FileVersion `1, 0, 0, 62` (= 1.0062A)
