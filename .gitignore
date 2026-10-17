@@ -1,0 +1,77 @@
+# --- Spieldateien von Larian: niemals einchecken (PLAN.md, Regel 1) ---
+*.exe
+*.dll
+*.asi
+*.sys
+*.pdf
+*.000
+*.001
+*.016
+*.256
+*.cfg
+*.div
+*.lcl
+*.dat
+*.tmp
+*.tga
+*.bmp
+*.wav
+*.mp3
+*.ogg
+*.bik
+*.fnt
+/dat/
+/fonts/
+/global/
+/localizations/
+/main/
+/sound/
+/static/
+/support/
+/capture/
+/savegames/
+
+# --- Abgeleitete, lokal erzeugte Inhalte (Regel 5) ---
+cache/
+generated/
+tools/upscale/output/
+tools/tts/output/
+tools/extract/output/
+
+# --- Disassembly-Projekte und Dumps (Regel 2) ---
+*.gpr
+*.rep/
+*.gzf
+*.idb
+*.i64
+*.CT
+*.dmp
+ghidra/
+re-private/
+
+# --- Build ---
+build/
+out/
+cmake-build-*/
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+
+# --- Laufzeit ---
+ddmod.log
+*.log
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- Editor / OS ---
+.vs/
+.vscode/
+*.user
+Thumbs.db
+desktop.ini
