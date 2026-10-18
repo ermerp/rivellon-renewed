@@ -43,6 +43,7 @@ Hardware: GTX 1050 Ti (DXGI adapter 1, primary monitor 2560×1440) + Intel UHD 6
 - Ask before installing software (winget) and before any change on the Steam Deck; show the commands first.
 - Downloads only from official sources, verify SHA-256 against the published digest; scripts must abort if no unique asset is found.
 - The human keeps `PLAN.md` decisions; Claude maintains `PLAN.md` (status, results) and commits doc changes.
+- **Context handover:** after every completed phase, after a larger sub-step, and after a longer debugging session, remind the human to clear the context (`/clear`). Before that: update `PLAN.md` ("Current status" and next steps), `CLAUDE.md` and `docs/re-notes.md` (open questions) so that a new session can continue seamlessly without the previous conversation, commit everything, and suggest a start prompt for the new session.
 
 ## Build
 
