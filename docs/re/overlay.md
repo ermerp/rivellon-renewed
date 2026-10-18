@@ -26,6 +26,8 @@ Where and how ddmod draws its own overlay ("ddmod active" + FPS, later debug and
 | Cost per frame | extra lock + GDI DIB per frame | lock is counted and the game locks anyway |
 
 **Decision: B as the base backend** (A rejected, `PLAN.md`). It uses only what the game itself proves on Windows ddraw, dgVoodoo2 and WineD3D, so the Deck test in step 7 is unlikely to fail because of the drawing path, and it grows into the panels/ImGui renderer needed later. GDI is still used, but only to rasterize glyphs into memory – exactly like the game's own font path.
+**Glyph source:** the bundled free font (`PLAN.md` decisions), loaded for the process only (`AddFontResourceExW`, `FR_PRIVATE`) before rasterizing, so Windows and the Deck render identically. Until a font is chosen, the minimal overlay may fall back to a system font.
+
 ## Backend interface (planned)
 
 `src/overlay/`: a backend gets "begin frame → surface view (pointer, pitch, width, height, format) → end frame"; the text/shape renderer draws into the view. The first backend implements it with `CD3D6VideoMem`; other renderers (`slash2`–`4.dll`) and a D3D11 backend (Phase 8) plug in later.
