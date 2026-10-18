@@ -14,6 +14,7 @@ Modernization mod for Divine Divinity (Steam/GOG 1.0062A) as an `.asi` plugin lo
 | Repo | `C:\dev\dd-modern` |
 | Original game (Steam, **German**, 1.0062A) | `C:\Program Files (x86)\Steam\steamapps\common\divine_divinity` – **read only, never modify** |
 | Main working copy (1.0062A + dgVoodoo2 2.87.5 + ddmod) | `C:\dev\dd-test` – resolution 2560×1440 (keep), originals of changed configs as `*.orig` |
+| English working copy (1.0062A EN + dgVoodoo2 2.87.5 + ddmod, same setup as `dd-test`) | `C:\dev\dd-test-en` – 2560×1440, originals as `*.orig`; `div.exe` identical to German |
 | Reference copy 1.0034A (on hold, do not change) | `C:\dev\dd-test-134` |
 | Downloads (verified, outside repo) | `C:\dev\downloads` – `patch134_en\files` (unpacked patch 1.34A EN), `dgvoodoo2_87_5`, `dgvoodoo2_87_3`, `ultimate-asi-loader_9.7.4\dinput8.dll` |
 | Screenshots / fetched logs (never commit) | `C:\dev\screenshots` (Deck files in `deck\`) |
@@ -60,6 +61,8 @@ PowerShell module `tools/testrun/DdTest.psm1` (refuses the Steam folder):
 
 `tools/testrun/Start-GameTest.ps1 -GameDir C:\dev\dd-test [-NoIntro] [-PressEscapeAt 4,8,…] -Seconds 15 -Count 2 -Interval 10`:
 starts the game windowed (temporarily `FullScreenMode=false` in `dgVoodoo.conf`), saves screenshots to `C:\dev\screenshots`, kills the game, restores configs and the run markers `init.cfg`/`sinfo.000`, answers the "not correctly terminated" dialog with **No**, prints `ddmod.log`. View screenshots with the Read tool. Crash details: Windows event log, Application, ID 1000.
+
+**Every phase is tested in both working copies:** `C:\dev\dd-test` (German) and `C:\dev\dd-test-en` (English) – install with `Install-DdMod` and run `Start-GameTest.ps1` for each; record both results in `docs/testing.md`. Language-dependent features (dialogs, books, fonts, TTS) need both in particular.
 
 Pitfalls: the game treats a kill as a crash (run markers); **never answer "Yes"** to the reset dialog; after repeated crashes the game may reset `config.div` and delete `slashed-d3d6.cfg` by itself → restore from backup. The game rewrites `config.div` on exit. Resolution lives in `config.div` **and** `slashed-d3d6.cfg` (offsets 0x0C/0x10).
 

@@ -41,6 +41,25 @@ Consequences:
 | binkw32.dll | 357 939 | `65D87646770FA871A58D9D27CDFB5A1AD991DD64900F0EA35B0678457C902D41` |
 | fmod.dll | 127 488 | `1DF3354B63EC6668A4831FCD02D12F36A6E4707435505F5C55DAD2F4AB62EEE9` |
 
+### German vs. English Steam installation (compared 2026-10-18)
+
+English copy: `C:\dev\dd-test-en` (Steam switched to English, 154 MB download, then copied). Compared file by file (SHA-256) with `C:\dev\dd-test`.
+
+- **`div.exe` is byte-identical** (same SHA-256 as above), as are `configtool.exe`, `DivDialogSystem.dll`, `OsirisDLL.dll`, `slash1.dll`, `binkw32.dll`, `fmod.dll`. The known-build entry "1.0062A (Steam)" therefore covers both languages; signatures and RVAs are the same.
+- 364 files are identical, including all graphics (`static/`), `dat/sound.cmp`, the videos and the fonts.
+- **Language-dependent files:**
+
+| File | German | English |
+|---|---|---|
+| `config.lcl` | `language 2` | `language 1`, plus `debug on` and `startup logo 0` (as delivered by the Steam download) |
+| `keylist.txt` | German comment lines | English comment lines (bindings identical) |
+| `dd_manual.pdf`, `Story.pdf` | German manual (12.4 MB), story | English manual (1.1 MB), story |
+| `dat/<Language>/itemgen.cmp` | `dat/German/` (22 856 B) | `dat/English/` (22 349 B) |
+| `localizations/<language>/` | `german/`: `hints.txt`, `mono.cmp`, `skills.txt`, `text.cmp`, `voice.cmp` (171 MB) + dialog files **per player gender** in `male/`, `female/` and again in `dlg.v2/Male`, `dlg.v2/Female` (`dialogids.dat`, `dialogs.div`, `dialogtxt.dat`) | `english/`: the same five files (`voice.cmp` 161 MB) + **one** set of dialog files directly in the folder (no gender split) |
+
+- **Runtime state, not language** (differs only because the copies were played/started differently): `config.div`, `slashed-d3d6.cfg`, `init.cfg`, `persist.dat`, `mapids.000`, `dynamic/*`, `savegames/`, `dat/skillcosts.txt` (only in `dd-test`, written by the game 2026-10-17), `dat/usernotes.bin` (only in the English copy). The English copy contains runtime files from a start of the game in the Steam folder around 12:50 on 2026-10-18 (before the copy).
+- Consequences for the mod: one set of signatures for both languages. Language matters for the dialog loader (German: gender-specific dialog folders), text lengths in custom dialog boxes (Phase 6) and TTS voices (Phase 7).
+
 ### PE header `div.exe` (1.0062A)
 
 - Linker 9.00 (VS 2008), timestamp 2013-04-19, runtime `MSVCR90.dll`
@@ -182,7 +201,9 @@ Interpretation (to be verified): 1.0034A does not find the movies (it expects th
 
 ## 9. Open questions / to do later
 
-- **Hashes of other builds:** only the German Steam `div.exe` is known (same hash on PC and Deck). Is the English Steam / GOG `div.exe` byte-identical? If not, add its hash to `kKnownBuilds` in `src/game/exe.cpp` once verified.
+- **Hashes of other builds:** German and English Steam `div.exe` are identical (§1), also on the Deck. GOG not checked yet – if it differs, add its hash to `kKnownBuilds` in `src/game/exe.cpp` once verified.
+- **`debug on` in the English `config.lcl`:** what does it enable? (Not present in the German file.)
+- **Sprite formats (§10):** decode the `.bic`/`CPackedb` compression and render a frame to confirm the direction count (hypothesis: 20) and the pixel format; check where NPCs and animated objects (candles) live (imagelists?) and what `apacked*` contains. Compare with Raanar's DDEditor, which already displays the game's graphics.
 - **Hook timing:** ddmod currently initializes everything inside `DllMain` (loader lock). Hashing and `MH_Initialize` are safe there, but enabling hooks suspends other threads – for the first game hooks, decide whether to enable them from `DllMain` (game threads not running yet?) or defer to a later point (e.g. first window message / first `GetProcAddress` of `slash1.dll`).
 
 - **Color depth** the game renders in (16-bit RGB565? `rgb 565` in the Deck's `config.div`, fonts are RGB565) – clarify with the first overlay (Phase 1 step 6).
@@ -195,6 +216,17 @@ Interpretation (to be verified): 1.0034A does not find the movies (it expects th
 - **Phase 9 idea:** load `startup.v2` with the 1.0062A EXE (Osiris/format compatibility).
 - **Walk/run threshold:** find the distance check (first feature after Phase 1).
 - `"ddmod unloading"` log line after a normal exit via the menu – not verified yet (script kills the game).
+
+## 10. Graphics assets: pre-rendered 2D sprites, not 3D models (2026-10-18)
+
+Checked from the files in `C:\dev\dd-test` (headers, sizes, index statistics; analysis scripts only in the scratchpad, no game data in the repo). Layouts: `docs/file-formats.md`.
+
+- **No 3D models anywhere:** no mesh/model files in the installation; the EXE's own names are sprite-based (classes for abstract, sorted, blocker and bridge sprites, sprite lists, sprite particles; log line "Activating sprite engine"). Direct3D 6 is only used to draw and blend 2D images.
+- **Player characters** (`static/heroes/`): pre-rendered sprites per class and gender (`sur`, `war`, `wiz` × `m`, `f`), each split into five sheets `A`–`E` (`.bic` image data + `.idc` frame index) plus a `.key` animation table. The male warrior alone has 179 320 frames (A 16 440, B 40 480, C 56 720, D 40 480, E 25 200); largest frame 236×253 px. The many variants per animation (suffix `0`–`3`, `A`–`O`) most likely are equipment/weapon looks – every look is its own full set of pre-rendered frames.
+- **Animation layout (hypothesis, from index statistics):** animations have 480, 320, 200 or 120 frames. Frame size and hotspot change smoothly inside blocks of 24 / 16 / 10 / 6 frames and jump between blocks; the block averages rotate periodically (two width cycles per 20 blocks). Most likely **20 directions** with 24 / 16 / 10 / 6 frames per direction. The EXE builds the direction tables from the key data (error string about "too many directions"). To be confirmed visually by decoding a frame.
+- **World objects** (`static/imagelists/`): 13 image lists (`CPackedi.N` index + `CPackedb.N` data), 98 761 images in total, the largest list (`CPackedb.1c`, 386 MB, 78 853 images) probably holds NPCs/creatures; plus `apacked*` (likely animation tables), `Collide.N` and `roofs.000`. The object table in the EXE has `AnimationIndex` and `sb_dont_loop_animation` columns → animated objects such as candles are sprite sequences too. Not yet verified which list holds what.
+- **Color depth: 16 bit.** The game warns if the desktop is not set to 16 bit, `config.div` stores `rgb 565` or `rgb 555`, and the renderer has `bpp16add` (additive) and `bpp8alpha` modes for effects. Frame data is compressed (about 0.15 bytes per pixel after the index level, so transparent areas are skipped like in the fonts).
+- **Relevance:** Phase 8 upscaling has to deal with hundreds of thousands of frames and a custom compressed format (a local tool must decode and re-encode it, or the mod must load replacement frames); zoom/3D ideas (Phase 8 item 7) must work with flat sprites plus hotspots.
 
 ## 8. Version situation
 
