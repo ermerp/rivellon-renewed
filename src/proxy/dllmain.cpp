@@ -14,6 +14,7 @@
 #include "game/exe.h"
 #include "game/window.h"
 #include "input/input.h"
+#include "overlay/overlay.h"
 
 namespace {
 
@@ -44,12 +45,17 @@ void OnTestHotkey() { ddmod::log::Info("Test hotkey pressed"); }
 void OnGameWindow(HWND window) {
     using namespace ddmod;
     if (hooks::Init()) log::Info("Hook manager ready (MinHook)");
-    if (!config::GetBool("Features", "InputHook", true)) {
+    if (config::GetBool("Features", "InputHook", true)) {
+        input::RegisterHotkey("TestHotkey", "Ctrl+Shift+F3", &OnTestHotkey);
+        input::Install(window);
+    } else {
         log::Info("Input hook disabled ([Features] InputHook=0)");
-        return;
     }
-    input::RegisterHotkey("TestHotkey", "Ctrl+Shift+F3", &OnTestHotkey);
-    input::Install(window);
+    if (config::GetBool("Features", "Overlay", true)) {
+        overlay::Install();
+    } else {
+        log::Info("Overlay disabled ([Features] Overlay=0)");
+    }
 }
 
 void Startup(HMODULE self) {

@@ -56,19 +56,26 @@ These globals are only documented, never used as fixed addresses: `DllSlashedEnd
 
 - **Full screen:** primary surface with one attached back buffer (flip chain, 3D-device capable). Display modes are enumerated and only **16-bit** RGB modes of at least 640 pixels width are offered.
 - **Windowed:** primary surface with a clipper on the game window, plus an off-screen back buffer in video memory (3D-device capable) with the desktop's pixel format.
-- **`CD3D6VideoMem`** (created on the back buffer): checks the back buffer's pixel format. If it is 16-bit RGB565 or RGB555, it gives direct access to it; otherwise (e.g. windowed on a 32-bit desktop) it creates a 565 off-screen "conversion surface". Vtable layout (byte offsets):
+- **`CD3D6VideoMem`** (0x30 bytes, constructor `0x10003690` with width, height, DirectDraw object and back buffer; vtable `0x1004327C`): checks the back buffer's pixel format. If it is 16-bit RGB565 or RGB555, it gives direct access to it; otherwise (e.g. windowed on a 32-bit desktop) it also creates a 565 off-screen "conversion surface" in system memory.
+
+Virtual methods (thiscall, vtable byte offsets):
 
 | Offset | Method |
 |---|---|
-| `+0x04` | lock (counted – nested locks only lock once; waits while the surface is busy, restores a lost surface) |
-| `+0x08` | unlock (counted) |
-| `+0x0C` | address of pixel (x, y) – `base + y·pitch + 2·x` |
+| `+0x04` | lock, no arguments – counted (only the first call locks); **always locks the real back buffer**, also when it is not 16 bit. Retries while the surface is busy; restores a lost surface and retries once – if that fails too, the count stays unchanged and the base pointer null |
+| `+0x08` | unlock (counted; the last one unlocks the surface and clears the base pointer) |
+| `+0x0C` | address of pixel (x, y) – `base + y·pitch + 2·x` (only meaningful for 16-bit) |
 | `+0x10` | base pointer of the locked surface (null when not locked) |
 | `+0x1C` / `+0x20` | width / height |
 | `+0x24` | pitch in bytes |
 | `+0x28` | "direct 16-bit access" flag |
+| `+0x2C`, `+0x30`, `+0x34` | copy a rectangle of 16-bit pixels from a game buffer into the frame (variants with/without blending); all end in the internal copy at `+0x38` |
+| `+0x38` | internal copy: direct access → writes the pixels into the locked back buffer; otherwise reads the target area of the back buffer into the conversion surface (`GetDC` on both + GDI `BitBlt`), writes the 565 pixels there, and copies it back the same way |
 
-  `div.exe` caches the `GetInfo` results 0–5 in globals after every (re)configuration (around `0x557B40`; it also sets `+0x2C` of the configuration block to 1). Its frame functions – about 15 different loops (game, menus, loading screens, credits) each call `StartFrame` … `EndFrame` – lock this object, write 16-bit pixels through its base pointer, unlock it and pass it to the sprite container, all **while the Direct3D scene is open**. So locking the back buffer mid-scene is something the game itself does on Windows ddraw, dgVoodoo2 and WineD3D.
+Data members (byte offsets): `+0x04`/`+0x08` width/height, `+0x0C` pitch, `+0x10` direct flag, `+0x14` base pointer, `+0x18` lock count, `+0x1C` (byte) 1 = 565, `+0x20` DirectDraw object, `+0x24` back buffer (`IDirectDrawSurface4`), `+0x28` set while the internal copy works on the conversion surface, `+0x2C` conversion surface (null with direct access).
+
+  `div.exe` caches the `GetInfo` results 0–5 in globals after every (re)configuration (around `0x557B40`; it also sets `+0x2C` of the configuration block to 1). Its frame functions – about 15 different loops (game, menus, loading screens, credits) each call `StartFrame` … `EndFrame` – lock this object, write 16-bit pixels through its base pointer (direct access) or through the copy methods, unlock it and pass it to the sprite container, all **while the Direct3D scene is open**. So locking the back buffer mid-scene is something the game itself does on Windows ddraw, dgVoodoo2 and WineD3D; with a non-16-bit back buffer it additionally uses `GetDC` on it mid-scene.
+- **dgVoodoo2 2.87.5 windowed** (2560×1440, 32-bit desktop) reports a **16-bit RGB565** back buffer – direct access, no conversion surface (T1.6-W).
 
 ## Hook point for the overlay
 

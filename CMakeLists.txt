@@ -45,6 +45,10 @@ add_library(ddmod_core STATIC
     src/game/window.cpp
     src/input/keys.cpp
     src/input/input.cpp
+    src/overlay/surface.cpp
+    src/overlay/glyphs.cpp
+    src/overlay/d3d6.cpp
+    src/overlay/overlay.cpp
 )
 target_include_directories(ddmod_core PUBLIC src)
 target_compile_definitions(ddmod_core PUBLIC

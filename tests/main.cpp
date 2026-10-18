@@ -1,5 +1,6 @@
 // Unit tests for the parts of ddmod that do not need the game: SHA-256, pattern parsing and
-// matching, PE section scanning, the MinHook wrapper, the hotkey parser and log rotation.
+// matching, PE section scanning, the MinHook wrapper, the hotkey parser, log rotation and the
+// overlay's pixel, blend and glyph code.
 // Exit code 0 = all passed.
 
 #include <cstdint>
@@ -7,6 +8,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -20,6 +22,8 @@
 #include "core/scanner.h"
 #include "core/sha256.h"
 #include "input/keys.h"
+#include "overlay/glyphs.h"
+#include "overlay/surface.h"
 
 namespace {
 
@@ -283,6 +287,145 @@ void TestLogRotation() {
     fs::remove_all(dir);
 }
 
+bool Same(ddmod::overlay::Rgb a, ddmod::overlay::Rgb b) { return a.r == b.r && a.g == b.g && a.b == b.b; }
+
+void TestPixelFormats() {
+    using namespace ddmod::overlay;
+    CHECK(Pack(PixelFormat::Rgb565, {255, 255, 255}) == 0xFFFF);
+    CHECK(Pack(PixelFormat::Rgb555, {255, 255, 255}) == 0x7FFF);
+    CHECK(Pack(PixelFormat::Xrgb8888, {0x12, 0x34, 0x56}) == 0x123456);
+    CHECK(Pack(PixelFormat::Rgb565, {255, 0, 0}) == 0xF800);
+    CHECK(Pack(PixelFormat::Rgb565, {0, 255, 0}) == 0x07E0);
+    CHECK(Pack(PixelFormat::Rgb555, {0, 255, 0}) == 0x03E0);
+    CHECK(Pack(PixelFormat::Rgb555, {0, 0, 255}) == 0x001F);
+    // Expanding 5/6-bit channels reaches full white and black.
+    CHECK(Same(Unpack(PixelFormat::Rgb565, 0xFFFF), {255, 255, 255}));
+    CHECK(Same(Unpack(PixelFormat::Rgb555, 0x7FFF), {255, 255, 255}));
+    CHECK(Same(Unpack(PixelFormat::Rgb565, 0x0000), {0, 0, 0}));
+    CHECK(Same(Unpack(PixelFormat::Xrgb8888, 0xFF123456), {0x12, 0x34, 0x56}));  // X byte ignored
+    // Round trip keeps the representable bits.
+    for (const PixelFormat f : {PixelFormat::Rgb565, PixelFormat::Rgb555}) {
+        bool ok = true;
+        for (std::uint32_t p = 0; p < 0x10000; ++p) {
+            const std::uint32_t v = f == PixelFormat::Rgb555 ? (p & 0x7FFF) : p;
+            ok &= Pack(f, Unpack(f, v)) == v;
+        }
+        CHECK(ok);
+    }
+}
+
+void TestBlend() {
+    using namespace ddmod::overlay;
+    const Rgb black{0, 0, 0}, white{255, 255, 255};
+    CHECK(Same(Mix(black, white, 0), black));
+    CHECK(Same(Mix(black, white, 255), white));
+    CHECK(Same(Mix(black, white, 128), {128, 128, 128}));
+    CHECK(Same(Mix({100, 200, 50}, {200, 0, 50}, 51), {120, 160, 50}));
+}
+
+void TestFillAndMask() {
+    using namespace ddmod::overlay;
+    // 4x3 RGB565 surface with a padded pitch (12 bytes = 6 pixels); the padding must stay untouched.
+    std::uint16_t pixels[3 * 6] = {};
+    for (auto& p : pixels) p = 0x1234;
+    SurfaceView view{reinterpret_cast<std::uint8_t*>(pixels), 12, 4, 3, PixelFormat::Rgb565};
+    const auto at = [&](int x, int y) { return pixels[y * 6 + x]; };
+
+    FillRect(view, -2, -1, 4, 3, {255, 255, 255}, 255);  // clipped to (0,0)-(1,1)
+    CHECK(at(0, 0) == 0xFFFF && at(1, 1) == 0xFFFF);
+    CHECK(at(2, 0) == 0x1234 && at(0, 2) == 0x1234);
+    FillRect(view, 3, 2, 10, 10, {0, 0, 0}, 255);  // clipped to (3,2)
+    CHECK(at(3, 2) == 0x0000 && at(4, 2) == 0x1234 && at(5, 2) == 0x1234);  // padding
+    FillRect(view, 10, 10, 2, 2, {0, 0, 0}, 255);  // fully outside
+    FillRect(view, 0, 0, 4, 3, {0, 0, 0}, 0);      // alpha 0
+    CHECK(at(0, 0) == 0xFFFF);
+
+    // Mask 3x2: opaque, half, none / none, opaque, opaque, drawn at (2, 1) -> right column clipped.
+    for (auto& p : pixels) p = 0x0000;
+    const std::uint8_t mask[] = {255, 128, 0, 0, 255, 255};
+    DrawMask(view, 2, 1, mask, 3, 2, 3, {255, 255, 255}, 255);
+    CHECK(at(2, 1) == 0xFFFF);
+    CHECK(Same(Unpack(PixelFormat::Rgb565, at(3, 1)), Unpack(PixelFormat::Rgb565, Pack(PixelFormat::Rgb565, {128, 128, 128}))));
+    CHECK(at(2, 2) == 0x0000 && at(3, 2) == 0xFFFF);
+    CHECK(at(4, 1) == 0x0000 && at(4, 2) == 0x0000);  // clipped column lands in the padding
+    CHECK(at(1, 1) == 0x0000 && at(2, 0) == 0x0000);
+
+    // 32-bit surface: the X byte is written as 0.
+    std::uint32_t wide[2] = {0xAABBCCDD, 0xAABBCCDD};
+    SurfaceView view32{reinterpret_cast<std::uint8_t*>(wide), 8, 2, 1, PixelFormat::Xrgb8888};
+    FillRect(view32, 1, 0, 1, 1, {0x11, 0x22, 0x33}, 255);
+    CHECK(wide[0] == 0xAABBCCDD && wide[1] == 0x00112233);
+}
+
+// Glyph source with fixed 2x2 glyphs; 'x' is "missing".
+class FakeGlyphs final : public ddmod::overlay::GlyphSource {
+public:
+    int calls = 0;
+    int LineHeight() const override { return 10; }
+    bool Rasterize(wchar_t ch, ddmod::overlay::Glyph& out) override {
+        ++calls;
+        if (ch == L'x') return false;
+        out = {};
+        out.advance = ch == L'?' ? 7 : 5;
+        if (ch == L' ') return true;
+        out.width = out.height = 2;
+        out.offsetX = 1;
+        out.offsetY = 3;
+        out.coverage.assign(4, 255);
+        return true;
+    }
+};
+
+void TestGlyphCache() {
+    using namespace ddmod::overlay;
+    auto source = std::make_unique<FakeGlyphs>();
+    FakeGlyphs* fake = source.get();
+    GlyphCache cache(std::move(source));
+    CHECK(cache.LineHeight() == 10);
+    CHECK(MeasureString(cache, L"ab a") == 20);
+    CHECK(fake->calls == 3);  // 'a' is rasterized once
+    CHECK(cache.Get(L'x').advance == 7);  // missing -> '?'
+    const int calls = fake->calls;
+    cache.Get(L'x');
+    CHECK(fake->calls == calls);  // the fallback is cached too
+
+    std::uint16_t pixels[10 * 10] = {};
+    SurfaceView view{reinterpret_cast<std::uint8_t*>(pixels), 20, 10, 10, PixelFormat::Rgb565};
+    DrawString(view, cache, 0, 0, L"a a", {255, 255, 255}, false);
+    // First 'a' at pen 0: mask at (1,3)-(2,4); the space advances 5; the second 'a' at pen 10 is off-surface.
+    CHECK(pixels[3 * 10 + 1] == 0xFFFF && pixels[4 * 10 + 2] == 0xFFFF);
+    CHECK(pixels[3 * 10 + 0] == 0 && pixels[2 * 10 + 1] == 0 && pixels[3 * 10 + 3] == 0);
+    for (auto& p : pixels) p = 0xFFFF;
+    DrawString(view, cache, 0, 0, L"a", {255, 255, 255}, true);  // shadow one pixel down-right
+    CHECK(pixels[3 * 10 + 1] == 0xFFFF);                           // text over its shadow
+    CHECK(pixels[5 * 10 + 3] != 0 && pixels[5 * 10 + 3] != 0xFFFF);  // shadow only, blended
+}
+
+void TestGdiGlyphs() {
+    using namespace ddmod::overlay;
+    FontSpec spec;  // Tahoma bold 16 px, installed on every Windows
+    auto source = CreateGdiGlyphSource(spec);
+    CHECK(source != nullptr);
+    if (!source) return;
+    CHECK(source->LineHeight() >= 16);
+    Glyph glyph;
+    CHECK(source->Rasterize(L'M', glyph));
+    CHECK(glyph.width > 4 && glyph.height > 8 && glyph.advance > glyph.width / 2);
+    CHECK(glyph.coverage.size() == static_cast<std::size_t>(glyph.width) * glyph.height);
+    bool opaque = false;
+    for (const auto c : glyph.coverage) opaque |= c == 255;
+    CHECK(opaque);
+    CHECK(glyph.offsetY >= 0 && glyph.offsetY + glyph.height <= source->LineHeight());
+    Glyph umlaut;
+    CHECK(source->Rasterize(L'\u00C4', umlaut) && umlaut.height > glyph.height);  // Ä is taller than M
+    Glyph space;
+    CHECK(source->Rasterize(L' ', space) && space.coverage.empty() && space.advance > 0);
+
+    FontSpec missing;
+    missing.file = std::filesystem::temp_directory_path() / L"ddmod-no-such-font.ttf";
+    CHECK(CreateGdiGlyphSource(missing) != nullptr);  // falls back to the installed face
+}
+
 }  // namespace
 
 int main() {
@@ -293,6 +436,11 @@ int main() {
     TestHooks();
     TestKeyCombo();
     TestLogRotation();
+    TestPixelFormats();
+    TestBlend();
+    TestFillAndMask();
+    TestGlyphCache();
+    TestGdiGlyphs();
     std::printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

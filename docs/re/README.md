@@ -7,8 +7,8 @@ Findings in our own words – **no decompiled code, no pseudocode** (CLAUDE.md r
 | [open-questions.md](open-questions.md) | Open questions and next RE tasks, by priority |
 | [game-version.md](game-version.md) | 1.0062A hashes, PE header, German vs. English files, version history |
 | [architecture.md](architecture.md) | Imports, renderer plugins (`slash*.dll`), input/audio/video/dialog APIs, proxy and overlay decisions |
-| [renderer-d3d6.md](renderer-d3d6.md) | `slash1.dll` internals: how `div.exe` binds it, exports, DirectDraw/D3D6 objects, `DllSlashedGetInfo`, `CD3D6VideoMem`, `slashed-d3d6.cfg` layout |
-| [overlay.md](overlay.md) | Overlay hook point (`DllSlashedEndFrame`), GDI-on-surface vs. own glyph blitter, backend interface |
+| [renderer-d3d6.md](renderer-d3d6.md) | `slash1.dll` internals: how `div.exe` binds it, exports, DirectDraw/D3D6 objects, `DllSlashedGetInfo`, `CD3D6VideoMem` methods and members, `slashed-d3d6.cfg` layout |
+| [overlay.md](overlay.md) | Overlay hook point (`DllSlashedEndFrame`), drawing through `CD3D6VideoMem`, pixel formats, glyph source and font, backend interface |
 | [text-rendering.md](text-rendering.md) | `use8bitfont 0` GDI font path (`CreateFontA`, `GetGlyphOutlineA`, glyph cache), code-page consequences |
 | [config-files.md](config-files.md) | `config.div`/`config.lcl`/`slashed*.cfg`, run markers, settings object and all config keys |
 | [developer-mode.md](developer-mode.md) | Developer flag (settings `+0x28`) and the forum byte patch |
