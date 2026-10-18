@@ -62,6 +62,8 @@ PowerShell module `tools/testrun/DdTest.psm1` (refuses the Steam folder):
 `tools/testrun/Start-GameTest.ps1 -GameDir C:\dev\dd-test [-NoIntro] [-PressEscapeAt 4,8,…] -Seconds 15 -Count 2 -Interval 10`:
 starts the game windowed (temporarily `FullScreenMode=false` in `dgVoodoo.conf`), saves screenshots to `C:\dev\screenshots`, kills the game, restores configs and the run markers `init.cfg`/`sinfo.000`, answers the "not correctly terminated" dialog with **No**, prints `ddmod.log`. View screenshots with the Read tool. Crash details: Windows event log, Application, ID 1000.
 
+**Screenshots: only of the game window, never of the desktop.** If no game window exists (game exited, not started yet, only a dialog of another program), take no screenshot – skip it and report that. The desktop can show private data (it once exposed credentials). Never open desktop-sized images.
+
 **Every phase is tested in both working copies:** `C:\dev\dd-test` (German) and `C:\dev\dd-test-en` (English) – install with `Install-DdMod` and run `Start-GameTest.ps1` for each; record both results in `docs/testing.md`. Language-dependent features (dialogs, books, fonts, TTS) need both in particular.
 
 Pitfalls: the game treats a kill as a crash (run markers); **never answer "Yes"** to the reset dialog; after repeated crashes the game may reset `config.div` and delete `slashed-d3d6.cfg` by itself → restore from backup. The game rewrites `config.div` on exit. Resolution lives in `config.div` **and** `slashed-d3d6.cfg` (offsets 0x0C/0x10).
