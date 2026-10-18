@@ -1,7 +1,7 @@
 // Unit tests for the parts of ddmod that do not need the game: SHA-256, pattern parsing and
 // matching, PE section scanning, the MinHook wrapper, the hotkey parser, log rotation and the
 // overlay's pixel, blend and glyph code
-// (including the ML_FONT_01 bitmap font reader).
+// (including the ML_FONT_01 bitmap font reader) and the font chain.
 // Exit code 0 = all passed.
 
 #include <cstdint>
@@ -22,6 +22,7 @@
 #include "core/pattern.h"
 #include "core/scanner.h"
 #include "core/sha256.h"
+#include "fonts/fontchain.h"
 #include "input/keys.h"
 #include "overlay/fnt.h"
 #include "overlay/glyphs.h"
@@ -486,6 +487,29 @@ void TestFntFont() {
     std::filesystem::remove(path);
 }
 
+void TestFontChain() {
+    using namespace ddmod::fonts;
+    const std::filesystem::path base = L"C:\\mod";
+    const auto chain = ParseChain(" Tahoma ,, DejaVu Sans Condensed @ ddmod_fonts\\D.ttf , X @ C:\\abs\\x.ttf,@ only.ttf", base);
+    CHECK(chain.size() == 3);
+    if (chain.size() == 3) {
+        CHECK(chain[0].face == L"Tahoma" && chain[0].file.empty());
+        CHECK(chain[1].face == L"DejaVu Sans Condensed" && chain[1].file == base / L"ddmod_fonts\\D.ttf");
+        CHECK(chain[2].face == L"X" && chain[2].file == L"C:\\abs\\x.ttf");
+    }
+    CHECK(ParseChain("", base).empty());
+    CHECK(ParseChain(kDefaultChain, base).size() == 2);
+
+    // A missing face is skipped (GDI would substitute it), an installed one is taken.
+    auto picked = Resolve(ParseChain("No Such Face 4711, Tahoma", base), true);
+    CHECK(picked && picked->face == L"Tahoma");
+    // The bundled fallback font loads from its file for this process only.
+    const std::filesystem::path assets = std::filesystem::path(DDMOD_SOURCE_DIR) / L"assets";
+    picked = Resolve(ParseChain("No Such Face 4711, DejaVu Sans Condensed @ fonts\\DejaVuSansCondensed-Bold.ttf", assets), true);
+    CHECK(picked && picked->face == L"DejaVu Sans Condensed");
+    CHECK(!Resolve(ParseChain("No Such Face 4711, Y @ missing.ttf", assets), true));
+}
+
 }  // namespace
 
 int main() {
@@ -502,6 +526,7 @@ int main() {
     TestGlyphCache();
     TestGdiGlyphs();
     TestFntFont();
+    TestFontChain();
     std::printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

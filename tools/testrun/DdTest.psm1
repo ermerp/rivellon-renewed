@@ -141,6 +141,10 @@ function Install-DdMod {
     }
     Copy-Item -LiteralPath $AsiLoader -Destination $winmm -Force
     Copy-Item -LiteralPath $asi -Destination (Join-Path $dir 'ddmod.asi') -Force
+    # Bundled fallback font and its license (font chain in ddmod.ini, [Fonts]).
+    $fonts = Join-Path $dir 'ddmod_fonts'
+    New-Item -ItemType Directory -Force -Path $fonts | Out-Null
+    Copy-Item -Path (Join-Path $repo 'assets\fonts\*') -Destination $fonts -Force
     $ini = Join-Path $dir 'ddmod.ini'
     if ($ResetIni -or -not (Test-Path -LiteralPath $ini)) {
         Copy-Item -LiteralPath (Join-Path $repo 'config\ddmod.ini') -Destination $ini -Force
@@ -164,6 +168,8 @@ function Uninstall-DdMod {
         }
     }
     foreach ($f in 'ddmod.asi', 'ddmod.log', 'ddmod.prev.log') { Remove-Item -LiteralPath (Join-Path $dir $f) -ErrorAction SilentlyContinue }
+    $fonts = Join-Path $dir 'ddmod_fonts'
+    if (Test-Path -LiteralPath $fonts) { Remove-Item -LiteralPath $fonts -Recurse -Force }
     Write-Host "ddmod removed from $dir (ddmod.ini kept)"
 }
 

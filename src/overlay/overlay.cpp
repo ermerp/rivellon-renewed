@@ -11,6 +11,7 @@
 #include "core/hooks.h"
 #include "core/log.h"
 #include "core/paths.h"
+#include "fonts/fontchain.h"
 #include "overlay/backend.h"
 #include "overlay/glyphs.h"
 
@@ -21,8 +22,7 @@ using EndFrameFn = int(__cdecl*)();
 
 struct Settings {
     bool showFps = true;
-    std::wstring fontFace;
-    std::filesystem::path fontFile;
+    std::wstring fontFace;  // from the font chain ([Fonts] Chain)
     int fontSize = 0;  // 0 = from the frame height
 };
 
@@ -53,13 +53,8 @@ std::wstring Widen(const std::string& text) {
 Settings ReadSettings() {
     Settings s;
     s.showFps = config::GetBool("Overlay", "ShowFps", true);
-    s.fontFace = Widen(config::GetString("Overlay", "FontFace", "Tahoma"));
-    if (s.fontFace.empty()) s.fontFace = L"Tahoma";
-    const std::wstring file = Widen(config::GetString("Overlay", "FontFile", ""));
-    if (!file.empty()) {
-        s.fontFile = file;
-        if (s.fontFile.is_relative()) s.fontFile = paths::ModDir() / s.fontFile;
-    }
+    const auto& font = fonts::Configured();
+    s.fontFace = font ? font->face : L"Tahoma";  // nothing available: let GDI substitute
     s.fontSize = std::clamp(config::GetInt("Overlay", "FontSize", 0), 0, 96);
     return s;
 }
@@ -81,7 +76,6 @@ GlyphCache* GlyphsFor(State& st, int frameHeight) {
     if (st.glyphs && st.glyphsForHeight == frameHeight) return st.glyphs->LineHeight() > 0 ? st.glyphs.get() : nullptr;
     FontSpec spec;
     spec.face = st.settings.fontFace;
-    spec.file = st.settings.fontFile;
     spec.pixelHeight = st.settings.fontSize > 0 ? st.settings.fontSize : std::clamp(frameHeight / 60, 12, 48);
     st.glyphs = std::make_unique<GlyphCache>(CreateGdiGlyphSource(spec));
     st.glyphsForHeight = frameHeight;

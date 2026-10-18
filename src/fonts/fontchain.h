@@ -1,0 +1,38 @@
+#pragma once
+
+#include <filesystem>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace ddmod::fonts {
+
+// One entry of the font chain ([Fonts] Chain in ddmod.ini): a face name, optionally with a font
+// file that is loaded for this process only before the face is tried.
+struct FontEntry {
+    std::wstring face;
+    std::filesystem::path file;  // empty = installed font
+};
+
+// Parses "Tahoma, DejaVu Sans Condensed @ ddmod_fonts\DejaVuSansCondensed-Bold.ttf": entries are
+// separated by ',', an optional file follows '@' and is relative to `baseDir` unless absolute.
+// Empty entries are skipped.
+std::vector<FontEntry> ParseChain(std::string_view text, const std::filesystem::path& baseDir);
+
+// Tries the entries in order and returns the first face GDI really provides: its file (if any)
+// is registered with AddFontResourceExW(FR_PRIVATE) and stays registered for the process; the
+// face counts as available only if GDI selects exactly that face (GetTextFaceW) instead of a
+// substitute. Logs every step and the face that is used. nullopt if no entry works.
+std::optional<FontEntry> Resolve(const std::vector<FontEntry>& chain, bool bold);
+
+// [Fonts] Chain from ddmod.ini (default kDefaultChain, files relative to the mod folder), resolved
+// for a bold face on first use; later calls return the same result. Thread-safe.
+const std::optional<FontEntry>& Configured();
+
+// The default chain: Tahoma (system font on Windows; Proton brings its own), then the bundled
+// DejaVu Sans Condensed Bold.
+constexpr const char* kDefaultChain =
+    "Tahoma, DejaVu Sans Condensed @ ddmod_fonts\\DejaVuSansCondensed-Bold.ttf";
+
+}  // namespace ddmod::fonts

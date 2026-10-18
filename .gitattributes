@@ -1,0 +1,2 @@
+# Fonts are binary; never touch line endings.
+*.ttf binary

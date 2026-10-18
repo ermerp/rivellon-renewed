@@ -26,3 +26,5 @@ This project contains **no game files** and requires a legally purchased copy of
 Own code under the [MIT License](LICENSE).
 
 Third-party code: [MinHook](https://github.com/TsudaKageyu/minhook) by Tsuda Kageyu (BSD 2-Clause License), statically linked into `ddmod.asi`; its license text must ship with binary releases.
+
+Bundled font: DejaVu Sans Condensed Bold from [DejaVu Fonts](https://dejavu-fonts.github.io/) 2.37 (`assets/fonts/`, installed as `ddmod_fonts\`), under the Bitstream Vera / DejaVu license in `assets/fonts/LICENSE-DejaVu.txt`. It is only a fallback: ddmod uses the system font Tahoma when it is available (`[Fonts] Chain` in `ddmod.ini`).

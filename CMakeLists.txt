@@ -46,6 +46,8 @@ add_library(ddmod_core STATIC
     src/game/fontlog.cpp
     src/input/keys.cpp
     src/input/input.cpp
+    src/fonts/fontchain.cpp
+    src/fonts/fonthook.cpp
     src/overlay/surface.cpp
     src/overlay/glyphs.cpp
     src/overlay/fnt.cpp
@@ -76,6 +78,8 @@ set_target_properties(ddmod PROPERTIES SUFFIX ".asi")
 enable_testing()
 add_executable(ddmod_tests tests/main.cpp)
 target_link_libraries(ddmod_tests PRIVATE ddmod_core)
+# Lets the tests load the bundled font from assets/fonts.
+target_compile_definitions(ddmod_tests PRIVATE DDMOD_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 add_test(NAME ddmod_tests COMMAND ddmod_tests)
 
 # --- Developer tools (not shipped) ---
