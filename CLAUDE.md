@@ -75,10 +75,10 @@ Hardware: GTX 1050 Ti (DXGI adapter 1, primary monitor 2560×1440) + Intel UHD 6
 
 PowerShell module `tools/testrun/DdTest.psm1` (refuses the Steam folder):
 - `Install-DdMod -GameDir <copy> [-ResetIni]` – copies the ASI loader as `winmm.dll` (never replaces a foreign `winmm.dll`), `ddmod.asi`, `ddmod.ini` (kept if present).
-- `Uninstall-DdMod -GameDir <copy>` – removes `winmm.dll` (only if it is the loader), `ddmod.asi`, `ddmod.log`.
+- `Uninstall-DdMod -GameDir <copy>` – removes `winmm.dll` (only if it is the loader), `ddmod.asi` and the logs (`ddmod.log`; `ddmod.prev.log` = log of the start before).
 - `Set-DgVoodooProfile -GameDir … -Adapter 1 [-Watermark]`, `Set-DivConfig -GameDir … -Width … -Height …`.
 
-`tools/testrun/Start-GameTest.ps1 -GameDir <copy> [-NoIntro] [-PressEscapeAt 4,8,…] -Seconds 15 -Count 2 -Interval 10`: starts the game windowed (temporarily `FullScreenMode=false`), screenshots of the game window to `C:\dev\screenshots`, closes the game, restores configs and the run markers `init.cfg`/`sinfo.000`, answers the "not correctly terminated" dialog with **No**, prints `ddmod.log`. View screenshots with the Read tool. Crash details: Windows event log, Application, ID 1000.
+`tools/testrun/Start-GameTest.ps1 -GameDir <copy> [-NoIntro|-Intro] [-FullScreen] [-PressEscapeAt 4,8,…] [-PostKeyAt …] [-PressHotkeyAt …] -Seconds 15 -Count 2 -Interval 10`: starts the game windowed (temporarily `FullScreenMode=false`), screenshots of the game window to `C:\dev\screenshots`, closes the game, restores configs and the run markers `init.cfg`/`sinfo.000`, answers the "not correctly terminated" dialog with **No**, prints `ddmod.log`. View screenshots with the Read tool. Crash details: Windows event log, Application, ID 1000. `-Intro` forces the intro (the EN copy ships `startup logo 0`). `-PostKeyAt` posts a key (no real input); `-PressHotkeyAt` types real input via `SendInput` – **only when the human has said the PC is free**. In-game diagnostics: `LogLevel=debug` in `ddmod.ini` (logs every key-down and focus change – reset to `info` afterwards).
 
 **Every phase is tested in both working copies** (`dd-test` German, `dd-test-en` English): `Install-DdMod` + `Start-GameTest.ps1` for each; record both results in `docs/testing.md`.
 
