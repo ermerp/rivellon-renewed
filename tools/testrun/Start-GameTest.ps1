@@ -141,12 +141,6 @@ public static class DdCapture {
         return bmp;
     }
 
-    public static Bitmap CaptureScreen() {
-        Rectangle v = System.Windows.Forms.SystemInformation.VirtualScreen;
-        Bitmap bmp = new Bitmap(v.Width, v.Height);
-        using (Graphics g = Graphics.FromImage(bmp)) g.CopyFromScreen(v.Left, v.Top, 0, 0, v.Size);
-        return bmp;
-    }
 }
 '@ -ReferencedAssemblies System.Drawing, System.Windows.Forms
 
@@ -184,13 +178,18 @@ $proc = $null
 $crashDialogSeen = $false
 
 function Save-Shot([System.Drawing.Bitmap] $bmp, [string] $suffix, [string] $method, [int] $elapsed) {
-    $file = Join-Path $OutDir ('{0}_{1}_{2}.png' -f $Label, $stamp, $suffix)
-    $bmp.Save($file, [System.Drawing.Imaging.ImageFormat]::Png)
+    $file = '-'
+    $size = '-'
+    if ($bmp) {
+        $file = Join-Path $OutDir ('{0}_{1}_{2}.png' -f $Label, $stamp, $suffix)
+        $bmp.Save($file, [System.Drawing.Imaging.ImageFormat]::Png)
+        $size = "$($bmp.Width)x$($bmp.Height)"
+        $bmp.Dispose()
+    }
     $script:results += [pscustomobject]@{
-        Shot = $suffix; Seconds = $elapsed; Size = "$($bmp.Width)x$($bmp.Height)"; Method = $method
+        Shot = $suffix; Seconds = $elapsed; Size = $size; Method = $method
         Responding = $(if ($proc.HasExited) { '-' } else { $proc.Responding }); File = $file
     }
-    $bmp.Dispose()
 }
 
 function Resolve-CrashDialog {
@@ -228,12 +227,14 @@ try {
         }
 
         $elapsed = [int]((Get-Date) - $start).TotalSeconds
+        # Only the game's own window is ever captured - never the desktop, which may show private data.
+        $bmp = $null
         if ($proc.HasExited) {
-            $bmp = [DdCapture]::CaptureScreen(); $method = 'screen (game exited)'
+            $method = 'skipped (game exited)'
         } else {
             $proc.Refresh()
             $hwnd = [DdCapture]::FindMainWindow([uint32]$proc.Id)
-            if ($hwnd -eq [IntPtr]::Zero) { $bmp = [DdCapture]::CaptureScreen(); $method = 'screen (no window)' }
+            if ($hwnd -eq [IntPtr]::Zero) { $method = 'skipped (no game window)' }
             else { $method = ''; $bmp = [DdCapture]::CaptureWindow($hwnd, [ref]$method) }
         }
         Save-Shot $bmp ('{0:D2}' -f $n) $method $elapsed

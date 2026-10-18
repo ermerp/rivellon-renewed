@@ -202,7 +202,11 @@ Interpretation (to be verified): 1.0034A does not find the movies (it expects th
 ## 9. Open questions / to do later
 
 - **Hashes of other builds:** German and English Steam `div.exe` are identical (§1), also on the Deck. GOG not checked yet – if it differs, add its hash to `kKnownBuilds` in `src/game/exe.cpp` once verified.
-- **`debug on` in the English `config.lcl`:** what does it enable? (Not present in the German file.)
+- **Debug/config trail (high priority for Phase 2, from the human, 2026-10-18)** – static analysis done, see §11:
+  1. `divinityevent.dat` (the forum calls it "divineevent.dat") and binding its actions in `keylist.txt` – format and IDs known (§11.2); **open: in-game test T2.0-W** (do the debug actions run without the developer flag?).
+  2. `config.div`/`config.lcl` options `no fog`, `quickstart`, `flat files`, `ztunnel`, `use8bitfont` – what they set is known (§11.1); menu-level runs done; **open: in-game effect of `no fog`, `ztunnel`, `use8bitfont` (T2.0-W)**.
+  3. `debug on` – **no effect in 1.0062A** (recognized, then ignored; §11.1).
+  4. Forum byte patch at file offset `0x8CCD6` – it changes the default of the developer flag (settings object `+0x28`), which no config key sets (§11.3). Later: set it from the mod in memory (behind an INI flag, off by default) once we know everything it switches.
 - **Sprite formats (§10):** decode the `.bic`/`CPackedb` compression and render a frame to confirm the direction count (hypothesis: 20) and the pixel format; check where NPCs and animated objects (candles) live (imagelists?) and what `apacked*` contains. Compare with Raanar's DDEditor, which already displays the game's graphics.
 - **Hook timing:** ddmod currently initializes everything inside `DllMain` (loader lock). Hashing and `MH_Initialize` are safe there, but enabling hooks suspends other threads – for the first game hooks, decide whether to enable them from `DllMain` (game threads not running yet?) or defer to a later point (e.g. first window message / first `GetProcAddress` of `slash1.dll`).
 
@@ -227,6 +231,38 @@ Checked from the files in `C:\dev\dd-test` (headers, sizes, index statistics; an
 - **World objects** (`static/imagelists/`): 13 image lists (`CPackedi.N` index + `CPackedb.N` data), 98 761 images in total, the largest list (`CPackedb.1c`, 386 MB, 78 853 images) probably holds NPCs/creatures; plus `apacked*` (likely animation tables), `Collide.N` and `roofs.000`. The object table in the EXE has `AnimationIndex` and `sb_dont_loop_animation` columns → animated objects such as candles are sprite sequences too. Not yet verified which list holds what.
 - **Color depth: 16 bit.** The game warns if the desktop is not set to 16 bit, `config.div` stores `rgb 565` or `rgb 555`, and the renderer has `bpp16add` (additive) and `bpp8alpha` modes for effects. Frame data is compressed (about 0.15 bytes per pixel after the index level, so transparent areas are skipped like in the fonts).
 - **Relevance:** Phase 8 upscaling has to deal with hundreds of thousands of frames and a custom compressed format (a local tool must decode and re-encode it, or the mod must load replacement frames); zoom/3D ideas (Phase 8 item 7) must work with flat sprites plus hotspots.
+
+## 11. Settings object, config keys, key events and the developer flag (2026-10-18)
+
+Static analysis of `div.exe` 1.0062A (dumpbin disassembly in the scratchpad, Ghidra not needed yet) plus automated start runs in `C:\dev\dd-test-en` (`config.lcl` backed up as `config.lcl.orig` and restored). Addresses are for the verified build; find them by signature later (rule 8).
+
+### 11.1 Config keys (`config.lcl` and `config.div`)
+
+- Both files are read by the same loader (`0x48D6F0`, `config.lcl` first, then `config.div`), which runs a keyword parser (`0x48D130`). The parser walks a table of 79 keyword patterns (pointer table at `0x60FD00`; `#` = number, `$` = string) and dispatches with a `switch` to code that stores the value in a **settings object**.
+- The settings object (`0x174` bytes) is created at startup (`0x40C160`, constructor `0x48D7D0` sets the defaults); its pointer lives in the global `0x0065B3D0`.
+- **Recognized but ignored in 1.0062A** (switch default case – parsed, nothing stored): `debug on`, `strong debug`, `slashdebug #`, `multiplayer`, `server`, `client`, `connection #`, `session $`, `max players #`, `line of sight on/off`, `direct move #`, `direct input #`, `dictionary $`, `role # user $`, `exhibition #`, `no decompress`, `egg editing`, `map merge`, `egg merge`, `compile start`, `memory log startup/game`, `generate all eggs`, `merge inventories`, `commit to disk #`, `startthrough #`, `force compiled roofs #`, `arty mode`, `gforcefix #`, `MaxQuickSaveAmount #`, `game $`, `map mode #`, `mapgen …`, `macro …`, `pathfinding power #`, `update speed #`, `guaranteed messaging`, `set monster generation #`, `convert eol`. These are leftovers of Larian's internal/editor builds.
+- **Stored keys (field offsets in the settings object)** – selection: `rgb 555`/`rgb 565` → `+0x24` (0/1), `width #` → `+0x38`, `height #` → `+0x3C`, `memory limit #` → `+0x68`, `use8bitfont #` → `+0x120` (byte), `quickstart $` → `+0x118` (string), `quicksave $` → `+0x11C`, `ztunnel #` → `+0x88`, `no fog` → `+0xA4 = 1`, `no warning` → `+0xA8 = 0`, `images compressed` → `+0xB8 = 1`, `flat files` → `+0xC0 = 1`, `startup logo #` → `+0xCC`, `language #` → `+0x124`, `alpha bit #` → `+0xF4`, `gamma $` / `contrast $` → floats `+0x94` / `+0x98`.
+- Results of the start runs (main menu only, English copy):
+  - `debug on` removed: no difference (as expected from the parser).
+  - `use8bitfont 0`, `ztunnel 0`: menu starts normally; the menu has an animated background, so a pixel comparison shows nothing – in-game check needed.
+  - **`flat files` removed:** the game stops with "static\light.lib : file not found" – the switch selects how the game finds its data; required for the Steam version.
+  - **`quickstart` removed:** `div.exe` exits immediately (0 s, exit code 0, no window, no other process). `quickstart` (`+0x118`, checked in 10 places) is required for a direct start.
+  - `no fog`: both Steam `config.div` files (DE and EN) already contain `no fog` – fog is **off** by default; the effect of removing it needs an in-game check.
+
+### 11.2 Key events (`divinityevent.dat`, `keylist.txt`)
+
+- `divinityevent.dat` (388 bytes, plain text, identical in DE/EN) lists 20 action names in quotes, one per line: Drop Console, Toggle KeyPlate, Icon Hotkey Assign, Toggle OptionsPlate, Toggle NonEnergy Plate Visibility, Toggle Plate Visibility, Toggle Show Icon Hotkey, Open Load Plate, Open Save Plate, Open Status Plate, Open Inventory, StartEditor, SwitchEditor, PauseGame, NextHour, AutoMap, ClearShroud, ScaleAutoMapUp, ScaleAutoMapDown, SwitchCombatMode.
+- The EXE registers **40 key events** (`0x489D00`–`0x48A0D0`, source file `divevent.cpp`): index 0–19 get localized names (text IDs `0x2BC + index`, same order as `divinityevent.dat`); further localized events at 21–24 and 29–31; **14 debug events with hard-coded English names**: 20 Play Test Sound, 25 Cheat One Level Up, 26 Create Bugreport, 27 Show Buglist, 28 Teleport, 32 DBG Update Shroud, 33 Start a monologue, 34 Start memory logging, 35 Stop memory logging, 36 Clear memory log, 37 Dump memory log, 38 Update all skills, 39 Clear all skills.
+- **`keylist.txt` ID = −(index + 1).** Verified against the generated file (e.g. −8 Open Load Plate, −16 AutoMap, −20 SwitchCombatMode, −30 Always Run, −31/−32 Quick Load/Save). So: Drop Console −1, StartEditor −12, SwitchEditor −13, NextHour −15, ClearShroud −17, Play Test Sound −21, Cheat One Level Up −26, Create Bugreport −27, Show Buglist −28, Teleport −29, DBG Update Shroud −33 … Clear all skills −40.
+- **Line format** (from the writer at `0x48A330`): optional comment line `# <event name>` (`  (fixed)` appended for fixed keys), then `<id>\t<modifier> <key>\t-` with modifier `-` (none), `shift`, `alt` or `ctrl`, and key = a character or a key name (`f1`–`f12`, `num_0`–`num_9`, `num_sub`, `num_mul`, `num_div`, `num_del`, `space`, `enter`, `escape`, `backspace`, `insert`, `delete`, `home`, `pgup`, `pgdn`, arrow keys `uparrow`/`downarrow`/`leftarrow`/`rightarrow`, `pause`, `scrolllock`, `printscreen`, …). Fixed keys: `<id>\t-\t-\t<char>`. The game writes only events that have a binding, so unbound debug events are simply absent. Whether the debug events run without the developer flag (§11.3) is the open question of test T2.0-W.
+- Related files read at startup: `console.lst` (referenced at `0x40D8CF`); `debug.lst`, `mdebug.lst`, `debugdll.lst` exist as strings only.
+
+### 11.3 Developer flag (forum byte patch at file offset `0x8CCD6`)
+
+- The pattern `89 5E 28 89 7E 2C 89 5E 34 89 5E` is unique (file `0x8CCD5`, VA `0x48D8D5`) and lies in the **constructor of the settings object**. The patched byte is the ModRM of the instruction that stores the default of field `+0x28`: original value 0 (register holding 0), patched value 1 (register holding 1). Nothing else changes.
+- **No config key writes `+0x28`** (not even `debug on`), and no write through the global pointer was found (a write through another pointer to the object is not ruled out yet) – in the retail build it is effectively always 0. The forum patch is the only way to turn it on.
+- `+0x28` is read in about **100 places** → a central developer-mode switch. Seen so far: at startup the value is passed to the window/display creation (`0x557D00`, together with `+0x84`) – consistent with "windowed mode"; if it is 0 the game hides the Windows cursor (`ShowCursor(FALSE)` at `0x40D9E2`); in the main loop it skips a block that uses the 640×480/800×600 display setup (`0x40CB47`). Most other checks are clustered at `0x431000`–`0x434000` (not identified yet; candidate: debug key/event handling) – frame-rate effect not located yet.
+- Plan for the mod: optional `[Debug] DeveloperMode=0` in `ddmod.ini`; set `+0x28` in memory right after the constructor (hook it or the creation at `0x40C160`) – only after mapping what the ~100 checks do. No EXE patch (rule 3).
 
 ## 8. Version situation
 
