@@ -9,6 +9,7 @@
     - Takes -Count screenshots, the first after -Seconds, then every -Interval seconds.
     - -NoIntro temporarily sets "startup logo 0" in config.div (skips the intro movies) and
       restores config.div afterwards.
+    - -PostKeyAt posts -PostKeyVk (default F3) to the game window without modifiers - no real input.
     - -PressHotkeyAt types the -HotkeyVk chord as real input (SendInput, so GetKeyState sees the
       modifiers), but only if the game window is in the foreground - never into another program.
     - Saves PNGs to -OutDir (default C:\dev\screenshots, outside the repo).
@@ -30,8 +31,10 @@ param(
     [switch] $FullScreen,
     [switch] $NoIntro,
     [int[]] $PressEscapeAt = @(),   # seconds after start at which Esc is sent (e.g. to skip videos)
+    [int[]] $PostKeyAt = @(),       # seconds after start at which -PostKeyVk is posted (no modifiers, no real input)
+    [int] $PostKeyVk = 0x72,        # F3
     [int[]] $PressHotkeyAt = @(),   # seconds after start at which the -HotkeyVk chord is typed
-    [int[]] $HotkeyVk = @(0x11, 0x10, 0x79),   # virtual keys, pressed in order: Ctrl+Shift+F10
+    [int[]] $HotkeyVk = @(0x11, 0x10, 0x72),   # virtual keys, pressed in order: Ctrl+Shift+F3
     [string] $OutDir = 'C:\dev\screenshots',
     [string] $Label
 )
@@ -162,7 +165,9 @@ public static class DdCapture {
         return true;
     }
 
-    // Captures a window: PrintWindow first (works when covered), screen copy as fallback.
+    // Captures a window: PrintWindow first (works when covered), screen copy as fallback - but
+    // only if the window is in the foreground and smaller than its monitor. A screen copy of a
+    // full-screen window would be a desktop-sized image (CLAUDE.md rule 11): skipped instead.
     public static Bitmap CaptureWindow(IntPtr h, out string method) {
         RECT r = Bounds(h);
         int w = r.Right - r.Left, ht = r.Bottom - r.Top;
@@ -174,8 +179,15 @@ public static class DdCapture {
             g.ReleaseHdc(hdc);
             if (ok && !IsBlack(bmp)) { method = "PrintWindow"; return bmp; }
         }
+        var screen = System.Windows.Forms.Screen.FromHandle(h).Bounds;
+        if (w >= screen.Width || ht >= screen.Height) {
+            bmp.Dispose(); method = "skipped (full screen, PrintWindow black)"; return null;
+        }
         SetForegroundWindow(h);
         System.Threading.Thread.Sleep(500);
+        if (GetForegroundWindow() != h) {
+            bmp.Dispose(); method = "skipped (game window not in the foreground)"; return null;
+        }
         using (Graphics g = Graphics.FromImage(bmp))
             g.CopyFromScreen(r.Left, r.Top, 0, 0, new Size(w, ht));
         method = "CopyFromScreen";
@@ -252,6 +264,7 @@ try {
     $start = Get-Date
     $pendingEsc = @($PressEscapeAt | Sort-Object)
     $pendingHotkey = @($PressHotkeyAt | Sort-Object)
+    $pendingPost = @($PostKeyAt | Sort-Object)
 
     for ($n = 1; $n -le $Count; $n++) {
         $due = $start.AddSeconds($Seconds + ($n - 1) * $Interval)
@@ -263,6 +276,13 @@ try {
                     $h = [DdCapture]::FindMainWindow([uint32]$proc.Id)
                     if ($h -ne [IntPtr]::Zero) { [DdCapture]::PostKey($h, 0x1B); Write-Host "Esc sent at ${t}s" }
                     $pendingEsc = @($pendingEsc | Where-Object { $_ -ne $t })
+                }
+            }
+            foreach ($t in @($pendingPost)) {
+                if ($now -ge $t) {
+                    $h = [DdCapture]::FindMainWindow([uint32]$proc.Id)
+                    if ($h -ne [IntPtr]::Zero) { [DdCapture]::PostKey($h, $PostKeyVk); Write-Host ("Key 0x{0:X2} posted at ${t}s" -f $PostKeyVk) }
+                    $pendingPost = @($pendingPost | Where-Object { $_ -ne $t })
                 }
             }
             foreach ($t in @($pendingHotkey)) {

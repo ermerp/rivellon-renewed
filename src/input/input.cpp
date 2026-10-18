@@ -17,22 +17,18 @@ struct Hotkey {
     HotkeyHandler handler;
 };
 
-// Filled before Install and read only on the window thread afterwards.
+// Filled before Install and read only on the game thread afterwards.
 std::vector<Hotkey> g_hotkeys;
 
-std::atomic<HWND> g_window{nullptr};
-std::atomic<WNDPROC> g_original{nullptr};
-void (*g_onDestroyed)() = nullptr;
+std::atomic<HHOOK> g_hook{nullptr};
 
-// Window-thread state: the key whose messages we are currently swallowing.
+// Game-thread state: the key whose messages we are currently swallowing.
 std::uint8_t g_swallowVk = 0;
-UINT g_swallowScan = 0;
 
-UINT ScanCodeOf(LPARAM lParam) { return (static_cast<UINT>(lParam) >> 16) & 0x1FF; }  // incl. extended bit
 bool IsRepeat(LPARAM lParam) { return (static_cast<UINT>(lParam) & (1u << 30)) != 0; }
 
 std::uint8_t CurrentModifiers() {
-    // GetKeyState reflects the keyboard state at the time of the message being processed.
+    // GetKeyState reflects the keyboard state up to the message just retrieved.
     std::uint8_t mods = kNone;
     if (GetKeyState(VK_CONTROL) < 0) mods |= kCtrl;
     if (GetKeyState(VK_SHIFT) < 0) mods |= kShift;
@@ -41,18 +37,17 @@ std::uint8_t CurrentModifiers() {
 }
 
 // Returns true if the message belongs to one of our hotkeys and must not reach the game.
-bool HandleKey(UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch (msg) {
+bool HandleKey(const MSG& msg) {
+    switch (msg.message) {
         case WM_KEYDOWN:
-        case WM_SYSKEYDOWN: {
-            const auto vk = static_cast<std::uint8_t>(wParam);
-            if (vk == g_swallowVk && IsRepeat(lParam)) return true;
+        case WM_SYSKEYDOWN: {  // F10 and Alt combinations arrive as WM_SYSKEYDOWN
+            const auto vk = static_cast<std::uint8_t>(msg.wParam);
+            if (vk == g_swallowVk && IsRepeat(msg.lParam)) return true;
             const std::uint8_t mods = CurrentModifiers();
             for (const auto& hotkey : g_hotkeys) {
                 if (!Matches(hotkey.combo, vk, mods)) continue;
                 g_swallowVk = vk;
-                g_swallowScan = ScanCodeOf(lParam);
-                if (IsRepeat(lParam)) return true;  // held down while we were installed
+                if (IsRepeat(msg.lParam)) return true;  // held down while we were installed
                 log::Debug("Hotkey {} ({})", hotkey.name, ToString(hotkey.combo));
                 hotkey.handler();
                 return true;
@@ -61,38 +56,22 @@ bool HandleKey(UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         case WM_KEYUP:
         case WM_SYSKEYUP:
-            if (g_swallowVk == 0 || static_cast<std::uint8_t>(wParam) != g_swallowVk) return false;
+            if (g_swallowVk == 0 || static_cast<std::uint8_t>(msg.wParam) != g_swallowVk) return false;
             g_swallowVk = 0;
             return true;
-        case WM_CHAR:
-        case WM_SYSCHAR:
-        case WM_DEADCHAR:
-        case WM_SYSDEADCHAR:
-            // TranslateMessage already turned the swallowed key-down into a character message
-            // before the window procedure saw it; drop that character too.
-            return g_swallowVk != 0 && ScanCodeOf(lParam) == g_swallowScan;
-        case WM_KILLFOCUS:
-            g_swallowVk = 0;  // the key-up may never arrive
-            return false;
         default:
             return false;
     }
 }
 
-LRESULT CALLBACK SubclassProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam) {
-    const WNDPROC original = g_original.load();
-    if (HandleKey(msg, wParam, lParam)) return 0;
-
-    if (msg == WM_NCDESTROY) {
-        const LRESULT result = CallWindowProcA(original, window, msg, wParam, lParam);
-        g_window = nullptr;
-        g_original = nullptr;
-        g_swallowVk = 0;
-        log::Info("Game window destroyed, input hook removed");
-        if (g_onDestroyed) g_onDestroyed();
-        return result;
+LRESULT CALLBACK GetMessageHook(int code, WPARAM removal, LPARAM lParam) {
+    // Only act when the message is taken off the queue; a PM_NOREMOVE peek of the same message
+    // comes back later with PM_REMOVE.
+    if (code == HC_ACTION && removal == PM_REMOVE) {
+        auto& msg = *reinterpret_cast<MSG*>(lParam);
+        if (HandleKey(msg)) msg.message = WM_NULL;
     }
-    return CallWindowProcA(original, window, msg, wParam, lParam);
+    return CallNextHookEx(nullptr, code, removal, lParam);
 }
 
 }  // namespace
@@ -118,36 +97,25 @@ void RegisterHotkey(const char* iniKey, const char* fallback, HotkeyHandler hand
     log::Info("Hotkey {}: {}", iniKey, ToString(*combo));
 }
 
-bool Install(HWND window, void (*onDestroyed)()) {
-    // The game window is an ANSI window (RegisterClassExA); the A functions keep it that way,
-    // so the game keeps receiving ANSI character messages.
-    g_onDestroyed = onDestroyed;
-    g_original = reinterpret_cast<WNDPROC>(GetWindowLongPtrA(window, GWLP_WNDPROC));
-    g_window = window;
-    SetLastError(0);
-    const auto previous = reinterpret_cast<WNDPROC>(
-        SetWindowLongPtrA(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&SubclassProc)));
-    if (!previous && GetLastError() != 0) {
-        log::Error("Input hook: subclassing the game window failed (error {})", GetLastError());
-        g_window = nullptr;
-        g_original = nullptr;
+bool Install(HWND window) {
+    if (g_hook) return true;
+    const DWORD thread = GetWindowThreadProcessId(window, nullptr);
+    // hMod = nullptr: thread-specific hook on a thread of our own process.
+    const HHOOK hook = SetWindowsHookExA(WH_GETMESSAGE, &GetMessageHook, nullptr, thread);
+    if (!hook) {
+        log::Error("Input hook: SetWindowsHookEx(WH_GETMESSAGE) on thread {} failed (error {})", thread,
+                   GetLastError());
         return false;
     }
-    // Normally identical; differs only if someone changed the procedure in between.
-    g_original = previous;
-    log::Info("Input hook installed ({} hotkey(s))", g_hotkeys.size());
+    g_hook = hook;
+    log::Info("Input hook installed on thread {} ({} hotkey(s))", thread, g_hotkeys.size());
     return true;
 }
 
 void Uninstall() {
-    const HWND window = g_window.exchange(nullptr);
-    if (!window) return;
-    const auto current = reinterpret_cast<WNDPROC>(GetWindowLongPtrA(window, GWLP_WNDPROC));
-    if (current != &SubclassProc) {
-        log::Warn("Input hook: window procedure was subclassed after us, leaving it in place");
-        return;
-    }
-    SetWindowLongPtrA(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(g_original.load()));
+    const HHOOK hook = g_hook.exchange(nullptr);
+    if (!hook) return;
+    UnhookWindowsHookEx(hook);
     log::Info("Input hook removed");
 }
 

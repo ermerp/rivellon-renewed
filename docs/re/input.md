@@ -10,8 +10,11 @@
 
 - `div.exe` does not create the window. The renderer plugin does (`slash1`–`4.dll` import `RegisterClassExA`/`CreateWindowExA`, `architecture.md`). All four use the window class **`Divinity`**; the title is also `Divinity`.
 - It is an ANSI window (`RegisterClassExA`) and belongs to the **main thread**, the same thread that runs `DllMain` of ddmod.
-- With `startup logo 0` it appears about 8.5–9 s after process start (dgVoodoo2, Windows). The intro videos play in this window. `binkw32.dll` registers a window class of its own too, so ddmod matches on the class name, not on "first visible window".
-- The game window is destroyed only at exit (seen as `WM_NCDESTROY` when the test script closes the game). Whether a resolution or renderer change re-creates it: not observed yet.
+- It appears 1.1–9.4 s after process start (measured with dgVoodoo2 on Windows, windowed and full screen, with and without intro; the spread is not explained). The intro videos play in this window. `binkw32.dll` registers a window class of its own too, so ddmod matches on the class name, not on "first visible window".
+- Other top-level windows of the process (full screen, dgVoodoo2): `D3DProxyWindow` and `DXGIWatchdogThreadWindow` (DXGI, hidden) and the IME windows.
+- **The window procedure does not stay put.** In full screen, within 500 ms after ddmod subclassed it, the procedure pointed first into `DDRAW.dll` (dgVoodoo2) and then to code outside every module (`03BA0000`/`03CA0000`, generated at run time), and that chain does not call ours. Key messages then bypass a subclass entirely. Windowed, the subclass stayed in place.
+- Alt+Tab out of full screen and back turns the game into a framed window – also without ddmod (dgVoodoo2/game behavior, not ours). Playing continues normally.
+- The game window is destroyed only at exit. Whether a resolution or renderer change re-creates it: not observed yet.
 
 ## How ddmod hooks input
 
@@ -22,17 +25,22 @@
 - Polling needs no hook to find the window. The alternatives would be: hooking `CreateWindowExA` (needs a hook in `DllMain`, or an import hook in each `slash*.dll`); a `WH_CBT` hook (also installed in `DllMain`). The 50 ms delay is irrelevant for hotkeys.
 - Later game hooks (overlay at `DllSlashedEndFrame`) start from the same point.
 
-If the window is destroyed, the hook removes itself and the watcher starts again, in case a new window appears.
+The watcher thread stays alive afterwards: Windows removes a `SetWindowsHookEx` hook when the thread that installed it exits. With `LogLevel=debug` it logs all windows of the process with the module of their window procedure for 60 s (whenever that list changes).
 
-**Window procedure subclassing.** `SetWindowLongPtrA(GWLP_WNDPROC)` from the watcher thread (allowed for windows of the own process). The A variant keeps the window ANSI, so the game still gets ANSI `WM_CHAR`. Our procedure:
+**`WH_GETMESSAGE` hook on the game thread.** `SetWindowsHookExA(WH_GETMESSAGE, …, nullptr, <thread of the game window>)`. Windows calls the hook on the game thread inside `GetMessageA`/`PeekMessageA`, before the game's loop calls `TranslateMessage`/`DispatchMessageA`. It does not depend on which window procedure is current, nor on which window of the thread gets the message – important with dgVoodoo2 (Windows) and WineD3D (Deck), which both take over the window.
 
-- Handles `WM_KEYDOWN` **and** `WM_SYSKEYDOWN` (F10 and every Alt combination arrive as `WM_SYSKEYDOWN`). Modifiers come from `GetKeyState` (the state at the time of the message) and must match exactly.
-- On a match: runs the handler on the game's window thread and does not pass the message on. Also swallowed: its auto-repeats, its key-up and the `WM_CHAR`/`WM_SYSCHAR` that `TranslateMessage` already produced from it (matched by scan code). Swallowing `WM_SYSKEYDOWN` F10 also prevents the window menu activation by `DefWindowProc`.
-- Every other message goes to the original procedure unchanged (`CallWindowProcA`).
+- Handles `WM_KEYDOWN` **and** `WM_SYSKEYDOWN` (F10 and every Alt combination arrive as `WM_SYSKEYDOWN`). Modifiers come from `GetKeyState` (the state up to the retrieved message) and must match exactly.
+- On a match: runs the handler on the game thread and rewrites the message to `WM_NULL`. Its auto-repeats and its key-up are rewritten too. Because this happens before `TranslateMessage`, no `WM_CHAR` is produced and `DefWindowProc` never sees the key (no menu mode on F10).
+- Only messages removed from the queue (`PM_REMOVE`) are handled; a `PM_NOREMOVE` peek comes back later with `PM_REMOVE`. Sent (not posted) messages do not pass the hook; keyboard input is always posted.
+- Every other message passes unchanged.
+
+Rejected: subclassing the window procedure (`SetWindowLongPtrA(GWLP_WNDPROC)`) – worked windowed, but in full screen dgVoodoo2 replaces the procedure without chaining to ours (see above).
 
 **Limit:** the game polls `GetAsyncKeyState` as well. A hotkey key held down is therefore still visible to that polling, even though its messages are swallowed. Hence hotkeys should be combinations the game does not use. Hooking `GetAsyncKeyState` is possible (USER32 import) if a feature needs it.
 
-**Test hotkey:** `Ctrl+Shift+F10`. It is free in the game's bindings and the 40 key events. It also avoids Steam's F12, the tester's F5–F9 and the game's `Ctrl+F11`/`Ctrl+F12`.
+**Rule for default hotkeys:** no F10 and no Alt combinations. If the hook ever misses a key, Windows treats F10/Alt as the menu key and puts the game window into menu mode – the game seems to freeze until a click (seen in T1.5-W part B with `Ctrl+Shift+F10`). Also avoid the game's bindings, Steam's F12 and the tester's F5–F9.
+
+**Test hotkey:** `Ctrl+Shift+F3` – free in the game's bindings and the 40 key events.
 
 ## Key syntax in `ddmod.ini`
 

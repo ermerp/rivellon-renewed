@@ -29,7 +29,7 @@ Everything is identical (364 files: EXE, DLLs, graphics, sounds, videos, fonts) 
 
 | File | German | English |
 |---|---|---|
-| `config.lcl` | `language 2` | `language 1`, plus `debug on` (no effect, `config-files.md`) and `startup logo 0` |
+| `config.lcl` | `language 2` | `language 1`, plus `debug on` (no effect, `config-files.md`) and `startup logo 0` (as shipped – the English copy plays no intro, the German one does) |
 | `keylist.txt` | German comments | English comments (bindings identical) |
 | `dd_manual.pdf`, `Story.pdf` | German | English |
 | `dat/<Language>/itemgen.cmp` | `dat/German/` | `dat/English/` |
