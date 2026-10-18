@@ -94,7 +94,11 @@ Other DLLs in the folder: `configtool.exe` imports `DDRAW.dll` (resolution list)
 
 dgVoodoo2 also ships an optional `WinMM.dll` ("OS uptime fixer", patches `timeGetTime`/`QueryPerformanceCounter`). DD does not need it; it would collide with the ASI loader's `winmm.dll` and must not be installed alongside it.
 
-### Overlay (Phase 0, step 5) – decided: option (b)
+### Overlay (Phase 0, step 5) – revised 2026-10-18
+
+dgVoodoo2 crashes under Proton on the Deck (see `docs/testing.md` T0.6-D). New decision: **base backend through DirectDraw/D3D6 on the game side** (`DllSlashedEndFrame`), working with Windows ddraw, dgVoodoo2 and WineD3D alike; **D3D11 via dgVoodoo2 only optional** for Phase 8 shader effects. See PLAN.md Phase 0 step 5 and the platform strategy in section 3. The original decision below is kept for reference.
+
+### Overlay (Phase 0, step 5) – first decision 2026-10-17: option (b)
 
 Agreed with the human on 2026-10-17:
 - **Primary backend:** dgVoodoo2 translates the game's DirectDraw/D3D6 output to Direct3D 11. The overlay hooks the D3D11/DXGI present of that output and draws with the ImGui DX11 backend.
@@ -158,6 +162,7 @@ Applied with `tools/testrun/DdTest.psm1` (`Set-DgVoodooProfile -Adapter 1 -Water
 - `config.div` (plain text, `key value` lines, `//` comments): `width`, `height`, `smooth`, `alpha bit` ("Use alpha" in `configtool.exe`), `startup logo` (intro movies), `no fog`, `cdrom path` (1.0034A) and more. Both EXE versions read the same keys. **The game rewrites `config.div` on exit** (values are kept).
 - `slashed.cfg` (4 bytes): selected renderer = first DWORD. The per-renderer files `slashed-<name>.cfg` start with their own ID: `0` = Direct3D 6 (`slashed-d3d6.cfg`), `1` = Glide, `2` = DirectDraw (`slashed-directx.cfg`), `3` = Software. They also contain a 800×600 resolution pair at offsets 0x0C/0x10 (meaning not yet verified; `config.div` decides the actual resolution).
 - **Run marker:** the game creates `init.cfg` (4 bytes) and `sinfo.000` (8 bytes) in the game folder; neither exists in a fresh Steam installation. If the game was not shut down cleanly (crash, kill), the next start shows "Divinity was not correctly terminated … Do you want to reset the configuration?" – "Yes" would reset the configuration. The files stay after a clean exit; observed contents: after a killed run `init.cfg = 00 00 00 00`, `sinfo.000 = 01 00 00 00 01 00 00 00`; after a clean exit via the menu `init.cfg = 02 00 00 00`, `sinfo.000 = 01 00 00 00 02 00 00 00`. Exact meaning not yet known.
+- **The game resets its configuration after crashes – even when "No" is chosen.** Observed on the Deck (2026-10-18) after several crashes in a row: `config.div` was rewritten to a minimal default (only width/height/smooth/`no fog`; contrast, gamma, `rgb 565`, `Alpha bit` etc. gone) and `slashed-d3d6.cfg` was deleted. The next start then failed with "Unable to read configuration file – Exiting" and the launcher opened `configtool.exe`. Savegames were not touched. Not yet clear whether the reset comes from the dialog logic itself or from `configtool.exe`'s "Test". Consequence for the mod and for tests: keep a backup of `config.div` and `slashed*.cfg`, and restore it after crash tests (the test script already does this for the run markers).
 - Other files written at runtime: `persist.dat`, `keylist.txt`, `mapids.000`, `slashed-d3d6.cfg`.
 
 ## 7. Automated start tests (2026-10-18, `tools/testrun/Start-GameTest.ps1`, windowed, dgVoodoo watermark on)
