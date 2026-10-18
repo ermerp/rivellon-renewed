@@ -2,9 +2,17 @@
 
 Modernization mod for Divine Divinity (Steam/GOG 1.0062A) as an `.asi` plugin loaded by Ultimate ASI Loader. Plan and status: [PLAN.md](PLAN.md). Work through the phases in order.
 
-## Start of a session
+## Start of a session (Session-Start, `/catchup`)
 
-- Read **only** this file and the section "Current status" in `PLAN.md`. Everything else (rest of `PLAN.md`, `docs/re/*`, `docs/testing.md`) only when the task needs it – start from `docs/re/README.md` (one line per topic file).
+- Plan file = `PLAN.md`; findings = `docs/re/` (there is no `findings.md`).
+- Read **only** this file and the sections "Current status", "Decisions" and "Rejected approaches" in `PLAN.md`, plus `git log --oneline -10` and `git status`. Everything else (rest of `PLAN.md`, `docs/re/*`, `docs/testing.md`) only when the task needs it – start from `docs/re/README.md` (one line per topic file).
+
+## Session wrap-up (Session-Abschluss, `/wrapup`)
+
+- Plan file = `PLAN.md`: update "Current status" (stage done/partial/blocked, next concrete step, what waits for the human), "Decisions" (one line each, with reason) and "Rejected approaches" (one line each, why).
+- Findings = `docs/re/<topic>.md`: update the matching topic file, add a line to `docs/re/README.md` for a new file, keep `docs/re/open-questions.md` current. Test results go to `docs/testing.md`.
+- Follow the documentation rules below (update, don't append; delete what is outdated).
+- Propose a commit message (English, with the attribution line) and **commit only after the human confirms** – this overrides the general "Claude commits doc changes".
 
 ## Language
 
@@ -55,7 +63,7 @@ Hardware: GTX 1050 Ti (DXGI adapter 1, primary monitor 2560×1440) + Intel UHD 6
 - Ask before installing software (winget) and before any change on the Steam Deck; show the commands first.
 - Downloads only from official sources, verify SHA-256 against the published digest; scripts must abort if no unique asset is found.
 - The human keeps `PLAN.md` decisions; Claude maintains `PLAN.md` (status, results) and commits doc changes.
-- **Context handover:** after every completed phase, a larger sub-step or a longer debugging session, remind the human to `/clear`. Before that: update `PLAN.md` "Current status", `docs/re/` (incl. `open-questions.md`) and, if workflows changed, `CLAUDE.md`; commit everything; suggest a start prompt for the new session.
+- **Context handover:** after every completed phase, a larger sub-step or a longer debugging session, suggest `/wrapup`, then `/clear`, then `/catchup` (optionally with the task as argument, e.g. `/catchup Phase 1 step 5`).
 
 ## Build
 
