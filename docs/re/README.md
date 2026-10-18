@@ -1,0 +1,16 @@
+# Reverse-engineering notes
+
+Findings in our own words – **no decompiled code, no pseudocode** (CLAUDE.md rule 2). One topic per file; update the file instead of appending history. Addresses are for the verified 1.0062A build (`game-version.md`); code must find them by signature (rule 8).
+
+| File | Topic |
+|---|---|
+| [open-questions.md](open-questions.md) | Open questions and next RE tasks, by priority |
+| [game-version.md](game-version.md) | 1.0062A hashes, PE header, German vs. English files, version history |
+| [architecture.md](architecture.md) | Imports, renderer plugins (`slash*.dll`), input/audio/video/dialog APIs, proxy and overlay decisions |
+| [config-files.md](config-files.md) | `config.div`/`config.lcl`/`slashed*.cfg`, run markers, settings object and all config keys |
+| [developer-mode.md](developer-mode.md) | Developer flag (settings `+0x28`) and the forum byte patch |
+| [key-events.md](key-events.md) | 40 key events, `divinityevent.dat`, `keylist.txt` IDs and format |
+| [graphics-assets.md](graphics-assets.md) | 2D sprites (heroes, image lists), animation layout, 16-bit color |
+| [file-formats.md](file-formats.md) | Byte layouts: fonts (`ML_FONT_01`), hero sprites, image lists |
+| [patch-134.md](patch-134.md) | Patch 1.34A contents, `dd-test-134` copy, 1.0034A test results (on hold) |
+| [environment.md](environment.md) | Toolchain versions, downloads with SHA-256, dgVoodoo2 setup, Smart App Control |

@@ -12,7 +12,7 @@ namespace ddmod::game {
 struct ExeInfo {
     std::string sha256;           // upper-case hex; empty if the file could not be read
     const char* build = nullptr;  // name of the verified build, nullptr if unknown
-    bool verified = false;        // hash matches a build listed in docs/re-notes.md §1
+    bool verified = false;        // hash matches a build listed in docs/re/game-version.md
 };
 
 // Hashes `exe` and compares it against the known builds. Logs the result.

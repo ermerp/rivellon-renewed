@@ -34,7 +34,7 @@ Digest Of(std::span<const std::uint8_t> data);
 // Hashes a whole file; std::nullopt if it cannot be read.
 std::optional<Digest> OfFile(const std::filesystem::path& file);
 
-// Upper-case hex, as in docs/re-notes.md.
+// Upper-case hex, as in docs/re/game-version.md.
 std::string ToHex(const Digest& digest);
 
 }  // namespace ddmod::sha256

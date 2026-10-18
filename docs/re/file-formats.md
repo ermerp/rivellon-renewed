@@ -29,7 +29,7 @@ Status: index structure understood, image data not decoded yet (2026-10-18).
 | 0x10 | 24 bytes | unknown; all `FF` in sheets A and E, varies in B–D (attachment points?) |
 
   Frames are stored back to back (offset + size = next offset). The indexed total is about twice the `.bic` file size → the `.bic` file is compressed again as a whole or in blocks.
-- `.bic` – compressed frame data, 16-bit pixels with skipped transparent areas (assumed, see `docs/re-notes.md` §10).
+- `.bic` – compressed frame data, 16-bit pixels with skipped transparent areas (assumed, see `graphics-assets.md`).
 
 ## Image lists (`static/imagelists/`)
 

@@ -1,0 +1,10 @@
+# Graphics assets: pre-rendered 2D sprites
+
+Checked from file headers, sizes and index statistics (analysis scripts outside the repo). Byte layouts: `file-formats.md`.
+
+- **No 3D models.** No mesh/model files exist; the EXE's class names are sprite-based (abstract, sorted, blocker, bridge sprites, sprite lists, sprite particles; log line "Activating sprite engine"). Direct3D 6 only draws and blends 2D images.
+- **Player characters** (`static/heroes/`): per class and gender (`sur`, `war`, `wiz` × `m`, `f`) five sheets `A`–`E` (`.bic` data + `.idc` index) and a `.key` animation table. Male warrior: 179 320 frames (A 16 440, B 40 480, C 56 720, D 40 480, E 25 200), largest frame 236×253 px. Animation variants (suffix `0`–`3`, `A`–`O`) are most likely equipment/weapon looks, each a full set of frames.
+- **Animation layout (hypothesis):** animations have 480/320/200/120 frames; size and hotspot change smoothly within blocks of 24/16/10/6 frames and jump between blocks, with block averages rotating periodically → most likely **20 directions** × 24/16/10/6 frames. The EXE builds direction tables from the key data ("too many directions" error string). Confirm by decoding a frame.
+- **World objects** (`static/imagelists/`): 13 image lists (`CPackedi.N` index + `CPackedb.N` data), 98 761 images; the largest (`CPackedb.1c`, 386 MB, 78 853 images) probably holds NPCs/creatures. Also `apacked*` (likely animation tables), `Collide.N`, `roofs.000`. The object table has `AnimationIndex` and `sb_dont_loop_animation` columns → animated objects (candles) are sprite sequences.
+- **Color: 16 bit.** The game warns if the desktop is not 16 bit; `rgb 565`/`rgb 555` in `config.div`; renderer modes `bpp16add` (additive) and `bpp8alpha` for effects. Frame data compressed (~0.15 bytes/pixel; transparent areas skipped).
+- **Consequences:** Phase 8 upscaling faces hundreds of thousands of frames in a custom compressed format (decode/re-encode locally, or load replacement frames from the mod); zoom/3D ideas work with flat sprites plus hotspots.

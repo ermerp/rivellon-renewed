@@ -15,7 +15,7 @@ struct KnownBuild {
     const char* name;
 };
 
-// See docs/re-notes.md §1. Same hash on the PC (Steam, German) and the Steam Deck.
+// See docs/re/game-version.md. Same hash on the PC (Steam, German) and the Steam Deck.
 constexpr KnownBuild kKnownBuilds[] = {
     {"CD9F7A07C7A605C21052B3517346C7A63083063FB491276A3E4C9836C9B42A67", "1.0062A (Steam)"},
 };
