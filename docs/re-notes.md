@@ -179,6 +179,19 @@ Applied with `tools/testrun/DdTest.psm1` (`Set-DgVoodooProfile -Adapter 1 -Water
 
 Interpretation (to be verified): 1.0034A does not find the movies (it expects them on the game CD) and shows the CD prompt instead; drawing that prompt / the video path crashes the renderer at resolutions above 1024×768 – independent of the `slash1.dll` build. In-game cutscenes are likely affected the same way. A fix would be a hook that redirects the CD lookup to the local `static\` folder (PLAN.md Phase 9). The 1.0034A crash at > 1080p reported by the community was not reproduced at 1920×1080 with intro off.
 
+## 9. Open questions / to do later
+
+- **Color depth** the game renders in (16-bit RGB565? `rgb 565` in the Deck's `config.div`, fonts are RGB565) – clarify with the first overlay (Phase 1 step 6).
+- **How the overlay gets the frame:** which surface/device `slash1.dll` presents at `DllSlashedEndFrame`; whether to intercept `GetProcAddress` for `DllSlashed*` or hook the exports directly.
+- **Run markers** `init.cfg` / `sinfo.000`: exact meaning of the values (00/02/06/07/08 observed).
+- **Config self-reset after crashes** (§6): triggered by the dialog logic or by `configtool.exe` "Test"?
+- **Resolution source:** `config.div` vs. `slashed-d3d6.cfg` – which one wins when they differ (PC: `config.div` won; Deck with dgVoodoo: 720 from `slashed-d3d6.cfg` was set).
+- **dgVoodoo2 on the Deck:** try 2.87.3 (`C:\dev\downloads\dgvoodoo2_87_3`), later Proton/dgVoodoo versions; crash in dgVoodoo's `DDraw.dll` offset `0x9928`.
+- **1.0034A:** CD lookup for videos (Process Monitor test), crash in `slash1.dll` above 1024×768 with intro on – on hold.
+- **Phase 9 idea:** load `startup.v2` with the 1.0062A EXE (Osiris/format compatibility).
+- **Walk/run threshold:** find the distance check (first feature after Phase 1).
+- `"ddmod unloading"` log line after a normal exit via the menu – not verified yet (script kills the game).
+
 ## 8. Version situation
 
 - Steam/GOG 1.0062A is based on the 1.0029A code base (source code of 1.0034A lost); it has widescreen and Windows 7 adjustments, but not all fixes from 1.0034A. Savegames are not compatible between the versions.
