@@ -15,7 +15,7 @@ cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
 cmake --build build --config Release
 ```
 
-Output: `build/Release/ddmod.asi`. It is loaded by [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) installed as `winmm.dll` in the game folder, next to `ddmod.asi` and `ddmod.ini`.
+Output: `build/Release/ddmod.asi`. Configuring fetches [MinHook](https://github.com/TsudaKageyu/minhook) v1.3.4 (pinned commit) via CMake `FetchContent`. Unit tests (no game needed): `ctest -C Release --test-dir build --output-on-failure`. It is loaded by [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) installed as `winmm.dll` in the game folder, next to `ddmod.asi` and `ddmod.ini`.
 
 ## Notice
 
@@ -24,3 +24,5 @@ This project contains **no game files** and requires a legally purchased copy of
 ## License
 
 Own code under the [MIT License](LICENSE).
+
+Third-party code: [MinHook](https://github.com/TsudaKageyu/minhook) by Tsuda Kageyu (BSD 2-Clause License), statically linked into `ddmod.asi`; its license text must ship with binary releases.

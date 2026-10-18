@@ -32,4 +32,13 @@ const std::filesystem::path& ModDir() { return g_modDir; }
 
 const std::filesystem::path& ExePath() { return g_exePath; }
 
+std::string ToUtf8(const std::filesystem::path& path) {
+    const std::wstring& text = path.native();
+    if (text.empty()) return {};
+    const int len = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
+    std::string out(static_cast<size_t>(len), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), out.data(), len, nullptr, nullptr);
+    return out;
+}
+
 }  // namespace ddmod::paths

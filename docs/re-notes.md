@@ -45,6 +45,7 @@ Consequences:
 
 - Linker 9.00 (VS 2008), timestamp 2013-04-19, runtime `MSVCR90.dll`
 - Image base `0x00400000`, **relocations stripped, no ASLR** (DLL characteristics `0x8000` = terminal-server-aware only) → addresses within this build are the same on every start. Rule 8 still applies (signature scan, fixed addresses only as a fallback).
+- Only one executable section (`.text`, 2 116 459 bytes mapped) – signature scans for code search just this section.
 - **Large Address Aware not set** (characteristics `0x103`) → max. 2 GB of address space without the 4GB patch.
 
 ## 2. Imports and runtime architecture (1.0062A)
@@ -180,6 +181,9 @@ Applied with `tools/testrun/DdTest.psm1` (`Set-DgVoodooProfile -Adapter 1 -Water
 Interpretation (to be verified): 1.0034A does not find the movies (it expects them on the game CD) and shows the CD prompt instead; drawing that prompt / the video path crashes the renderer at resolutions above 1024×768 – independent of the `slash1.dll` build. In-game cutscenes are likely affected the same way. A fix would be a hook that redirects the CD lookup to the local `static\` folder (PLAN.md Phase 9). The 1.0034A crash at > 1080p reported by the community was not reproduced at 1920×1080 with intro off.
 
 ## 9. Open questions / to do later
+
+- **Hashes of other builds:** only the German Steam `div.exe` is known (same hash on PC and Deck). Is the English Steam / GOG `div.exe` byte-identical? If not, add its hash to `kKnownBuilds` in `src/game/exe.cpp` once verified.
+- **Hook timing:** ddmod currently initializes everything inside `DllMain` (loader lock). Hashing and `MH_Initialize` are safe there, but enabling hooks suspends other threads – for the first game hooks, decide whether to enable them from `DllMain` (game threads not running yet?) or defer to a later point (e.g. first window message / first `GetProcAddress` of `slash1.dll`).
 
 - **Color depth** the game renders in (16-bit RGB565? `rgb 565` in the Deck's `config.div`, fonts are RGB565) – clarify with the first overlay (Phase 1 step 6).
 - **How the overlay gets the frame:** which surface/device `slash1.dll` presents at `DllSlashedEndFrame`; whether to intercept `GetProcAddress` for `DllSlashed*` or hook the exports directly.

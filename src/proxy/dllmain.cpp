@@ -7,18 +7,13 @@
 #include <windows.h>
 
 #include "core/config.h"
+#include "core/hooks.h"
 #include "core/log.h"
 #include "core/paths.h"
+#include "core/scanner.h"
+#include "game/exe.h"
 
 namespace {
-
-std::string Narrow(const std::wstring& text) {
-    if (text.empty()) return {};
-    const int len = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
-    std::string out(static_cast<size_t>(len), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), out.data(), len, nullptr, nullptr);
-    return out;
-}
 
 // "1.0.0.62" from the version resource of the host executable, or "unknown".
 std::string ExeFileVersion() {
@@ -49,16 +44,30 @@ void Startup(HMODULE self) {
     log::Open(paths::ModDir() / L"ddmod.log", level);
 
     log::Info("ddmod {} loaded", DDMOD_VERSION);
-    log::Info("Host: {} (file version {})", Narrow(paths::ExePath().wstring()), ExeFileVersion());
+    log::Info("Host: {} (file version {})", paths::ToUtf8(paths::ExePath()), ExeFileVersion());
     log::Info("Platform: {}", RunningUnderWine() ? "Wine/Proton" : "Windows");
     if (config::Exists()) {
-        log::Info("Config: {}", Narrow(config::File().wstring()));
+        log::Info("Config: {}", paths::ToUtf8(config::File()));
     } else {
-        log::Warn("Config not found ({}), using defaults", Narrow(config::File().wstring()));
+        log::Warn("Config not found ({}), using defaults", paths::ToUtf8(config::File()));
     }
+
+    game::IdentifyExe(paths::ExePath());
+
+    std::size_t codeBytes = 0;
+    int codeSections = 0;
+    for (const auto& section : scanner::Sections(GetModuleHandleW(nullptr))) {
+        if (!section.executable) continue;
+        codeBytes += section.bytes.size();
+        ++codeSections;
+    }
+    log::Info("Scanner: {} code bytes in {} executable section(s) of div.exe", codeBytes, codeSections);
+
+    if (hooks::Init()) log::Info("Hook manager ready (MinHook)");
 }
 
 void Shutdown() {
+    ddmod::hooks::Shutdown();
     ddmod::log::Info("ddmod unloading");
     ddmod::log::Close();
 }
