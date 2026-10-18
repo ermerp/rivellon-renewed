@@ -1,6 +1,7 @@
 // Unit tests for the parts of ddmod that do not need the game: SHA-256, pattern parsing and
 // matching, PE section scanning, the MinHook wrapper, the hotkey parser, log rotation and the
-// overlay's pixel, blend and glyph code.
+// overlay's pixel, blend and glyph code
+// (including the ML_FONT_01 bitmap font reader).
 // Exit code 0 = all passed.
 
 #include <cstdint>
@@ -22,6 +23,7 @@
 #include "core/scanner.h"
 #include "core/sha256.h"
 #include "input/keys.h"
+#include "overlay/fnt.h"
 #include "overlay/glyphs.h"
 #include "overlay/surface.h"
 
@@ -426,6 +428,64 @@ void TestGdiGlyphs() {
     CHECK(CreateGdiGlyphSource(missing) != nullptr);  // falls back to the installed face
 }
 
+// A minimal ML_FONT_01 file built by the test (no game data): 'A' is a 2x2 glyph, 'B' an alias of 'A'.
+void TestFntFont() {
+    using namespace ddmod::overlay;
+    std::vector<std::uint8_t> file(38 + 64, 0);
+    std::memcpy(file.data(), "ML_FONT_01", 10);
+    const auto put32 = [&](std::size_t at, std::uint32_t v) { std::memcpy(file.data() + at, &v, 4); };
+    const auto put16 = [&](std::size_t at, std::uint16_t v) { std::memcpy(file.data() + at, &v, 2); };
+    file.resize(22 + 4 * 256 + 16, 0);
+    put32(10, 256);
+    put32(14, 15);  // line height
+    const std::size_t record = file.size();
+    const std::int32_t entry = static_cast<std::int32_t>(record - 38);
+    put32(22 + 4 * 'A', static_cast<std::uint32_t>(entry));
+    put32(22 + 4 * 'B', static_cast<std::uint32_t>(-entry));
+    put32(record - 4, static_cast<std::uint32_t>(-3));  // top row 3
+    file.resize(record + 18 + 2 * 12 + 6, 0);
+    put32(record, 5);       // advance
+    put16(record + 4, 'A');
+    put16(record + 14, 2);  // width
+    put16(record + 16, 2);  // height
+    std::size_t at = record + 18;
+    const int rows[2][4] = {{1, 0, 0, 2}, {1, 4, 1, 1}};  // count, pixel offset, x, length
+    for (const auto& r : rows) {
+        put16(at, static_cast<std::uint16_t>(r[0]));
+        put32(at + 2, static_cast<std::uint32_t>(r[1]));
+        put16(at + 6, static_cast<std::uint16_t>(r[2]));
+        put16(at + 8, static_cast<std::uint16_t>(r[3]));
+        put16(at + 10, static_cast<std::uint16_t>(r[0]));
+        at += 12;
+    }
+    put16(at, 0xFFFF);
+    put16(at + 2, 0xF800);
+    put16(at + 4, 0x001F);
+
+    const auto path = std::filesystem::temp_directory_path() / L"ddmod-test.fnt";
+    std::ofstream(path, std::ios::binary).write(reinterpret_cast<const char*>(file.data()),
+                                                static_cast<std::streamsize>(file.size()));
+    auto source = CreateFntGlyphSource(path);
+    CHECK(source != nullptr);
+    if (source) {
+        CHECK(source->LineHeight() == 15);
+        Glyph a, b, c, space;
+        CHECK(source->Rasterize(L'A', a));
+        CHECK(a.advance == 5 && a.width == 2 && a.height == 2 && a.offsetY == 3);
+        CHECK(a.coverage == (std::vector<std::uint8_t>{255, 255, 0, 255}));
+        CHECK(a.colors.size() == 4 && Same(a.colors[0], {255, 255, 255}) && Same(a.colors[1], {255, 0, 0}) &&
+              Same(a.colors[3], {0, 0, 255}));
+        CHECK(source->Rasterize(L'B', b) && b.coverage == a.coverage);  // alias
+        CHECK(!source->Rasterize(L'C', c));
+        CHECK(!source->Rasterize(L'\u0416', c));  // not in code page 1252
+        CHECK(source->Rasterize(L' ', space) && space.coverage.empty() && space.advance >= 3);
+    }
+    std::filesystem::remove(path);
+    std::ofstream(path, std::ios::binary) << "not a font";
+    CHECK(CreateFntGlyphSource(path) == nullptr);
+    std::filesystem::remove(path);
+}
+
 }  // namespace
 
 int main() {
@@ -441,6 +501,7 @@ int main() {
     TestFillAndMask();
     TestGlyphCache();
     TestGdiGlyphs();
+    TestFntFont();
     std::printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

@@ -36,5 +36,8 @@ void FillRect(const SurfaceView& view, int x, int y, int width, int height, Rgb 
 // Blends an 8-bit coverage mask (0 = transparent, 255 = opaque), scaled by `opacity`.
 void DrawMask(const SurfaceView& view, int x, int y, const std::uint8_t* mask, int maskWidth, int maskHeight,
               int maskPitch, Rgb color, std::uint8_t opacity);
+// Like DrawMask, but every mask pixel has its own color (`colors` uses the mask's layout).
+void DrawColorMask(const SurfaceView& view, int x, int y, const std::uint8_t* mask, const Rgb* colors, int maskWidth,
+                   int maskHeight, int maskPitch, std::uint8_t opacity);
 
 }  // namespace ddmod::overlay

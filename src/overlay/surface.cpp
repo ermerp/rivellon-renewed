@@ -113,4 +113,19 @@ void DrawMask(const SurfaceView& view, int x, int y, const std::uint8_t* mask, i
     }
 }
 
+void DrawColorMask(const SurfaceView& view, int x, int y, const std::uint8_t* mask, const Rgb* colors, int maskWidth,
+                   int maskHeight, int maskPitch, std::uint8_t opacity) {
+    int skipX = 0, skipY = 0;
+    if (!mask || !colors || opacity == 0 || !Clip(view, x, y, maskWidth, maskHeight, skipX, skipY)) return;
+    const int bytes = BytesPerPixel(view.format);
+    for (int row = 0; row < maskHeight; ++row) {
+        const std::size_t first = static_cast<std::size_t>(skipY + row) * maskPitch + skipX;
+        std::uint8_t* at = view.pixels + (y + row) * view.pitch + x * bytes;
+        for (int col = 0; col < maskWidth; ++col, at += bytes) {
+            const std::uint8_t alpha = Scale(mask[first + col], opacity);
+            if (alpha != 0) BlendPixel(at, view.format, colors[first + col], alpha);
+        }
+    }
+}
+
 }  // namespace ddmod::overlay

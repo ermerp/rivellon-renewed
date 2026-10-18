@@ -31,7 +31,7 @@ public:
             }
         }
         // Negative height = character height, so the size does not depend on the font's leading.
-        font_ = CreateFontW(-spec.pixelHeight, 0, 0, 0, spec.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
+        font_ = CreateFontW(spec.cellHeight ? spec.pixelHeight : -spec.pixelHeight, 0, 0, 0, spec.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
                             DEFAULT_CHARSET, OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
                             DEFAULT_PITCH, spec.face.c_str());
         dc_ = CreateCompatibleDC(nullptr);
@@ -129,7 +129,12 @@ void DrawString(const SurfaceView& view, GlyphCache& cache, int x, int y, std::w
                 DrawMask(view, left + 1, top + 1, glyph.coverage.data(), glyph.width, glyph.height, glyph.width,
                          Rgb{0, 0, 0}, 200);
             }
-            DrawMask(view, left, top, glyph.coverage.data(), glyph.width, glyph.height, glyph.width, color, 255);
+            if (glyph.colors.empty()) {
+                DrawMask(view, left, top, glyph.coverage.data(), glyph.width, glyph.height, glyph.width, color, 255);
+            } else {
+                DrawColorMask(view, left, top, glyph.coverage.data(), glyph.colors.data(), glyph.width, glyph.height,
+                              glyph.width, 255);
+            }
         }
         pen += glyph.advance;
     }

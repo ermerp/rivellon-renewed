@@ -21,6 +21,8 @@ struct Glyph {
     int offsetY = 0;  // from the top of the line to the top edge of the mask
     int advance = 0;  // pen movement to the next character
     std::vector<std::uint8_t> coverage;  // width * height, row by row
+    // Optional own color per pixel (pre-shaded bitmap fonts); empty = drawn in the text color.
+    std::vector<Rgb> colors;
 };
 
 // Where glyphs come from. The overlay only sees this interface, so the font source can change
@@ -40,7 +42,8 @@ public:
 struct FontSpec {
     std::wstring face = L"Tahoma";
     std::filesystem::path file;
-    int pixelHeight = 16;  // character height without internal leading
+    int pixelHeight = 16;     // character height without internal leading ...
+    bool cellHeight = false;  // ... or, if true, cell height (like a positive CreateFont height)
     bool bold = true;
 };
 
@@ -66,7 +69,8 @@ private:
 int MeasureString(GlyphCache& cache, std::wstring_view text);
 
 // Draws one line of text with its top-left corner at (x, y). `shadow` adds a dark copy one pixel
-// down and right, which keeps the text readable on bright backgrounds.
+// down and right, which keeps the text readable on bright backgrounds. Glyphs with own colors
+// ignore `color`.
 void DrawString(const SurfaceView& view, GlyphCache& cache, int x, int y, std::wstring_view text, Rgb color,
                 bool shadow);
 

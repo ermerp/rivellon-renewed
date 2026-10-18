@@ -4,12 +4,22 @@ Our own descriptions of Divine Divinity's data formats.
 
 ## ML_FONT_01 (fonts)
 
-- Offset table with 256 entries starting at byte 22; base offset 38.
-- One header per glyph: advance width, character code, data size, dimensions.
-- Pixels stored as RGB565, only for occupied spans.
-- Negative table entries are aliases to other glyphs.
+Bitmap fonts in `fonts/*.fnt` (`use8bitfont 1`). One file per font **and color** (e.g. `dialog_white`/`_yellow`/`_red`/`_grey`, `fontn1`–`5` in five sizes, `paper_*` for books, `fontbig24/36` and `diary_head_*` with capitals and digits only). Reader: `src/overlay/fnt.cpp`; all integers little endian.
 
-_Details will be added when `tools/extract` is built._
+| Offset | Type | Meaning |
+|---|---|---|
+| 0x00 | 10 bytes | `ML_FONT_01` |
+| 0x0A | u32 | table size (256) |
+| 0x0E | u32 | line height in pixels (e.g. 15 for `dialog_*`, 13 for `fontn1`) |
+| 0x12 | u32 | number of glyphs in the file |
+| 0x16 | 256 × i32 | glyph table indexed by character byte (code page of the language version): record offset relative to **0x26**; 0 = no glyph, negative = alias of the glyph at the absolute value |
+
+Each glyph is a 16-byte prefix followed by the record:
+
+- Prefix: 8 bytes `32 54 76 98 CC DD EE FF` (same in every glyph, meaning unknown), u32 0, **i32 = minus the glyph's top row** relative to the top of the line (e.g. −3 for capitals, −5 for lowercase, −11 for `.` in `dialog_white`).
+- Record: u32 advance, u16 character code, u32 size (= next field + 2 × pixel count), u32 (= 12 + size of the row table), u16 width, u16 height; then one row entry per pixel row – u16 span count *n*, u32 byte offset of the row's first pixel in the pixel block, *n* × (u16 x, u16 length), u16 *n* again; then the pixel block: RGB565 values of all spans, row by row; then one padding byte.
+- Pixels outside spans are transparent. The colors are pre-shaded (anti-aliased edges darkened towards black), so the glyphs are made for dark backgrounds.
+- There is no space glyph (entry 0) and no space width in the header – the game's spacing is not known yet (the overlay uses the width of `i`).
 
 ## Hero sprites (`static/heroes/<class><gender><sheet>.bic|.idc`, `<class><gender>.key`)
 

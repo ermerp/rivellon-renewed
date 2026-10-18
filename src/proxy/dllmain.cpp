@@ -12,6 +12,7 @@
 #include "core/paths.h"
 #include "core/scanner.h"
 #include "game/exe.h"
+#include "game/fontlog.h"
 #include "game/window.h"
 #include "input/input.h"
 #include "overlay/overlay.h"
@@ -39,6 +40,13 @@ bool RunningUnderWine() {
 }
 
 void OnTestHotkey() { ddmod::log::Info("Test hotkey pressed"); }
+
+// LogLevel=debug: log the game's GDI fonts from the start (they may be created before the game
+// window exists). Runs on its own thread, after the loader lock is released.
+DWORD WINAPI FontLogThread(LPVOID) {
+    if (ddmod::hooks::Init()) ddmod::game::InstallFontLog();
+    return 0;
+}
 
 // Deferred start, on the watcher thread once the game window exists. Nothing here may run
 // from DllMain (docs/re/input.md): hooks are only installed when the game is up.
@@ -86,6 +94,9 @@ void Startup(HMODULE self) {
     }
     log::Info("Scanner: {} code bytes in {} executable section(s) of div.exe", codeBytes, codeSections);
 
+    if (log::Enabled(log::Level::Debug)) {
+        if (const HANDLE thread = CreateThread(nullptr, 0, &FontLogThread, nullptr, 0, nullptr)) CloseHandle(thread);
+    }
     if (game::WatchForMainWindow(&OnGameWindow)) log::Info("Waiting for the game window");
 }
 

@@ -43,10 +43,12 @@ add_library(ddmod_core STATIC
     src/core/hooks.cpp
     src/game/exe.cpp
     src/game/window.cpp
+    src/game/fontlog.cpp
     src/input/keys.cpp
     src/input/input.cpp
     src/overlay/surface.cpp
     src/overlay/glyphs.cpp
+    src/overlay/fnt.cpp
     src/overlay/d3d6.cpp
     src/overlay/overlay.cpp
 )
@@ -75,3 +77,8 @@ enable_testing()
 add_executable(ddmod_tests tests/main.cpp)
 target_link_libraries(ddmod_tests PRIVATE ddmod_core)
 add_test(NAME ddmod_tests COMMAND ddmod_tests)
+
+# --- Developer tools (not shipped) ---
+# Font comparison sheet for design decisions: build/Release/ddmod_fontpreview.exe
+add_executable(ddmod_fontpreview tools/fontpreview/main.cpp)
+target_link_libraries(ddmod_fontpreview PRIVATE ddmod_core gdiplus)
