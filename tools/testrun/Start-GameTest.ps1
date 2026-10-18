@@ -8,7 +8,8 @@
       the file afterwards (requires dgVoodoo2 in the working copy).
     - Takes -Count screenshots, the first after -Seconds, then every -Interval seconds.
     - -NoIntro temporarily sets "startup logo 0" in config.div (skips the intro movies) and
-      restores config.div afterwards.
+      restores config.div afterwards. -Intro does the opposite ("startup logo 1" in config.div and,
+      if the key is there, in config.lcl, which overrides config.div) so DE and EN run alike.
     - -PostKeyAt posts -PostKeyVk (default F3) to the game window without modifiers - no real input.
     - -PressHotkeyAt types the -HotkeyVk chord as real input (SendInput, so GetKeyState sees the
       modifiers), but only if the game window is in the foreground - never into another program.
@@ -30,6 +31,7 @@ param(
     [int] $Interval = 10,
     [switch] $FullScreen,
     [switch] $NoIntro,
+    [switch] $Intro,                # force the intro on (the English copy disables it in config.lcl)
     [int[]] $PressEscapeAt = @(),   # seconds after start at which Esc is sent (e.g. to skip videos)
     [int[]] $PostKeyAt = @(),       # seconds after start at which -PostKeyVk is posted (no modifiers, no real input)
     [int] $PostKeyVk = 0x72,        # F3
@@ -213,9 +215,18 @@ if (-not $FullScreen) {
 }
 $divCfg = Join-Path $dir 'config.div'
 $divCfgBackup = $null
-if ($NoIntro) {
+$lclCfg = Join-Path $dir 'config.lcl'
+$lclCfgBackup = $null
+if ($NoIntro -and $Intro) { throw '-NoIntro and -Intro exclude each other' }
+if ($NoIntro -or $Intro) {
     $divCfgBackup = [System.IO.File]::ReadAllBytes($divCfg)
-    Set-DivConfigValue -Path $divCfg -Key 'startup logo' -Value '0' -Comment 'show the intro movies'
+    $logo = if ($Intro) { '1' } else { '0' }
+    Set-DivConfigValue -Path $divCfg -Key 'startup logo' -Value $logo -Comment 'show the intro movies'
+    # config.lcl overrides config.div; the English release ships "startup logo 0" there.
+    if ($Intro -and (Select-String -LiteralPath $lclCfg -Pattern '^\s*startup logo\s' -Quiet)) {
+        $lclCfgBackup = [System.IO.File]::ReadAllBytes($lclCfg)
+        Set-DivConfigValue -Path $lclCfg -Key 'startup logo' -Value '1'
+    }
 }
 
 # Snapshot of the game's run marker files (restored afterwards, see description).
@@ -324,6 +335,7 @@ finally {
     }
     if ($confBackup) { [System.IO.File]::WriteAllBytes($conf, $confBackup) }
     if ($divCfgBackup) { [System.IO.File]::WriteAllBytes($divCfg, $divCfgBackup) }
+    if ($lclCfgBackup) { [System.IO.File]::WriteAllBytes($lclCfg, $lclCfgBackup) }
     foreach ($p in $markers.Keys) {
         if ($null -eq $markers[$p]) { Remove-Item -LiteralPath $p -ErrorAction SilentlyContinue }
         else { [System.IO.File]::WriteAllBytes($p, $markers[$p]) }

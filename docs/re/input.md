@@ -10,7 +10,7 @@
 
 - `div.exe` does not create the window. The renderer plugin does (`slash1`–`4.dll` import `RegisterClassExA`/`CreateWindowExA`, `architecture.md`). All four use the window class **`Divinity`**; the title is also `Divinity`.
 - It is an ANSI window (`RegisterClassExA`) and belongs to the **main thread**, the same thread that runs `DllMain` of ddmod.
-- It appears 1.1–9.4 s after process start (measured with dgVoodoo2 on Windows, windowed and full screen, with and without intro; the spread is not explained). The intro videos play in this window. `binkw32.dll` registers a window class of its own too, so ddmod matches on the class name, not on "first visible window".
+- When it appears depends on the intro: with intro movies about 1.1–1.8 s after process start (they play in this window), with `startup logo 0` about 7.4–9.4 s (dgVoodoo2, Windows, windowed and full screen alike). `binkw32.dll` registers a window class of its own too, so ddmod matches on the class name, not on "first visible window".
 - Other top-level windows of the process (full screen, dgVoodoo2): `D3DProxyWindow` and `DXGIWatchdogThreadWindow` (DXGI, hidden) and the IME windows.
 - **The window procedure does not stay put.** In full screen, within 500 ms after ddmod subclassed it, the procedure pointed first into `DDRAW.dll` (dgVoodoo2) and then to code outside every module (`03BA0000`/`03CA0000`, generated at run time), and that chain does not call ours. Key messages then bypass a subclass entirely. Windowed, the subclass stayed in place.
 - Alt+Tab out of full screen and back turns the game into a framed window – also without ddmod (dgVoodoo2/game behavior, not ours). Playing continues normally.
