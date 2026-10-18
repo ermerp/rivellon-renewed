@@ -147,7 +147,33 @@ Not taken: `Localizations\English\`, `slash1–4.dll` (Steam versions kept), `Do
 - Installed in `C:\dev\dd-test` and `C:\dev\dd-test-134`: `DDraw.dll` and `D3DImm.dll` from `MS\x86`, `dgVoodooCpl.exe`, default `dgVoodoo.conf` (so the control panel stores settings per folder).
 - Release note from the author: 32-bit games should be Large Address Aware with a modern GPU driver, because dgVoodoo adds address-space overhead → matches the 4GB patch recommendation in PLAN.md.
 
-## 6. Version situation
+### Applied configuration (2026-10-18)
+
+Applied with `tools/testrun/DdTest.psm1` (`Set-DgVoodooProfile -Adapter 1 -Watermark`, `Set-DivConfig`) to both working copies; originals kept as `*.orig`.
+- DXGI adapter order on the dev machine: 1 = NVIDIA GeForce GTX 1050 Ti (primary monitor, 2560×1440), 2 = Intel UHD 630 (second monitor), 3 = Microsoft Basic Render Driver → `Adapters = 1`.
+- `AppControlledScreenMode = false` (corresponds to the guide's "all checkboxes off"); this also lets `FullScreenMode` decide windowed vs. full screen, which the test script uses.
+
+## 6. Game configuration files
+
+- `config.div` (plain text, `key value` lines, `//` comments): `width`, `height`, `smooth`, `alpha bit` ("Use alpha" in `configtool.exe`), `startup logo` (intro movies), `no fog`, `cdrom path` (1.0034A) and more. Both EXE versions read the same keys. **The game rewrites `config.div` on exit** (values are kept).
+- `slashed.cfg` (4 bytes): selected renderer = first DWORD. The per-renderer files `slashed-<name>.cfg` start with their own ID: `0` = Direct3D 6 (`slashed-d3d6.cfg`), `1` = Glide, `2` = DirectDraw (`slashed-directx.cfg`), `3` = Software. They also contain a 800×600 resolution pair at offsets 0x0C/0x10 (meaning not yet verified; `config.div` decides the actual resolution).
+- **Run marker:** on start the game creates `init.cfg` (4 bytes) and `sinfo.000` (8 bytes) in the game folder. If the game was not shut down cleanly (crash, kill), the next start shows "Divinity was not correctly terminated … Do you want to reset the configuration?" – "Yes" would reset the configuration. Neither file exists in a fresh Steam installation.
+- Other files written at runtime: `persist.dat`, `keylist.txt`, `mapids.000`, `slashed-d3d6.cfg`.
+
+## 7. Automated start tests (2026-10-18, `tools/testrun/Start-GameTest.ps1`, windowed, dgVoodoo watermark on)
+
+| Copy | Setting | Result |
+|---|---|---|
+| `dd-test` (1.0062A) | 1920×1080, intro on | Runs; intro videos play (640×480 centered); no crash |
+| `dd-test` (1.0062A) | 1920×1080, Esc at 4/8/12/16/20 s | Esc skips the videos → loading screen with tip → German main menu after ~25 s; version "V1.0062A" bottom right; menu centered at 1024×768 |
+| `dd-test-134` (1.0034A) | 1920×1080, intro off | Runs; German main menu, version "V1.0034A"; menu drawn top-left (not centered) |
+| `dd-test-134` (1.0034A) | 1920×1080, intro on | **Crash after 3–5 s**, access violation `0xC0000005` in `slash1.dll` (Steam build: offset `0x1d76d`; patch build: offset `0x1b0bd`) – reproducible |
+| `dd-test-134` (1.0034A) | 1024×768, intro on | No crash, but the CD prompt "Bitte legen Sie die CD namens SPIEL-CD in das CD_Rom Laufwerk" appears instead of the videos |
+| `dd-test-134` (1.0034A) | 1920×1080, intro on, `cdrom path` = working copy | Still crashes |
+
+Interpretation (to be verified): 1.0034A does not find the movies (it expects them on the game CD) and shows the CD prompt instead; drawing that prompt / the video path crashes the renderer at resolutions above 1024×768 – independent of the `slash1.dll` build. In-game cutscenes are likely affected the same way. A fix would be a hook that redirects the CD lookup to the local `static\` folder (PLAN.md Phase 9). The 1.0034A crash at > 1080p reported by the community was not reproduced at 1920×1080 with intro off.
+
+## 8. Version situation
 
 - Steam/GOG 1.0062A is based on the 1.0029A code base (source code of 1.0034A lost); it has widescreen and Windows 7 adjustments, but not all fixes from 1.0034A. Savegames are not compatible between the versions.
 - According to Larian (Raze, Steam forum), 1.0034A officially does not support resolutions above 1024×768; community reports say it works anyway with dgVoodoo → needs to be tested.

@@ -30,6 +30,7 @@
 /support/
 /capture/
 /savegames/
+/screenshots/
 
 # --- Derived, locally generated content (rule 5) ---
 cache/
