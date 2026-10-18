@@ -50,7 +50,7 @@ Modernization mod for Divine Divinity (Steam/GOG 1.0062A) as an `.asi` plugin lo
 | Reference copy 1.0034A (on hold, do not change) | `C:\dev\dd-test-134` |
 | Downloads (verified, outside repo) | `C:\dev\downloads` – `patch134_en\files`, `dgvoodoo2_87_5`, `dgvoodoo2_87_3`, `ultimate-asi-loader_9.7.4\dinput8.dll` |
 | Screenshots / fetched logs (never commit) | `C:\dev\screenshots` (Deck files in `deck\`) |
-| Ghidra 12.1.4 | `C:\tools\ghidra_12.1.4_PUBLIC` (JDK: Temurin 21) |
+| Ghidra 12.1.4 | `C:\tools\ghidra_12.1.4_PUBLIC` (JDK: Temurin 21); headless: `support\analyzeHeadless.bat <project dir> <name> -import <file>` (later `-process <file> -noanalysis -readOnly`) `-scriptPath <dir> -postScript <Script>.java …` – project, scripts and output only in the scratchpad |
 | Cheat Engine 7.7 | `C:\Program Files\Cheat Engine` |
 | x32dbg | `x32dbg` (winget alias) |
 | MSVC | `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools` (`dumpbin`: `VC\Tools\MSVC\14.44.35207\bin\Hostx64\x86\dumpbin.exe`) |
