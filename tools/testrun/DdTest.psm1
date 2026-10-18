@@ -120,4 +120,51 @@ function Set-DivConfig {
     [System.IO.File]::WriteAllBytes((Join-Path $dir 'slashed.cfg'), [byte[]](0, 0, 0, 0))
 }
 
-Export-ModuleMember -Function Assert-WorkingCopy, Set-IniValue, Set-DgVoodooProfile, Set-DivConfigValue, Set-DivConfig
+function Install-DdMod {
+    # Copies Ultimate ASI Loader (as winmm.dll), ddmod.asi and ddmod.ini into a working copy.
+    # Refuses to replace a winmm.dll that is not the given ASI loader (e.g. dgVoodoo's WinMM.dll).
+    param(
+        [Parameter(Mandatory)] [string] $GameDir,
+        [string] $AsiLoader = 'C:\dev\downloads\ultimate-asi-loader_9.7.4\dinput8.dll',
+        [string] $BuildDir = (Join-Path $PSScriptRoot '..\..\build\Release'),
+        [switch] $ResetIni   # overwrite an existing ddmod.ini with the repo default
+    )
+    $dir = Assert-WorkingCopy $GameDir
+    $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+    $asi = Join-Path $BuildDir 'ddmod.asi'
+    foreach ($f in $AsiLoader, $asi) { if (-not (Test-Path -LiteralPath $f)) { throw "Missing: $f" } }
+
+    $winmm = Join-Path $dir 'winmm.dll'
+    if ((Test-Path -LiteralPath $winmm) -and
+        (Get-FileHash -LiteralPath $winmm).Hash -ne (Get-FileHash -LiteralPath $AsiLoader).Hash) {
+        throw "$winmm exists and is not the ASI loader - not replacing it"
+    }
+    Copy-Item -LiteralPath $AsiLoader -Destination $winmm -Force
+    Copy-Item -LiteralPath $asi -Destination (Join-Path $dir 'ddmod.asi') -Force
+    $ini = Join-Path $dir 'ddmod.ini'
+    if ($ResetIni -or -not (Test-Path -LiteralPath $ini)) {
+        Copy-Item -LiteralPath (Join-Path $repo 'config\ddmod.ini') -Destination $ini -Force
+    }
+    Write-Host "ddmod installed in $dir"
+}
+
+function Uninstall-DdMod {
+    # Removes winmm.dll (only if it is the ASI loader), ddmod.asi and ddmod.log; keeps ddmod.ini.
+    param(
+        [Parameter(Mandatory)] [string] $GameDir,
+        [string] $AsiLoader = 'C:\dev\downloads\ultimate-asi-loader_9.7.4\dinput8.dll'
+    )
+    $dir = Assert-WorkingCopy $GameDir
+    $winmm = Join-Path $dir 'winmm.dll'
+    if (Test-Path -LiteralPath $winmm) {
+        if ((Get-FileHash -LiteralPath $winmm).Hash -eq (Get-FileHash -LiteralPath $AsiLoader).Hash) {
+            Remove-Item -LiteralPath $winmm
+        } else {
+            Write-Warning "$winmm is not the ASI loader - left in place"
+        }
+    }
+    foreach ($f in 'ddmod.asi', 'ddmod.log') { Remove-Item -LiteralPath (Join-Path $dir $f) -ErrorAction SilentlyContinue }
+    Write-Host "ddmod removed from $dir (ddmod.ini kept)"
+}
+
+Export-ModuleMember -Function Assert-WorkingCopy, Set-IniValue, Set-DgVoodooProfile, Set-DivConfigValue, Set-DivConfig, Install-DdMod, Uninstall-DdMod

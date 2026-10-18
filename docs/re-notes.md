@@ -19,6 +19,7 @@ Development machine: Windows 11 Home (build 26200).
 | Ghidra | 12.1.4 | `C:\tools\ghidra_12.1.4_PUBLIC` (official NSA GitHub release, SHA-256 verified) |
 | Cheat Engine | 7.7 | `C:\Program Files\Cheat Engine` (installed by the human; the 64-bit build can attach to the 32-bit game, `cheatengine-i386.exe` is also available) |
 | dgVoodoo2 | 2.87.5 | in the working copies, see §5 |
+| Ultimate ASI Loader | 9.7.4 | `C:\dev\downloads\ultimate-asi-loader_9.7.4\dinput8.dll` (official release `github.com/ThirteenAG/Ultimate-ASI-Loader`, `Ultimate-ASI-Loader-NoPDB.zip` SHA-256 `14B3A1AD…1315E1` = GitHub digest; x86 `dinput8.dll` SHA-256 `EC2F4824ECA58DD40F425756A4A7CEC77B8E381F21D11D7C846EC4B339B617AB`). Installed as `winmm.dll`; it exports the WINMM functions (`timeGetTime`, `PlaySoundA`, `midiOutOpen`, …) and forwards them to the system DLL. |
 
 **Smart App Control is disabled** on the development machine (by the human, 2026-10-17). Reason: it blocked Cheat Engine and would also block our own unsigned proxy DLL / `.asi`. Verified via registry: `HKLM\SYSTEM\CurrentControlSet\Control\CI\Policy\VerifiedAndReputablePolicyState = 0` (off).
 Consequences:
