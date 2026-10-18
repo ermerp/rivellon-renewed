@@ -6,6 +6,11 @@
 //   --fnt <file.fnt> <label>                game bitmap font, drawn at 1x and 2x (nearest neighbor)
 //   --gdi <face> <height> <weight> <label>  installed font, like CreateFontA(height, weight): cell height
 //   --ttf <file> <face> <px> <weight> <label>  font file loaded for this process only, at px and 2*px
+//   --overview <dir> <scale>                one line per .fnt file in <dir> (for grouping families)
+//   --charsheet <file.fnt> <scale> <threshold%> <label>  A-Z, a-z, 0-9, umlauts, black on white, no smoothing
+//                                           (for font identification services; use --bg 255,255,255)
+//   --smooth <file.fnt> <label>             game glyphs at 2x and 4x: nearest neighbor, Scale2x,
+//                                           distance field
 
 #include <algorithm>
 #include <cstdio>
@@ -24,6 +29,7 @@ using std::min;
 #include "overlay/fnt.h"
 #include "overlay/glyphs.h"
 #include "overlay/surface.h"
+#include "scale.h"
 
 using namespace ddmod::overlay;
 
@@ -69,6 +75,15 @@ void BlitScaled(Canvas& dst, const Canvas& src, int x, int y, int scale) {
         }
     }
 }
+
+Canvas FromImage(const fontpreview::Image& img, Rgb bg) {
+    return {img.width, img.height, fontpreview::Composite(img, bg)};
+}
+
+const std::vector<std::wstring> kCharSheet = {
+    L"ABCDEFGHIJKLM", L"NOPQRSTUVWXYZ", L"abcdefghijklm", L"nopqrstuvwxyz", L"0123456789",
+    L"ÄÖÜäöüß éèêàç .,;:!?-'()&",
+};
 
 // One block of the sheet: a caption and the sample lines.
 struct Block {
@@ -161,6 +176,94 @@ int wmain(int argc, wchar_t** argv) {
                 for (const auto& s : kSamples) block.lines.push_back(RenderLine(cache, s, bg, text, scale));
                 blocks.push_back(std::move(block));
             }
+        } else if (arg == L"--overview") {
+            need(2);
+            const std::wstring dir = argv[++i];
+            const int scale = _wtoi(argv[++i]);
+            WIN32_FIND_DATAW found{};
+            std::vector<std::wstring> names;
+            const HANDLE find = FindFirstFileW((dir + L"\\*.fnt").c_str(), &found);
+            if (find == INVALID_HANDLE_VALUE) return 1;
+            do names.push_back(found.cFileName); while (FindNextFileW(find, &found));
+            FindClose(find);
+            std::sort(names.begin(), names.end());
+            for (const auto& name : names) {
+                GlyphCache cache(CreateFntGlyphSource(dir + L"\\" + name));
+                if (cache.LineHeight() == 0) continue;
+                const auto line = fontpreview::RenderLine(cache, L"Hamburgefonstiv ÄÖÜ äöüß 0123456789 ABCDEFG", text, 1);
+                blocks.push_back({name + L" – line " + std::to_wstring(cache.LineHeight()) + L" px",
+                                  {FromImage(fontpreview::ScaleNearest(line, scale), bg)}});
+            }
+        } else if (arg == L"--charsheet") {
+            need(4);
+            const std::wstring file = argv[++i];
+            const int scale = _wtoi(argv[++i]);
+            const float threshold = _wtoi(argv[++i]) / 100.0f;
+            const std::wstring label = argv[++i];
+            GlyphCache cache(CreateFntGlyphSource(file));
+            if (cache.LineHeight() == 0) return 1;
+            // Leave out characters the font does not have (they would show as '?').
+            auto probe = CreateFntGlyphSource(file);
+            Block block{label, {}};
+            for (const auto& all : kCharSheet) {
+                std::wstring s;
+                for (const wchar_t ch : all) {
+                    Glyph g;
+                    if (probe->Rasterize(ch, g)) s += ch;
+                }
+                if (s.find_first_not_of(L' ') == std::wstring::npos) continue;
+                const auto line = fontpreview::Binarize(fontpreview::RenderLine(cache, s, text, 2), threshold);
+                block.lines.push_back(FromImage(fontpreview::ScaleNearest(line, scale), bg));
+            }
+            blocks.push_back(std::move(block));
+        } else if (arg == L"--smooth") {
+            need(2);
+            const std::wstring file = argv[++i], label = argv[++i];
+            GlyphCache cache(CreateFntGlyphSource(file));
+            if (cache.LineHeight() == 0) return 1;
+            std::vector<fontpreview::Image> lines;
+            for (std::size_t k = 0; k < 2; ++k) lines.push_back(fontpreview::RenderLine(cache, kSamples[k], text, 2));
+            const auto add = [&](const wchar_t* what, auto scaler) {
+                Block block{label + L" – " + what, {}};
+                for (const auto& l : lines) block.lines.push_back(FromImage(scaler(l), bg));
+                blocks.push_back(std::move(block));
+            };
+            using fontpreview::Image;
+            add(L"2× nearest neighbor (reference)", [](const Image& l) { return fontpreview::ScaleNearest(l, 2); });
+            add(L"2× Scale2x", [](const Image& l) { return fontpreview::ScaleEpx(l); });
+            add(L"2× distance field", [](const Image& l) { return fontpreview::ScaleSdf(l, 2); });
+            add(L"4× nearest neighbor (reference)", [](const Image& l) { return fontpreview::ScaleNearest(l, 4); });
+            add(L"4× Scale2x twice", [](const Image& l) { return fontpreview::ScaleEpx(fontpreview::ScaleEpx(l)); });
+            add(L"4× distance field", [](const Image& l) { return fontpreview::ScaleSdf(l, 4); });
+        } else if (arg == L"--pixel") {
+            // --pixel <file.fnt | face | font file> <face or -> <px> <weight> <label>: first two
+            // sample lines at the given size, then 4x nearest neighbor - for pixel-level
+            // comparison with a game font.
+            need(5);
+            const std::wstring source = argv[++i], face = argv[++i];
+            const int px = _wtoi(argv[++i]), weight = _wtoi(argv[++i]);
+            const std::wstring label = argv[++i];
+            std::unique_ptr<GlyphSource> glyphs;
+            if (source.ends_with(L".fnt")) {
+                glyphs = CreateFntGlyphSource(source);
+            } else {
+                FontSpec spec;
+                spec.face = face == L"-" ? source : face;
+                if (face != L"-") spec.file = source;
+                spec.pixelHeight = px;
+                spec.bold = weight >= FW_SEMIBOLD;
+                glyphs = CreateGdiGlyphSource(spec);
+            }
+            GlyphCache cache(std::move(glyphs));
+            if (cache.LineHeight() == 0) return 1;
+            for (const int scale : {1, 4}) {
+                Block block{label + L" – " + (scale == 1 ? L"1×" : L"4× nearest neighbor"), {}};
+                for (std::size_t k = 0; k < 2; ++k) {
+                    const auto line = fontpreview::RenderLine(cache, kSamples[k], text, 2);
+                    block.lines.push_back(FromImage(fontpreview::ScaleNearest(line, scale), bg));
+                }
+                blocks.push_back(std::move(block));
+            }
         } else if (arg == L"--gdi" || arg == L"--ttf") {
             const bool isFile = arg == L"--ttf";
             need(isFile ? 5 : 4);
@@ -208,11 +311,18 @@ int wmain(int argc, wchar_t** argv) {
         for (const Canvas& l : b.lines) height += l.height;
         height += kMargin;
     }
-    Canvas sheet = MakeCanvas(kWidth, height, bg);
+    int width = kWidth;
+    for (const Block& b : blocks) {
+        for (const Canvas& l : b.lines) width = std::max(width, l.width + 2 * kMargin);
+    }
+    const bool light = bg.r + bg.g + bg.b > 3 * 128;
+    Canvas sheet = MakeCanvas(width, height, bg);
     int y = kMargin;
     for (const Block& b : blocks) {
-        FillRect(sheet.View(), kMargin, y - kMargin / 2, kWidth - 2 * kMargin, 1, Rgb{90, 80, 65}, 255);
-        DrawString(sheet.View(), *captionFont, kMargin, y, b.caption, Rgb{150, 170, 200}, false);
+        FillRect(sheet.View(), kMargin, y - kMargin / 2, width - 2 * kMargin, 1,
+                 light ? Rgb{200, 200, 200} : Rgb{90, 80, 65}, 255);
+        DrawString(sheet.View(), *captionFont, kMargin, y, b.caption, light ? Rgb{60, 60, 60} : Rgb{150, 170, 200},
+                   false);
         y += captionFont->LineHeight() + 6;
         for (const Canvas& l : b.lines) {
             BlitScaled(sheet, l, kMargin, y, 1);

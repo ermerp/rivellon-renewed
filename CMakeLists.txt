@@ -80,5 +80,5 @@ add_test(NAME ddmod_tests COMMAND ddmod_tests)
 
 # --- Developer tools (not shipped) ---
 # Font comparison sheet for design decisions: build/Release/ddmod_fontpreview.exe
-add_executable(ddmod_fontpreview tools/fontpreview/main.cpp)
+add_executable(ddmod_fontpreview tools/fontpreview/main.cpp tools/fontpreview/scale.cpp)
 target_link_libraries(ddmod_fontpreview PRIVATE ddmod_core gdiplus)
