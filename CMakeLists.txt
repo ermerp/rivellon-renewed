@@ -42,6 +42,9 @@ add_library(ddmod_core STATIC
     src/core/scanner.cpp
     src/core/hooks.cpp
     src/game/exe.cpp
+    src/game/window.cpp
+    src/input/keys.cpp
+    src/input/input.cpp
 )
 target_include_directories(ddmod_core PUBLIC src)
 target_compile_definitions(ddmod_core PUBLIC

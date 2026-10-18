@@ -9,6 +9,8 @@
     - Takes -Count screenshots, the first after -Seconds, then every -Interval seconds.
     - -NoIntro temporarily sets "startup logo 0" in config.div (skips the intro movies) and
       restores config.div afterwards.
+    - -PressHotkeyAt types the -HotkeyVk chord as real input (SendInput, so GetKeyState sees the
+      modifiers), but only if the game window is in the foreground - never into another program.
     - Saves PNGs to -OutDir (default C:\dev\screenshots, outside the repo).
     - Reports whether the game exited early (crash) or stopped responding.
     - The script has to kill the game, which the game would treat as a crash on the next start
@@ -28,6 +30,8 @@ param(
     [switch] $FullScreen,
     [switch] $NoIntro,
     [int[]] $PressEscapeAt = @(),   # seconds after start at which Esc is sent (e.g. to skip videos)
+    [int[]] $PressHotkeyAt = @(),   # seconds after start at which the -HotkeyVk chord is typed
+    [int[]] $HotkeyVk = @(0x11, 0x10, 0x79),   # virtual keys, pressed in order: Ctrl+Shift+F10
     [string] $OutDir = 'C:\dev\screenshots',
     [string] $Label
 )
@@ -83,6 +87,43 @@ public static class DdCapture {
         PostMessage(h, 0x0100 /* WM_KEYDOWN */, new IntPtr(vk), new IntPtr(1));
         System.Threading.Thread.Sleep(50);
         PostMessage(h, 0x0101 /* WM_KEYUP */, new IntPtr(vk), new IntPtr(unchecked((int)0xC0000001)));
+    }
+
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
+    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] static extern uint SendInput(uint n, INPUT[] inputs, int size);
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct KEYBDINPUT { public ushort vk, scan; public uint flags, time; public IntPtr extra; }
+    [StructLayout(LayoutKind.Sequential)]
+    struct MOUSEINPUT { public int dx, dy; public uint data, flags, time; public IntPtr extra; }
+    [StructLayout(LayoutKind.Explicit)]
+    struct INPUTUNION { [FieldOffset(0)] public MOUSEINPUT mi; [FieldOffset(0)] public KEYBDINPUT ki; }
+    // Sequential layout gives the right union offset and size for 32- and 64-bit PowerShell.
+    [StructLayout(LayoutKind.Sequential)]
+    struct INPUT { public uint type; public INPUTUNION u; }
+
+    // Types a key chord (keys down in order, up in reverse order) as real input, but only if the
+    // window is in the foreground. Returns false (nothing sent) otherwise.
+    public static bool SendChord(IntPtr h, int[] vks) {
+        // A background process may not take the foreground; sharing the input state with the
+        // current foreground thread allows it without sending any input there.
+        uint dummy;
+        uint fgThread = GetWindowThreadProcessId(GetForegroundWindow(), out dummy);
+        uint self = GetCurrentThreadId();
+        bool attached = fgThread != 0 && fgThread != self && AttachThreadInput(self, fgThread, true);
+        SetForegroundWindow(h);
+        if (attached) AttachThreadInput(self, fgThread, false);
+        System.Threading.Thread.Sleep(300);
+        if (GetForegroundWindow() != h) return false;
+        var inputs = new INPUT[vks.Length * 2];
+        for (int i = 0; i < vks.Length; i++) {
+            inputs[i].type = 1; inputs[i].u.ki.vk = (ushort)vks[i];
+            var up = vks.Length * 2 - 1 - i;
+            inputs[up].type = 1; inputs[up].u.ki.vk = (ushort)vks[i]; inputs[up].u.ki.flags = 2 /* KEYEVENTF_KEYUP */;
+        }
+        return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT))) == inputs.Length;
     }
 
     // Answers a standard message box with the given button id (e.g. 7 = IDNO).
@@ -210,6 +251,7 @@ try {
     Write-Host "Started div.exe (PID $($proc.Id)) from $dir"
     $start = Get-Date
     $pendingEsc = @($PressEscapeAt | Sort-Object)
+    $pendingHotkey = @($PressHotkeyAt | Sort-Object)
 
     for ($n = 1; $n -le $Count; $n++) {
         $due = $start.AddSeconds($Seconds + ($n - 1) * $Interval)
@@ -221,6 +263,14 @@ try {
                     $h = [DdCapture]::FindMainWindow([uint32]$proc.Id)
                     if ($h -ne [IntPtr]::Zero) { [DdCapture]::PostKey($h, 0x1B); Write-Host "Esc sent at ${t}s" }
                     $pendingEsc = @($pendingEsc | Where-Object { $_ -ne $t })
+                }
+            }
+            foreach ($t in @($pendingHotkey)) {
+                if ($now -ge $t) {
+                    $h = [DdCapture]::FindMainWindow([uint32]$proc.Id)
+                    if ($h -ne [IntPtr]::Zero -and [DdCapture]::SendChord($h, $HotkeyVk)) { Write-Host "Hotkey sent at ${t}s" }
+                    else { Write-Host "Hotkey NOT sent at ${t}s (game window not in the foreground)" }
+                    $pendingHotkey = @($pendingHotkey | Where-Object { $_ -ne $t })
                 }
             }
             Start-Sleep -Milliseconds 250

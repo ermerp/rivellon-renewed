@@ -9,6 +9,7 @@ Findings in our own words – **no decompiled code, no pseudocode** (CLAUDE.md r
 | [architecture.md](architecture.md) | Imports, renderer plugins (`slash*.dll`), input/audio/video/dialog APIs, proxy and overlay decisions |
 | [config-files.md](config-files.md) | `config.div`/`config.lcl`/`slashed*.cfg`, run markers, settings object and all config keys |
 | [developer-mode.md](developer-mode.md) | Developer flag (settings `+0x28`) and the forum byte patch |
+| [input.md](input.md) | Message loop, game window (class `Divinity`), deferred start, window-procedure hotkeys, `[Keys]` syntax |
 | [key-events.md](key-events.md) | 40 key events, `divinityevent.dat`, `keylist.txt` IDs and format |
 | [graphics-assets.md](graphics-assets.md) | 2D sprites (heroes, image lists), animation layout, 16-bit color |
 | [file-formats.md](file-formats.md) | Byte layouts: fonts (`ML_FONT_01`), hero sprites, image lists |

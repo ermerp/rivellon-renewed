@@ -31,7 +31,7 @@ dgVoodoo2 (`ddraw.dll` + `D3DImm.dll`) therefore covers Direct3D, DirectDraw and
 
 ## Input, audio, video, dialogs, scripts
 
-- **Input:** no DirectInput. Window messages (`PeekMessageA`/`GetMessageA`) plus `GetAsyncKeyState`/`GetKeyState`/`GetCursorPos` → hook the window procedure (subclassing) and these USER32 functions.
+- **Input:** no DirectInput. Window messages (`PeekMessageA`/`GetMessageA`) plus `GetAsyncKeyState`/`GetKeyState`/`GetCursorPos` → ddmod subclasses the window procedure (`input.md`); the USER32 functions can be hooked if needed.
 - **Audio:** FMOD 3.x (uses DirectSound/WINMM). Ducking (Phase 7): `FSOUND_SetVolume`, stream functions.
 - **Video:** Bink, sound via `BinkOpenDirectSound`.
 - **Dialogs:** `DivDialogSystem.dll` exports `StartDialog`, `GetNumQuestions`, `GetQuestion` (wide string), `GetAnswerText`, `GetAnswerSoundName`, `SelectQuestion`, `GetQuestionNodeID`, `GetAnswerNodeID` → Phase 6 can work at these exports.

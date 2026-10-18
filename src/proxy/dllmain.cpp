@@ -12,6 +12,8 @@
 #include "core/paths.h"
 #include "core/scanner.h"
 #include "game/exe.h"
+#include "game/window.h"
+#include "input/input.h"
 
 namespace {
 
@@ -33,6 +35,34 @@ std::string ExeFileVersion() {
 bool RunningUnderWine() {
     const HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
     return ntdll && GetProcAddress(ntdll, "wine_get_version") != nullptr;
+}
+
+void OnTestHotkey() { ddmod::log::Info("Test hotkey pressed"); }
+
+void OnGameWindow(HWND window);
+
+void OnGameWindowDestroyed() {
+    // Wait for a new window in case the game re-creates it.
+    ddmod::game::WatchForMainWindow(&OnGameWindow);
+}
+
+// Deferred start, on the watcher thread once the game window exists. Nothing here may run
+// from DllMain (docs/re/input.md): hooks are only installed when the game is up.
+void OnGameWindow(HWND window) {
+    using namespace ddmod;
+    static bool started = false;
+    static bool inputHook = false;
+    if (!started) {
+        started = true;
+        if (hooks::Init()) log::Info("Hook manager ready (MinHook)");
+        inputHook = config::GetBool("Features", "InputHook", true);
+        if (inputHook) {
+            input::RegisterHotkey("TestHotkey", "Ctrl+Shift+F10", &OnTestHotkey);
+        } else {
+            log::Info("Input hook disabled ([Features] InputHook=0)");
+        }
+    }
+    if (inputHook) input::Install(window, &OnGameWindowDestroyed);
 }
 
 void Startup(HMODULE self) {
@@ -63,10 +93,11 @@ void Startup(HMODULE self) {
     }
     log::Info("Scanner: {} code bytes in {} executable section(s) of div.exe", codeBytes, codeSections);
 
-    if (hooks::Init()) log::Info("Hook manager ready (MinHook)");
+    if (game::WatchForMainWindow(&OnGameWindow)) log::Info("Waiting for the game window");
 }
 
 void Shutdown() {
+    ddmod::input::Uninstall();
     ddmod::hooks::Shutdown();
     ddmod::log::Info("ddmod unloading");
     ddmod::log::Close();

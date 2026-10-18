@@ -1,5 +1,5 @@
 // Unit tests for the parts of ddmod that do not need the game: SHA-256, pattern parsing and
-// matching, PE section scanning and the MinHook wrapper. Exit code 0 = all passed.
+// matching, PE section scanning, the MinHook wrapper and the hotkey parser. Exit code 0 = all passed.
 
 #include <cstdint>
 #include <cstdio>
@@ -14,6 +14,7 @@
 #include "core/pattern.h"
 #include "core/scanner.h"
 #include "core/sha256.h"
+#include "input/keys.h"
 
 namespace {
 
@@ -176,6 +177,68 @@ void TestHooks() {
     CHECK(!hooks::IsEnabled("multiply"));
 }
 
+void TestKeyCombo() {
+    using namespace ddmod::input;
+    const auto parse = [](const char* text) { return ParseKeyCombo(text); };
+    const auto is = [](std::optional<KeyCombo> c, std::uint8_t vk, std::uint8_t mods) {
+        return c && c->vk == vk && c->mods == mods;
+    };
+
+    CHECK(is(parse("Ctrl+Shift+F10"), VK_F10, kCtrl | kShift));
+    CHECK(is(parse("shift + ctrl + f10"), VK_F10, kCtrl | kShift));  // order and case do not matter
+    CHECK(is(parse("Control+Alt+Delete"), VK_DELETE, kCtrl | kAlt));
+    CHECK(is(parse("F1"), VK_F1, kNone));
+    CHECK(is(parse("F24"), VK_F24, kNone));
+    CHECK(is(parse("a"), 'A', kNone));
+    CHECK(is(parse("Alt+7"), '7', kAlt));
+    CHECK(is(parse("Num0"), VK_NUMPAD0, kNone));
+    CHECK(is(parse("Ctrl+NumAdd"), VK_ADD, kCtrl));
+    CHECK(is(parse("PgDn"), VK_NEXT, kNone));
+    CHECK(is(parse("  Esc "), VK_ESCAPE, kNone));
+
+    // Unbound.
+    CHECK(is(parse(""), 0, kNone));
+    CHECK(is(parse("   "), 0, kNone));
+    CHECK(is(parse("none"), 0, kNone));
+    CHECK(!parse("")->Bound());
+
+    // Syntax errors.
+    CHECK(!parse("Ctrl"));            // modifier without key
+    CHECK(!parse("Ctrl+"));
+    CHECK(!parse("+F1"));
+    CHECK(!parse("Ctrl++F1"));
+    CHECK(!parse("Ctrl+Ctrl+F1"));    // repeated modifier
+    CHECK(!parse("F1+Ctrl"));         // key must come last
+    CHECK(!parse("F1+F2"));
+    CHECK(!parse("F0"));
+    CHECK(!parse("F25"));
+    CHECK(!parse("F01"));
+    CHECK(!parse("Num10"));
+    CHECK(!parse("Win+F1"));
+    CHECK(!parse("PrintScreen"));
+    CHECK(!parse("?"));
+    CHECK(!parse("Ctrl+None"));
+
+    // Canonical text, and round trip.
+    CHECK(ToString(KeyCombo{}) == "None");
+    CHECK(ToString(*parse("shift+alt+ctrl+f10")) == "Ctrl+Shift+Alt+F10");
+    CHECK(ToString(*parse("ctrl+pgup")) == "Ctrl+PageUp");
+    CHECK(ToString(*parse("num5")) == "Num5");
+    CHECK(ToString(*parse("q")) == "Q");
+    CHECK(ToString(KeyCombo{0xE2, kNone}) == "VK_E2");
+    for (const char* text : {"Ctrl+Shift+F10", "Alt+Enter", "NumDecimal", "Shift+Z", "ScrollLock", "F24"}) {
+        CHECK(ToString(*parse(text)) == text);
+    }
+
+    // Matching needs the exact modifier set.
+    const KeyCombo hotkey = *parse("Ctrl+Shift+F10");
+    CHECK(Matches(hotkey, VK_F10, kCtrl | kShift));
+    CHECK(!Matches(hotkey, VK_F10, kCtrl));
+    CHECK(!Matches(hotkey, VK_F10, kCtrl | kShift | kAlt));
+    CHECK(!Matches(hotkey, VK_F11, kCtrl | kShift));
+    CHECK(!Matches(KeyCombo{}, 0, kNone));
+}
+
 }  // namespace
 
 int main() {
@@ -184,6 +247,7 @@ int main() {
     TestPatternFind();
     TestScanner();
     TestHooks();
+    TestKeyCombo();
     std::printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }
