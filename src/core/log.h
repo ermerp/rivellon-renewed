@@ -11,7 +11,11 @@ enum class Level { Debug = 0, Info, Warn, Error, Off };
 // Parses "debug", "info", "warn", "error", "off" (case-insensitive); unknown values give `fallback`.
 Level ParseLevel(std::string_view text, Level fallback);
 
-// Opens (truncates) the log file. Messages below `minLevel` are dropped.
+// "ddmod.log" -> "ddmod.prev.log": where Open keeps the log of the previous start.
+std::filesystem::path PreviousFile(const std::filesystem::path& file);
+
+// Opens a new log file; an existing one is first renamed to PreviousFile(file), replacing the
+// older copy. Messages below `minLevel` are dropped.
 void Open(const std::filesystem::path& file, Level minLevel);
 void Close();
 

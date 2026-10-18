@@ -1,9 +1,13 @@
 // Unit tests for the parts of ddmod that do not need the game: SHA-256, pattern parsing and
-// matching, PE section scanning, the MinHook wrapper and the hotkey parser. Exit code 0 = all passed.
+// matching, PE section scanning, the MinHook wrapper, the hotkey parser and log rotation.
+// Exit code 0 = all passed.
 
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -11,6 +15,7 @@
 #include <windows.h>
 
 #include "core/hooks.h"
+#include "core/log.h"
 #include "core/pattern.h"
 #include "core/scanner.h"
 #include "core/sha256.h"
@@ -239,6 +244,45 @@ void TestKeyCombo() {
     CHECK(!Matches(KeyCombo{}, 0, kNone));
 }
 
+std::string ReadText(const std::filesystem::path& file) {
+    std::ifstream in(file, std::ios::binary);
+    std::ostringstream text;
+    text << in.rdbuf();
+    return text.str();
+}
+
+void TestLogRotation() {
+    namespace fs = std::filesystem;
+    using namespace ddmod;
+    const fs::path dir = fs::temp_directory_path() / std::format("ddmod_tests_{}", GetCurrentProcessId());
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    const fs::path file = dir / "ddmod.log";
+    const fs::path prev = dir / "ddmod.prev.log";
+    CHECK(log::PreviousFile(file) == prev);
+
+    log::Open(file, log::Level::Info);  // nothing to keep yet
+    log::Info("first start");
+    log::Close();
+    CHECK(!fs::exists(prev));
+
+    log::Open(file, log::Level::Info);
+    log::Info("second start");
+    log::Close();
+    CHECK(ReadText(prev).find("first start") != std::string::npos);
+    CHECK(ReadText(file).find("second start") != std::string::npos);
+    CHECK(ReadText(file).find("first start") == std::string::npos);
+
+    log::Open(file, log::Level::Info);  // only one older copy is kept
+    log::Info("third start");
+    log::Close();
+    CHECK(ReadText(prev).find("second start") != std::string::npos);
+    CHECK(ReadText(prev).find("first start") == std::string::npos);
+    CHECK(ReadText(file).find("third start") != std::string::npos);
+
+    fs::remove_all(dir);
+}
+
 }  // namespace
 
 int main() {
@@ -248,6 +292,7 @@ int main() {
     TestScanner();
     TestHooks();
     TestKeyCombo();
+    TestLogRotation();
     std::printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

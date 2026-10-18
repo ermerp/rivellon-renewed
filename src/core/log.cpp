@@ -39,9 +39,17 @@ Level ParseLevel(std::string_view text, Level fallback) {
     return fallback;
 }
 
+std::filesystem::path PreviousFile(const std::filesystem::path& file) {
+    std::filesystem::path prev = file;
+    prev.replace_filename(file.stem().wstring() + L".prev" + file.extension().wstring());
+    return prev;
+}
+
 void Open(const std::filesystem::path& file, Level minLevel) {
     std::lock_guard lock(g_mutex);
     if (g_file) std::fclose(g_file);
+    // Keep the log of the previous start (testers often restart the game before sending the log).
+    MoveFileExW(file.c_str(), PreviousFile(file).c_str(), MOVEFILE_REPLACE_EXISTING);
     g_file = _wfsopen(file.c_str(), L"w", _SH_DENYWR);  // others may read the log while the game runs
     g_minLevel = minLevel;
 }
