@@ -20,9 +20,9 @@
 | `rgb 555` / `rgb 565` | `+0x24` = 0 / 1 | 16-bit pixel format |
 | `width #` / `height #` | `+0x38` / `+0x3C` | |
 | `memory limit #` | `+0x68` | |
-| `ztunnel #` | `+0x88` | effect unknown (T2.0-W) |
+| `ztunnel #` | `+0x88` | see-through effect: with `1` (default) the hero stays visible behind buildings as a faint silhouette drawn through the roof – the building itself does not become transparent; with `0` the hero disappears behind the house (T2.0-W B3 and B1 repeat, EN, tester screenshots). Removing the roof when the hero is inside a house is separate and works with both values. Idea for Phase 6/8: a stronger, configurable see-through |
 | `gamma $` / `contrast $` | `+0x94` / `+0x98` (float) | |
-| `no fog` | `+0xA4` = 1 | Steam `config.div` (DE and EN) already contains it → fog off by default; effect of removing it: T2.0-W |
+| `no fog` | `+0xA4` = 1 | Steam `config.div` (DE and EN) already contains it → fog off by default. Removing it turns fog on: whitish ground mist patches in the starting area (T2.0-W B1 repeat, EN, screenshot at the same place as one with the line – none there). The black borders are the shroud, not fog |
 | `no warning` | `+0xA8` = 0 | |
 | `images compressed` | `+0xB8` = 1 | |
 | `flat files` | `+0xC0` = 1 | **required** – without it: "static\light.lib : file not found" |
@@ -30,7 +30,7 @@
 | `alpha bit #` | `+0xF4` | "Use alpha" in `configtool.exe` |
 | `quickstart $` | `+0x118` (string) | **required** – without it `div.exe` exits immediately (exit code 0, no window) |
 | `quicksave $` | `+0x11C` (string) | |
-| `use8bitfont #` | `+0x120` (byte) | effect unknown (T2.0-W) |
+| `use8bitfont #` | `+0x120` (byte) | `0` (default `1`): the game draws text with a Windows (GDI) serif font instead of its own bitmap font – dialogs, tooltips ("Door" instead of the small-caps "DOOR"), character sheet; looks sharper at 2560×1440 (T2.0-W B2, EN, tester screenshots). Fits the `CreateFontA`/`GetGlyphOutlineA` imports (`architecture.md`). Candidate for Phase 6 (readability) |
 | `language #` | `+0x124` | 1 = English, 2 = German |
 
 Further stored keys: `game rate # fps`, `sound #`, `smooth #`, `explain #`, `resolution switch #`, `fog speed #`, `voice comments #`, `force mac id $`, `compress reports #`, `queue sounds #`, `patching #`, `roofs #`, `SplotchProblem #`, `rttm on`, `path $`, `exe name $`, `exe path $`.

@@ -44,6 +44,10 @@ bool HandleKey(const MSG& msg) {
             const auto vk = static_cast<std::uint8_t>(msg.wParam);
             if (vk == g_swallowVk && IsRepeat(msg.lParam)) return true;
             const std::uint8_t mods = CurrentModifiers();
+            if (!IsRepeat(msg.lParam)) {
+                log::Debug("Key down {} (vk {:02X}, hwnd {:08X})", ToString(KeyCombo{vk, mods}), vk,
+                           reinterpret_cast<std::uintptr_t>(msg.hwnd));
+            }
             for (const auto& hotkey : g_hotkeys) {
                 if (!Matches(hotkey.combo, vk, mods)) continue;
                 g_swallowVk = vk;

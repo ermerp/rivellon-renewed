@@ -31,7 +31,7 @@ Modernization mod for Divine Divinity (Steam/GOG 1.0062A) as an `.asi` plugin lo
 8. **No hard-coded addresses** – use signature scans; fixed addresses only as a documented fallback for the EXE verified by SHA-256.
 9. **Ask instead of guessing:** for in-game tests, write clear test instructions (what to do, what to observe) in `docs/testing.md` and wait for the result.
 10. **Analyze only the game's own files** (EXE/DLLs). Do not disassemble third-party tools (dgVoodoo2, ASI loader). Disassembly output goes to the scratchpad only.
-11. **Screenshots only of the game window, never of the desktop.** If no game window exists (game exited, not started, only another program's dialog), take no screenshot – skip it and report that. The desktop can show private data. Never open desktop-sized images.
+11. **Screenshots only of the game window, never of the desktop.** If no game window exists (game exited, not started, only another program's dialog), take no screenshot – skip it and report that. The desktop can show private data. Never open desktop-sized images produced by our own scripts or tools. **Exception – the human's captures:** when the human writes that they took screenshots, Claude may open and evaluate images from `%USERPROFILE%\Videos\Captures` regardless of size (the folder is then cleaned up and released). Only images from the test period in question whose file name names the game window (`Divinity …`); skip anything else. Never copy these images into the repo.
 
 ## Documentation rules
 

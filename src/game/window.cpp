@@ -69,13 +69,29 @@ BOOL CALLBACK TraceProc(HWND window, LPARAM param) {
     return TRUE;
 }
 
-// Diagnostics (LogLevel=debug): logs all top-level windows of the process with their window
-// procedure whenever that list changes, for `durationMs`.
-void TraceWindows(DWORD durationMs) {
+// Which window has the foreground and the keyboard focus, and on which thread (keyboard input
+// goes to the thread that owns the focus window).
+std::string FocusInfo() {
+    GUITHREADINFO info{};
+    info.cbSize = sizeof(info);
+    const HWND foreground = GetForegroundWindow();
+    DWORD pid = 0;
+    const DWORD thread = foreground ? GetWindowThreadProcessId(foreground, &pid) : 0;
+    if (pid != GetCurrentProcessId()) return "\n  foreground: another process";
+    GetGUIThreadInfo(thread, &info);
+    return std::format("\n  foreground hwnd {:08X} class \"{}\" thread {}, focus hwnd {:08X}, active hwnd {:08X}",
+                       reinterpret_cast<std::uintptr_t>(foreground), ClassNameOf(foreground), thread,
+                       reinterpret_cast<std::uintptr_t>(info.hwndFocus),
+                       reinterpret_cast<std::uintptr_t>(info.hwndActive));
+}
+
+// Diagnostics (LogLevel=debug, until the process ends): logs all top-level windows of the
+// process with their window procedure, and the focus, whenever that changes.
+[[noreturn]] void TraceWindows() {
     const DWORD start = GetTickCount();
     std::string last;
-    while (GetTickCount() - start < durationMs) {
-        std::string now;
+    for (;;) {
+        std::string now = FocusInfo();
         EnumWindows(&TraceProc, reinterpret_cast<LPARAM>(&now));
         if (now != last) {
             log::Debug("Windows of this process at +{} ms:{}", GetTickCount() - start, now);
@@ -83,7 +99,6 @@ void TraceWindows(DWORD durationMs) {
         }
         Sleep(500);
     }
-    log::Debug("Window trace finished");
 }
 
 DWORD WINAPI WatchThread(LPVOID param) {
@@ -95,8 +110,8 @@ DWORD WINAPI WatchThread(LPVOID param) {
     log::Info("Game window found after {} ms: hwnd {:08X}, title \"{}\", thread {}", GetTickCount() - start,
               reinterpret_cast<std::uintptr_t>(window), TitleOf(window), GetWindowThreadProcessId(window, nullptr));
     onFound(window);
-    if (log::Enabled(log::Level::Debug)) TraceWindows(60'000);
     // Keep the thread: hooks it installed would be removed when it exits.
+    if (log::Enabled(log::Level::Debug)) TraceWindows();
     for (;;) Sleep(INFINITE);
 }
 
