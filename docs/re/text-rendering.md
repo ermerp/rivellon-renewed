@@ -14,6 +14,8 @@ How `div.exe` draws text with a Windows font, and what ddmod's font hook changes
 | Dialog text | `dialog_white/_grey/_yellow/_red` (15 px) | SimSun 14 | dialogs (expected) | created; in-game use pending |
 | Diary headings | `diary_head_1024/_800/_640` | SimSun 32/26/20 | diary (expected) | created; in-game use pending |
 
+Call order (index 0–60, identical for `.fnt` opens and GDI fonts): `fontn1–5`, `fontgra1–5`, `fontred1–5`, `fontb1–5`, `fontgo1–5`, `fontor1–5`, `fontyel1–5`, `fontgr1–5`, `fontblack1`, `fontblack2`, `fontbig24`, `fontbig24highlight`, `fontbig24gray`, `fontbig36`, `fontbig36highlight`, `fontbig36gray`, `dialog_white`, `dialog_grey`, `dialog_yellow`, `dialog_red`, `fontblack_highlight1`, `fontblack_highlight2`, `diary_head_1024`, `diary_head_800`, `diary_head_640`, `paper_green`, `paper_green_high`, `paper_red`, `paper_red_high` – the basis for a per-family font choice in the hook.
+
 Since no `.fnt` file is loaded with `use8bitfont 0`, every text that is drawn at all must come from these GDI fonts; part B of T1.7-W checks the in-game screens (dialogs, books, tooltips, inventory, trade, diary, map, options) and how the texts fit their boxes.
 
 ## Path
