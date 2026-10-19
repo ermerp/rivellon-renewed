@@ -49,6 +49,7 @@ Modernization mod for Divine Divinity (Steam/GOG 1.0062A) as an `.asi` plugin lo
 | Original game (Steam, German, 1.0062A) | `C:\Program Files (x86)\Steam\steamapps\common\divine_divinity` – **read only, never modify** |
 | Working copy German (1.0062A + dgVoodoo2 2.87.5 + ddmod) | `C:\dev\dd-test` – 2560×1440 (keep), originals of changed configs as `*.orig` |
 | Working copy English (same setup) | `C:\dev\dd-test-en` – 2560×1440, originals as `*.orig` |
+| Working copies French / Russian (same setup, language check) | `C:\dev\dd-test-fr` (1.0062A), `C:\dev\dd-test-ru` (**own EXE 1.0061**) |
 | Reference copy 1.0034A (on hold, do not change) | `C:\dev\dd-test-134` |
 | Downloads (verified, outside repo) | `C:\dev\downloads` – `patch134_en\files`, `dgvoodoo2_87_5`, `dgvoodoo2_87_3`, `ultimate-asi-loader_9.7.4\dinput8.dll` |
 | Screenshots / fetched logs (never commit) | `C:\dev\screenshots` (Deck files in `deck\`) |
