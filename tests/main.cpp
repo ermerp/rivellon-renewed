@@ -1,14 +1,17 @@
 // Unit tests for the parts of ddmod that do not need the game: SHA-256, pattern parsing and
 // matching, PE section scanning, the MinHook wrapper, the hotkey parser, log rotation and the
 // overlay's pixel, blend and glyph code
-// (including the ML_FONT_01 bitmap font reader) and the font chain.
+// (including the ML_FONT_01 bitmap font reader), the font chain and the font mode hook (its
+// signature is also checked against a working copy's div.exe if one is present).
 // Exit code 0 = all passed.
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -23,6 +26,7 @@
 #include "core/scanner.h"
 #include "core/sha256.h"
 #include "fonts/fontchain.h"
+#include "fonts/fontmode.h"
 #include "input/keys.h"
 #include "overlay/fnt.h"
 #include "overlay/glyphs.h"
@@ -187,6 +191,97 @@ void TestHooks() {
     hooks::Shutdown();
     CHECK(multiply(6, 7) == plainMultiply);
     CHECK(!hooks::IsEnabled("multiply"));
+}
+
+// Stand-in for the game's font setup (__thiscall, no stack arguments): records the use8bitfont
+// byte it sees while it runs.
+std::uint8_t g_fakeSettings[0x174] = {};
+std::uint8_t* g_fakeSettingsPointer = nullptr;
+int g_seenUse8BitFont = -1;
+
+__declspec(noinline) int __fastcall FakeFontInit(void* self, void* /*edx*/) {
+    g_seenUse8BitFont = g_fakeSettingsPointer ? g_fakeSettingsPointer[ddmod::fonts::kUse8BitFontField] : -2;
+    return self == &g_seenUse8BitFont ? 61 : -1;
+}
+
+void TestFontModeHook() {
+    using namespace ddmod;
+    using FontInitFn = int(__thiscall*)(void*);
+    FontInitFn volatile fontInit = reinterpret_cast<FontInitFn>(&FakeFontInit);
+    CHECK(hooks::Init());
+    CHECK(fonts::InstallFontModeAt(reinterpret_cast<void*>(&FakeFontInit), &g_fakeSettingsPointer));
+
+    // Settings object not created yet: the call goes through unchanged.
+    CHECK(fontInit(&g_seenUse8BitFont) == 61);
+    CHECK(g_seenUse8BitFont == -2);
+
+    // use8bitfont 1 from config.lcl: 0 while the fonts are created, 1 again afterwards.
+    g_fakeSettingsPointer = g_fakeSettings;
+    g_fakeSettings[fonts::kUse8BitFontField] = 1;
+    CHECK(fontInit(&g_seenUse8BitFont) == 61);
+    CHECK(g_seenUse8BitFont == 0);
+    CHECK(g_fakeSettings[fonts::kUse8BitFontField] == 1);
+    CHECK(g_fakeSettings[fonts::kUse8BitFontField - 1] == 0 && g_fakeSettings[fonts::kUse8BitFontField + 1] == 0);
+
+    // use8bitfont 0 already: stays 0.
+    g_fakeSettings[fonts::kUse8BitFontField] = 0;
+    CHECK(fontInit(&g_seenUse8BitFont) == 61);
+    CHECK(g_seenUse8BitFont == 0 && g_fakeSettings[fonts::kUse8BitFontField] == 0);
+
+    hooks::Shutdown();
+    g_fakeSettings[fonts::kUse8BitFontField] = 1;
+    CHECK(fontInit(&g_seenUse8BitFont) == 61 && g_seenUse8BitFont == 1);
+}
+
+// RVA of a raw file offset, from the section headers of a PE file read into memory (0 = none).
+std::uint32_t FileOffsetToRva(const std::vector<std::uint8_t>& file, std::size_t offset) {
+    std::uint32_t peOffset = 0;
+    std::memcpy(&peOffset, file.data() + 0x3C, 4);
+    IMAGE_NT_HEADERS32 nt{};
+    std::memcpy(&nt, file.data() + peOffset, sizeof(nt));
+    const std::size_t first = peOffset + offsetof(IMAGE_NT_HEADERS32, OptionalHeader) + nt.FileHeader.SizeOfOptionalHeader;
+    for (int i = 0; i < nt.FileHeader.NumberOfSections; ++i) {
+        IMAGE_SECTION_HEADER section{};
+        std::memcpy(&section, file.data() + first + i * sizeof(section), sizeof(section));
+        if (offset >= section.PointerToRawData && offset < section.PointerToRawData + section.SizeOfRawData) {
+            return static_cast<std::uint32_t>(offset - section.PointerToRawData + section.VirtualAddress);
+        }
+    }
+    return 0;
+}
+
+void TestFontModeSignature() {
+    using namespace ddmod;
+    const auto parsed = pattern::Parse(fonts::kFontInitPattern);
+    CHECK(parsed.has_value());
+    if (!parsed) return;
+    // The settings pointer operand follows "A1"; the pattern ends with the read of the field.
+    const auto operand = static_cast<std::size_t>(fonts::kSettingsGlobalOperand);
+    CHECK(parsed->bytes[operand - 1] == 0xA1 && !parsed->wildcard[operand - 1] && parsed->wildcard[operand]);
+    CHECK(parsed->bytes[parsed->size() - 5] == (fonts::kUse8BitFontField & 0xFF) &&
+          parsed->bytes[parsed->size() - 4] == (fonts::kUse8BitFontField >> 8));
+
+    // The real div.exe (never in the repo): DDMOD_DIV_EXE or the German working copy.
+    char envPath[MAX_PATH] = {};
+    const DWORD envLength = GetEnvironmentVariableA("DDMOD_DIV_EXE", envPath, MAX_PATH);
+    const std::filesystem::path exe = envLength > 0 && envLength < MAX_PATH ? envPath : "C:\\dev\\dd-test\\div.exe";
+    std::ifstream in(exe, std::ios::binary);
+    if (!in) {
+        std::printf("note: %s not found - font mode signature not checked against div.exe\n", exe.string().c_str());
+        return;
+    }
+    const std::vector<std::uint8_t> file((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    if (sha256::ToHex(sha256::Of(file)) != "CD9F7A07C7A605C21052B3517346C7A63083063FB491276A3E4C9836C9B42A67") {
+        std::printf("note: %s is not 1.0062A - font mode signature not checked\n", exe.string().c_str());
+        return;
+    }
+    const auto matches = pattern::FindAll(file, *parsed);
+    CHECK(matches.size() == 1);
+    if (matches.size() != 1) return;
+    CHECK(FileOffsetToRva(file, matches[0]) == fonts::kFontInitRva);
+    std::uint32_t settingsGlobal = 0;
+    std::memcpy(&settingsGlobal, file.data() + matches[0] + operand, 4);
+    CHECK(settingsGlobal == 0x0065B3D0u);  // global settings pointer (docs/re/config-files.md)
 }
 
 void TestKeyCombo() {
@@ -518,6 +613,8 @@ int main() {
     TestPatternFind();
     TestScanner();
     TestHooks();
+    TestFontModeHook();
+    TestFontModeSignature();
     TestKeyCombo();
     TestLogRotation();
     TestPixelFormats();

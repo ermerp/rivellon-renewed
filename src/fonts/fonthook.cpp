@@ -99,7 +99,7 @@ bool Install(bool replace) {
     g_exeEnd = g_exeBegin + nt->OptionalHeader.SizeOfImage;
     const bool ok = HookGdi("CreateFontIndirectA", &CreateFontIndirectADetour, &g_createFontIndirectA) &&
                     HookGdi("CreateFontA", &CreateFontADetour, &g_createFontA);
-    if (ok && replace) log::Info("Font hook installed: game GDI fonts use the font chain ([Fonts], use8bitfont 0 only)");
+    if (ok && replace) log::Info("Font hook installed: game GDI fonts use the font chain ([Fonts])");
     if (ok && !replace) log::Info("Font hook installed for logging only (FontHook=0)");
     return ok;
 }

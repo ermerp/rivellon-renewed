@@ -4,6 +4,7 @@
 
 - `config.lcl` (installation/language) and `config.div` (display/user settings): plain text, one `key value` per line, `//` comments. **The game rewrites `config.div` on exit** (values kept); `configtool.exe` edits it too and resets "alpha bit" every time it opens.
 - `slashed.cfg` (4 bytes): selected renderer = first DWORD (`0` Direct3D 6, `1` Glide, `2` DirectDraw, `3` Software). Each `slashed-<name>.cfg` starts with its renderer ID and holds a resolution pair at offsets `0x0C`/`0x10` (full `slashed-d3d6.cfg` layout: `renderer-d3d6.md`). On the PC `config.div` decided the resolution; on the Deck with dgVoodoo the value from `slashed-d3d6.cfg` won – keep both in sync.
+- **Write-back of `config.div`** (`0x48C6F0`, on exit): each key is written only if its keyword index is found in a set at settings `+0x154`. Observed: only the keys that were in `config.div` come back (the working copies keep their 5 keys), keys from `config.lcl` such as `use8bitfont` never appear. Where the set is filled is not traced (`open-questions.md`).
 - **Run markers** `init.cfg` (4 bytes) and `sinfo.000` (8 bytes), created by the game. After a kill: `init.cfg = 00 00 00 00`, `sinfo.000 = 01 00 00 00 01 00 00 00`; after a clean exit: `02 00 00 00` / `01 00 00 00 02 00 00 00`. After an unclean exit the next start asks "Divinity was not correctly terminated … reset the configuration?" – never answer "Yes".
 - **Self-reset after repeated crashes** (seen on the Deck, even with "No"): `config.div` rewritten to a minimal default, `slashed-d3d6.cfg` deleted; the next start fails with "Unable to read configuration file" and opens `configtool.exe`. Savegames untouched. Keep backups of `config.div` and `slashed*.cfg` for crash tests.
 - Also written at runtime: `persist.dat`, `keylist.txt` (`key-events.md`), `mapids.000`, `dynamic/*`, `dat/skillcosts.txt`, `dat/usernotes.bin`.
@@ -30,7 +31,7 @@
 | `alpha bit #` | `+0xF4` | "Use alpha" in `configtool.exe` |
 | `quickstart $` | `+0x118` (string) | **required** – without it `div.exe` exits immediately (exit code 0, no window) |
 | `quicksave $` | `+0x11C` (string) | |
-| `use8bitfont #` | `+0x120` (byte) | `0` (default `1`): the game draws text with a Windows (GDI) serif font instead of its own bitmap font – dialogs, tooltips ("Door" instead of the small-caps "DOOR"), character sheet; looks sharper at 2560×1440 (T2.0-W B2, EN, tester screenshots). Fits the `CreateFontA`/`GetGlyphOutlineA` imports (`architecture.md`). Candidate for Phase 6 (readability) |
+| `use8bitfont #` | `+0x120` (byte) | read only by the font setup (ddmod's font mode forces it to 0 there, `text-rendering.md`). `0` (default `1`): the game draws text with a Windows (GDI) serif font instead of its own bitmap font – dialogs, tooltips ("Door" instead of the small-caps "DOOR"), character sheet; looks sharper at 2560×1440 (T2.0-W B2, EN, tester screenshots). Fits the `CreateFontA`/`GetGlyphOutlineA` imports (`architecture.md`). Candidate for Phase 6 (readability) |
 | `language #` | `+0x124` | 1 = English, 2 = German |
 
 Further stored keys: `game rate # fps`, `sound #`, `smooth #`, `explain #`, `resolution switch #`, `fog speed #`, `voice comments #`, `force mac id $`, `compress reports #`, `queue sounds #`, `patching #`, `roofs #`, `SplotchProblem #`, `rttm on`, `path $`, `exe name $`, `exe path $`.

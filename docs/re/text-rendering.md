@@ -4,7 +4,7 @@ How `div.exe` draws text with a Windows font, and what ddmod's font hook changes
 
 ## Which texts use which path
 
-`use8bitfont` in `config.lcl` switches **all** game text at once: with `1` the game opens all 61 `fonts/*.fnt` files at startup and no GDI font; with `0` it opens **no** `.fnt` file and instead creates **one GDI font per bitmap font** – the same list of 61 in the same order (fixed table in `div.exe`), every one as face **"SimSun"** (a Chinese system font – the mode was evidently made for the Chinese version), weight 600, `ANSI_CHARSET`, height per family. Measured with the font log (`LogLevel=debug`) in DE and EN, identical in both.
+`use8bitfont` in `config.lcl` (or ddmod's font mode, below) switches **all** game text at once: with `1` the game opens all 61 `fonts/*.fnt` files at startup and no GDI font; with `0` it opens **no** `.fnt` file and instead creates **one GDI font per bitmap font** – the same list of 61 in the same order (fixed table in `div.exe`), every one as face **"SimSun"** (a Chinese system font – the mode was evidently made for the Chinese version), weight 600, `ANSI_CHARSET`, height per family. Measured with the font log (`LogLevel=debug`) in DE and EN, identical in both.
 
 | Family (`file-formats.md`) | Bitmap files (`use8bitfont 1`) | GDI font (`use8bitfont 0`) | Seen in | Verified |
 |---|---|---|---|---|
@@ -30,8 +30,19 @@ Since no `.fnt` file is loaded with `use8bitfont 0`, every text that is drawn at
 
 ## Font hook (`src/fonts/fonthook.cpp`, v0.1)
 
-- Hooks `CreateFontIndirectA` and `CreateFontA` (gdi32 exports) in `DllMain` – the only point early enough. Calls from inside `div.exe` get the face of the font chain (`[Fonts] Chain`: Tahoma, else the bundled DejaVu Sans Condensed Bold, `overlay.md`) and the height scaled by `[Fonts] GameFontSize` (percent); weight, charset and the game's colors stay. Calls from other modules are passed through. `[Features] FontHook=0` switches it off; with `use8bitfont 1` the game creates no GDI font, so the hook has no effect.
+- Hooks `CreateFontIndirectA` and `CreateFontA` (gdi32 exports) in `DllMain` – the only point early enough. Calls from inside `div.exe` get the face of the font chain (`[Fonts] Chain`: Tahoma, else the bundled DejaVu Sans Condensed Bold, `overlay.md`) and the height scaled by `[Fonts] GameFontSize` (percent); weight, charset and the game's colors stay. Calls from other modules are passed through. `[Features] FontHook=0` switches it off together with the font mode below.
 - The chain is resolved on the first hooked call (game thread, not under the loader lock) and logged ("Font chain: using …"). Measured (DE + EN, Windows): main menu and character creation are drawn in Tahoma Bold instead of SimSun; with an unavailable first entry the bundled DejaVu Sans Condensed is loaded and used.
+
+## Font mode (`src/fonts/fontmode.cpp`, v0.1)
+
+`FontHook=1` also switches the game to the GDI path in memory, so `config.lcl` keeps `use8bitfont 1` (as shipped).
+
+- **Reader:** the settings byte `+0x120` (`config-files.md`) is read in exactly one place for the choice of fonts: the font setup function (`0x45BF90`, `__thiscall`, no stack arguments; source `.\BMGUI\Bmgui.cpp`). It first tries to open `fontlist.txt`; with or without that file it reads the byte once and then either loads the 61 `.fnt` files or creates the 61 GDI fonts. The only other reader is the `config.div` writer (below).
+- **Timing:** the startup function calls the font setup once (call at `0x40DBD5`), on the main thread and before the game window exists. It reads the byte through the global settings pointer (`0x0065B3D0`), so the configuration is parsed by then. ddmod is loaded earlier (ASI loader, `DllMain`).
+- **Hook:** a MinHook on the font setup sets the byte to 0 before the original runs and restores the configured value afterwards; the log says "use8bitfont forced to 0 (was 1)". If the settings pointer is still null the call is passed through unchanged.
+- **Signature:** the first 34 bytes of the function (`fontmode.h`), ending with `A1 <settings pointer>` and the compare of `+0x120` with 0 – unique in `div.exe`; the settings pointer address is read from the `A1` operand. Fallback RVA `0x5BF90` for the verified build only.
+- **Write-back:** on exit the game writes `config.div` (`0x48C6F0`), only keys found in a set at settings `+0x154` – in practice the keys that were in `config.div` (`config-files.md`); `use8bitfont` lives in `config.lcl` and does not end up there. Because the hook restores the byte, even a `use8bitfont` line in `config.div` would be written back with the user's value.
+- Measured (DE + EN, Windows): with `use8bitfont 1` in `config.lcl` and `FontHook=1` no `.fnt` file is opened, the main menu is drawn in Tahoma Bold; with `FontHook=0` the original bitmap fonts.
 
 ## Consequences
 
