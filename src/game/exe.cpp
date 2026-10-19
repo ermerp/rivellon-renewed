@@ -13,16 +13,27 @@ namespace {
 struct KnownBuild {
     const char* sha256;
     const char* name;
+    Edition edition;
 };
 
-// See docs/re/game-version.md. Same hash for German and English Steam and on the Steam Deck.
+// See docs/re/game-version.md. 1.0062A: same hash for German, English and French Steam and on
+// the Steam Deck. The Russian Steam version ships its own, older EXE.
 constexpr KnownBuild kKnownBuilds[] = {
-    {"CD9F7A07C7A605C21052B3517346C7A63083063FB491276A3E4C9836C9B42A67", "1.0062A (Steam)"},
+    {"CD9F7A07C7A605C21052B3517346C7A63083063FB491276A3E4C9836C9B42A67", "1.0062A (Steam)", Edition::Main},
+    {"90599AC1C2F9CC48BF83AEDB9850BA5B487B487E286D3B26C6E7967F0D928E68", "Russian edition 1.0061 (Steam)",
+     Edition::Russian},
 };
 
 ExeInfo g_exe;
 
 }  // namespace
+
+Edition EditionOfHash(std::string_view sha256) {
+    for (const KnownBuild& known : kKnownBuilds) {
+        if (sha256 == known.sha256) return known.edition;
+    }
+    return Edition::Unknown;
+}
 
 void IdentifyExe(const std::filesystem::path& exe) {
     g_exe = {};
@@ -35,12 +46,17 @@ void IdentifyExe(const std::filesystem::path& exe) {
     }
     g_exe.sha256 = sha256::ToHex(*digest);
     for (const KnownBuild& known : kKnownBuilds) {
-        if (g_exe.sha256 == known.sha256) {
+        if (g_exe.sha256 != known.sha256) continue;
+        g_exe.edition = known.edition;
+        if (known.edition == Edition::Main) {
             g_exe.build = known.name;
             g_exe.verified = true;
             log::Info("EXE hash: {} = {} (verified)", g_exe.sha256, known.name);
-            return;
+        } else {
+            log::Info("EXE hash: {} = {} - best effort: signature scans only, fixed-address fallbacks disabled",
+                      g_exe.sha256, known.name);
         }
+        return;
     }
     log::Warn("EXE hash: {} is not a known build - signature scans only, fixed-address fallbacks disabled",
               g_exe.sha256);

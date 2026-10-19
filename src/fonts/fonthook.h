@@ -1,6 +1,19 @@
 #pragma once
 
+#include <string_view>
+
+#include "game/exe.h"
+
 namespace ddmod::fonts {
+
+inline constexpr int kKeepCharset = -1;     // leave the game's lfCharSet (ANSI_CHARSET) unchanged
+inline constexpr int kCharsetInvalid = -2;  // unrecognized [Fonts] Charset value
+
+// lfCharSet for the game's fonts from [Fonts] Charset: "1251" -> RUSSIAN_CHARSET, "1252" ->
+// ANSI_CHARSET, "auto" (or empty) -> RUSSIAN_CHARSET for the Russian edition, else kKeepCharset.
+// The game passes its text bytes to GetGlyphOutlineA, which maps them through the charset's code
+// page (docs/re/text-rendering.md).
+int CharsetFor(std::string_view setting, game::Edition edition);
 
 // Font hook for the game's GDI text path (use8bitfont 0, docs/re/text-rendering.md): the game
 // creates one GDI font per bitmap font, all as "SimSun", through CreateFontIndirectA (and one

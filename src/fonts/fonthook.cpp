@@ -12,6 +12,7 @@
 #include "core/hooks.h"
 #include "core/log.h"
 #include "fonts/fontchain.h"
+#include "game/exe.h"
 
 namespace ddmod::fonts {
 namespace {
@@ -47,6 +48,21 @@ int ScaledHeight(int height) {
     return height * percent / 100;
 }
 
+// The charset from [Fonts] Charset for this EXE, resolved once (-1 = keep the game's).
+int CharsetOverride() {
+    static const int charset = [] {
+        const std::string value = config::GetString("Fonts", "Charset", "auto");
+        const int result = CharsetFor(value, game::Exe().edition);
+        if (result == kCharsetInvalid) {
+            log::Warn("[Fonts] Charset=\"{}\" is not auto, 1252 or 1251 - using the game's charset", value);
+            return kKeepCharset;
+        }
+        if (result != kKeepCharset) log::Info("Game fonts: charset {} ([Fonts] Charset={})", result, value);
+        return result;
+    }();
+    return charset;
+}
+
 HFONT WINAPI CreateFontIndirectADetour(const LOGFONTA* lf) {
     void* caller = _ReturnAddress();
     if (!lf || !g_replace || !FromGame(caller) || ReplacementFace().empty()) {
@@ -61,10 +77,12 @@ HFONT WINAPI CreateFontIndirectADetour(const LOGFONTA* lf) {
     LOGFONTA changed = *lf;
     strncpy_s(changed.lfFaceName, ReplacementFace().c_str(), _TRUNCATE);
     changed.lfHeight = ScaledHeight(lf->lfHeight);
+    if (CharsetOverride() != kKeepCharset) changed.lfCharSet = static_cast<BYTE>(CharsetOverride());
     const HFONT font = g_createFontIndirectA(&changed);
-    log::Debug("CreateFontIndirectA from 0x{:08X}: face \"{}\" height {} weight {} -> \"{}\" height {} -> font {:08X}",
-               reinterpret_cast<std::uintptr_t>(caller), lf->lfFaceName, lf->lfHeight, lf->lfWeight,
-               changed.lfFaceName, changed.lfHeight, reinterpret_cast<std::uintptr_t>(font));
+    log::Debug("CreateFontIndirectA from 0x{:08X}: face \"{}\" height {} weight {} charset {} -> \"{}\" height {} "
+               "charset {} -> font {:08X}",
+               reinterpret_cast<std::uintptr_t>(caller), lf->lfFaceName, lf->lfHeight, lf->lfWeight, lf->lfCharSet,
+               changed.lfFaceName, changed.lfHeight, changed.lfCharSet, reinterpret_cast<std::uintptr_t>(font));
     return font;
 }
 
@@ -75,13 +93,29 @@ HFONT WINAPI CreateFontADetour(int height, int width, int escapement, int orient
     const bool replace = g_replace && FromGame(caller) && !ReplacementFace().empty();
     const LPCSTR useFace = replace ? ReplacementFace().c_str() : face;
     const int useHeight = replace ? ScaledHeight(height) : height;
+    const DWORD useCharSet =
+        replace && CharsetOverride() != kKeepCharset ? static_cast<DWORD>(CharsetOverride()) : charSet;
     const HFONT font = g_createFontA(useHeight, width, escapement, orientation, weight, italic, underline, strikeOut,
-                                     charSet, outPrecision, clipPrecision, quality, pitchAndFamily, useFace);
-    log::Debug("CreateFontA from 0x{:08X}: face \"{}\" height {} weight {} -> \"{}\" height {} -> font {:08X}",
-               reinterpret_cast<std::uintptr_t>(caller), face ? face : "", height, weight, useFace ? useFace : "",
-               useHeight, reinterpret_cast<std::uintptr_t>(font));
+                                     useCharSet, outPrecision, clipPrecision, quality, pitchAndFamily, useFace);
+    log::Debug("CreateFontA from 0x{:08X}: face \"{}\" height {} weight {} charset {} -> \"{}\" height {} charset {} "
+               "-> font {:08X}",
+               reinterpret_cast<std::uintptr_t>(caller), face ? face : "", height, weight, charSet,
+               useFace ? useFace : "", useHeight, useCharSet, reinterpret_cast<std::uintptr_t>(font));
     return font;
 }
+
+}  // namespace
+
+int CharsetFor(std::string_view setting, game::Edition edition) {
+    if (setting == "auto" || setting.empty()) {
+        return edition == game::Edition::Russian ? RUSSIAN_CHARSET : kKeepCharset;
+    }
+    if (setting == "1251") return RUSSIAN_CHARSET;
+    if (setting == "1252") return ANSI_CHARSET;
+    return kCharsetInvalid;
+}
+
+namespace {
 
 template <typename Fn>
 bool HookGdi(const char* name, Fn* detour, Fn** original) {

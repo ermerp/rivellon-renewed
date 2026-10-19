@@ -40,6 +40,10 @@ bool InstallFontModeAt(void* fontInit, std::uint8_t* const* settingsGlobal) {
 }
 
 bool InstallFontMode() {
+    if (game::Exe().edition == game::Edition::Russian) {
+        log::Info("Russian edition 1.0061 detected - font mode not supported, using original fonts");
+        return false;
+    }
     const std::uintptr_t fontInit = game::Resolve({"FontInit", kFontInitPattern, 0, kFontInitRva});
     if (!fontInit) {
         log::Warn("Font mode: font setup not found - texts follow use8bitfont in config.lcl");

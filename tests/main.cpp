@@ -26,6 +26,7 @@
 #include "core/scanner.h"
 #include "core/sha256.h"
 #include "fonts/fontchain.h"
+#include "fonts/fonthook.h"
 #include "fonts/fontmode.h"
 #include "input/keys.h"
 #include "overlay/fnt.h"
@@ -231,6 +232,27 @@ void TestFontModeHook() {
     hooks::Shutdown();
     g_fakeSettings[fonts::kUse8BitFontField] = 1;
     CHECK(fontInit(&g_seenUse8BitFont) == 61 && g_seenUse8BitFont == 1);
+}
+
+void TestEditionAndCharset() {
+    using namespace ddmod;
+    using game::Edition;
+    CHECK(game::EditionOfHash("CD9F7A07C7A605C21052B3517346C7A63083063FB491276A3E4C9836C9B42A67") == Edition::Main);
+    CHECK(game::EditionOfHash("90599AC1C2F9CC48BF83AEDB9850BA5B487B487E286D3B26C6E7967F0D928E68") ==
+          Edition::Russian);
+    CHECK(game::EditionOfHash("") == Edition::Unknown);
+    CHECK(game::EditionOfHash("cd9f7a07c7a605c21052b3517346c7a63083063fb491276a3e4c9836c9b42a67") == Edition::Unknown);
+
+    // auto: Cyrillic only for the Russian edition, otherwise the game's charset stays.
+    CHECK(fonts::CharsetFor("auto", Edition::Russian) == RUSSIAN_CHARSET);
+    CHECK(fonts::CharsetFor("auto", Edition::Main) == fonts::kKeepCharset);
+    CHECK(fonts::CharsetFor("auto", Edition::Unknown) == fonts::kKeepCharset);
+    CHECK(fonts::CharsetFor("", Edition::Russian) == RUSSIAN_CHARSET);
+    // Explicit values win over the edition.
+    CHECK(fonts::CharsetFor("1251", Edition::Main) == RUSSIAN_CHARSET);
+    CHECK(fonts::CharsetFor("1252", Edition::Russian) == ANSI_CHARSET);
+    CHECK(fonts::CharsetFor("1250", Edition::Main) == fonts::kCharsetInvalid);
+    CHECK(fonts::CharsetFor("Auto", Edition::Russian) == fonts::kCharsetInvalid);
 }
 
 // RVA of a raw file offset, from the section headers of a PE file read into memory (0 = none).
@@ -615,6 +637,7 @@ int main() {
     TestHooks();
     TestFontModeHook();
     TestFontModeSignature();
+    TestEditionAndCharset();
     TestKeyCombo();
     TestLogRotation();
     TestPixelFormats();

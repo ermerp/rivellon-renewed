@@ -8,11 +8,22 @@
 
 namespace ddmod::game {
 
+// Known editions of div.exe (docs/re/game-version.md).
+enum class Edition {
+    Unknown,
+    Main,     // 1.0062A: German, English and French Steam; the build ddmod is made for
+    Russian,  // 1.0061 (Russian Steam): best effort, signatures of 1.0062A only, no fixed fallbacks
+};
+
+// Edition of a div.exe by its SHA-256 (upper-case hex).
+Edition EditionOfHash(std::string_view sha256);
+
 // Identity of the host executable, established once at startup by hashing the file on disk.
 struct ExeInfo {
     std::string sha256;           // upper-case hex; empty if the file could not be read
     const char* build = nullptr;  // name of the verified build, nullptr if unknown
-    bool verified = false;        // hash matches a build listed in docs/re/game-version.md
+    bool verified = false;        // the main build: fixed-address fallbacks allowed
+    Edition edition = Edition::Unknown;
 };
 
 // Hashes `exe` and compares it against the known builds. Logs the result.
