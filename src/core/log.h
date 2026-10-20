@@ -14,9 +14,17 @@ Level ParseLevel(std::string_view text, Level fallback);
 // "ddmod.log" -> "ddmod.prev.log": where Open keeps the log of the previous start.
 std::filesystem::path PreviousFile(const std::filesystem::path& file);
 
-// Opens a new log file; an existing one is first renamed to PreviousFile(file), replacing the
-// older copy. Messages below `minLevel` are dropped.
-void Open(const std::filesystem::path& file, Level minLevel);
+// "ddmod.log" -> "ddmod-logs": folder for the logs of older starts.
+std::filesystem::path ArchiveDir(const std::filesystem::path& file);
+
+// Archive file name from the first line of a log ("2026-10-20 17:11:06.504 ..." with stem "ddmod"
+// -> "ddmod-20261020-171106.log"); empty if the line does not start with a timestamp.
+std::wstring ArchiveName(std::wstring_view stem, std::string_view firstLine);
+
+// Opens a new log file. An existing one is first renamed to PreviousFile(file); the copy that was
+// there moves to ArchiveDir(file), named by its start time, where the newest `history` files are
+// kept (0 = the older copy is replaced, nothing is archived). Messages below `minLevel` are dropped.
+void Open(const std::filesystem::path& file, Level minLevel, int history = 0);
 void Close();
 
 void SetLevel(Level minLevel);

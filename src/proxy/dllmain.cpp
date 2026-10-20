@@ -67,7 +67,7 @@ void Startup(HMODULE self) {
     config::Load(paths::ModDir() / L"ddmod.ini");
 
     const auto level = log::ParseLevel(config::GetString("General", "LogLevel", "info"), log::Level::Info);
-    log::Open(paths::ModDir() / L"ddmod.log", level);
+    log::Open(paths::ModDir() / L"ddmod.log", level, config::GetInt("General", "LogHistory", 20));
 
     log::Info("ddmod {} loaded", DDMOD_VERSION);
     log::Info("Host: {} (file version {})", paths::ToUtf8(paths::ExePath()), ExeFileVersion());

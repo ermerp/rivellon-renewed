@@ -153,7 +153,8 @@ function Install-DdMod {
 }
 
 function Uninstall-DdMod {
-    # Removes winmm.dll (only if it is the ASI loader), ddmod.asi and the logs; keeps ddmod.ini.
+    # Removes winmm.dll (only if it is the ASI loader), ddmod.asi and the logs (incl. ddmod-logs);
+    # keeps ddmod.ini.
     param(
         [Parameter(Mandatory)] [string] $GameDir,
         [string] $AsiLoader = 'C:\dev\downloads\ultimate-asi-loader_9.7.4\dinput8.dll'
@@ -168,8 +169,10 @@ function Uninstall-DdMod {
         }
     }
     foreach ($f in 'ddmod.asi', 'ddmod.log', 'ddmod.prev.log') { Remove-Item -LiteralPath (Join-Path $dir $f) -ErrorAction SilentlyContinue }
-    $fonts = Join-Path $dir 'ddmod_fonts'
-    if (Test-Path -LiteralPath $fonts) { Remove-Item -LiteralPath $fonts -Recurse -Force }
+    foreach ($sub in 'ddmod_fonts', 'ddmod-logs') {
+        $path = Join-Path $dir $sub
+        if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }
+    }
     Write-Host "ddmod removed from $dir (ddmod.ini kept)"
 }
 
