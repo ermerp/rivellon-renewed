@@ -1,6 +1,6 @@
 # Overlay backend (Phase 1 step 6)
 
-How ddmod draws its own overlay ("ddmod <version> active" + FPS, later debug and UI panels). Renderer internals: `renderer-d3d6.md`; game text path: `text-rendering.md`. Code: `src/overlay/`.
+How the mod draws its own overlay ("Rivellon Renewed <version>" + FPS, later debug and UI panels). Renderer internals: `renderer-d3d6.md`; game text path: `text-rendering.md`. Code: `src/overlay/`.
 
 ## Hook point
 
@@ -22,7 +22,7 @@ Per frame: `DllSlashedGetInfo(3)` → lock (vtable `+0x04`) → base pointer, pi
 ## Text
 
 - **Glyph source** behind the `GlyphSource` interface (`glyphs.h`), so the font source can change without touching cache or renderer. Current source: GDI, `GetGlyphOutlineW` with `GGO_GRAY8_BITMAP` (65 gray levels → 8-bit coverage), Unicode – rasterized once per character, like the game's own GDI font path.
-- **Font:** the font chain `[Fonts] Chain` (`src/fonts/fontchain.cpp`), shared with the game font hook (`text-rendering.md`): entries are tried in order, a file entry is registered for the game process only (`AddFontResourceExW`, `FR_PRIVATE`), and an entry counts only if GDI selects exactly that face (`GetTextFaceW`) instead of a silent substitute; the log names the face used. Default: Tahoma (Windows; Proton has its own), else the bundled DejaVu Sans Condensed Bold from `ddmod_fonts\` (repo: `assets/fonts/`, Bitstream Vera license). Bold. Height `[Overlay] FontSize`, 0 = frame height / 60 (12–48 px; 24 px at 1440p); a resolution change rebuilds the cache.
+- **Font:** the font chain `[Fonts] Chain` (`src/fonts/fontchain.cpp`), shared with the game font hook (`text-rendering.md`): entries are tried in order, a file entry is registered for the game process only (`AddFontResourceExW`, `FR_PRIVATE`), and an entry counts only if GDI selects exactly that face (`GetTextFaceW`) instead of a silent substitute; the log names the face used. Default: Tahoma (Windows; Proton has its own), else the bundled DejaVu Sans Condensed Bold from `RivellonRenewed\fonts\` (repo: `assets/fonts/`, Bitstream Vera license). Bold. Height `[Overlay] FontSize`, 0 = frame height / 60 (12–48 px; 24 px at 1440p); a resolution change rebuilds the cache.
 - Characters the font lacks are drawn as `?`. Text gets a one-pixel dark shadow; the panel behind it is black at alpha 140.
 - **Option: the game's own bitmap fonts** (`fonts/*.fnt`, `file-formats.md`) – read from the installation at runtime, nothing shipped. Reader done (`CreateFntGlyphSource`, unit-tested; `dialog_white`, `fontn1`, `fontb1`, `paper_red`, `fontbig24` and `diary_head_1024` of the German copy render correctly in `tools/fontpreview`); glyphs keep their pre-shaded colors (`Glyph::colors`). Limits: fixed pixel sizes (line heights 9–38 px; at 1440p only integer scaling, which keeps the pixel look), only the characters of the installed language version (German files: no Cyrillic – the Russian version presumably ships its own), one file per color, space width estimated. Smoothed upscaling of these glyphs was tried in `tools/fontpreview` (own Scale2x and signed-distance-field scalers; xBRZ is GPL-3 and cannot be linked into the MIT-licensed mod): the distance field using the glyphs' gray edges gives clean outlines at 2× and 4× and keeps umlaut dots, Scale2x stays blocky. Not wired into `[Overlay]` yet – waits for the font decision.
 

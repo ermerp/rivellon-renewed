@@ -10,8 +10,15 @@ namespace ddmod::paths {
 // Remembers the plugin module; must be called first (from DllMain).
 void Init(HMODULE self);
 
-// Folder that contains ddmod.asi (and ddmod.ini / ddmod.log).
+// Stem of every file the mod puts into the game folder (CMake MOD_FILE_STEM).
+inline constexpr const wchar_t* kFileStem = L"" DDMOD_FILE_STEM;
+
+// Folder that contains RivellonRenewed.asi (and RivellonRenewed.ini / RivellonRenewed.log).
 const std::filesystem::path& ModDir();
+
+// ModDir() / "RivellonRenewed.ini" and ModDir() / "RivellonRenewed.log".
+std::filesystem::path ConfigFile();
+std::filesystem::path LogFile();
 
 // Full path of the host executable (div.exe).
 const std::filesystem::path& ExePath();

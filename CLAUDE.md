@@ -1,6 +1,6 @@
-# CLAUDE.md – dd-modern
+# CLAUDE.md – Rivellon Renewed
 
-Modernization mod for Divine Divinity (Steam/GOG 1.0062A) as an `.asi` plugin loaded by Ultimate ASI Loader. Plan and status: [PLAN.md](PLAN.md). Work through the phases in order.
+**Rivellon Renewed** – a modernization mod for Divine Divinity (Steam/GOG 1.0062A) as an `.asi` plugin loaded by Ultimate ASI Loader. Files the mod puts into the game folder: `RivellonRenewed.asi/.ini/.log/.prev.log` and the folder `RivellonRenewed\` (`fonts\`, `logs\`); the file stem is set once in `CMakeLists.txt` (`MOD_FILE_STEM`). Internal identifiers keep the old short name `ddmod` (namespace, CMake targets, `Install-DdMod`); local folder `C:\dev\dd-modern`, GitHub repo `rivellon-renewed`. Plan and status: [PLAN.md](PLAN.md). Work through the phases in order.
 
 ## Start of a session (Session-Start, `/catchup`)
 
@@ -17,14 +17,14 @@ Modernization mod for Divine Divinity (Steam/GOG 1.0062A) as an `.asi` plugin lo
 ## Language
 
 - **Talk to the human in German.**
-- **Everything in the repo is English:** code comments, commit messages, README, `docs/`, `CLAUDE.md`, `PLAN.md`, `ddmod.ini` comments, log output.
+- **Everything in the repo is English:** code comments, commit messages, README, `docs/`, `CLAUDE.md`, `PLAN.md`, `RivellonRenewed.ini` comments, log output.
 
 ## Fixed rules
 
 1. **No Larian files in the repo** (EXE, DLLs, graphics, texts, audio, fonts, screenshots). Maintain `.gitignore`.
 2. **No decompiled code / pseudocode in the repo** – not even reworded by an AI. Document findings in our own words in `docs/re/` (purpose, signature, address, structure layout). The implementation is always our own code.
 3. **No binary patches of the EXE.** Everything goes through the plugin.
-4. **Every feature can be switched off individually** via `ddmod.ini`. Invasive features (fast travel, balancing) are off by default.
+4. **Every feature can be switched off individually** via `RivellonRenewed.ini`. Invasive features (fast travel, balancing) are off by default.
 5. **Generate derived content only locally on the user's machine** (upscaling, TTS). The mod ships tools, not data.
 6. **No cloned voices of real voice actors** – only generic synthetic voices.
 7. **Protect savegames:** back up saves before tests that write game state; test state-changing features with throwaway saves first.
@@ -47,7 +47,7 @@ Modernization mod for Divine Divinity (Steam/GOG 1.0062A) as an `.asi` plugin lo
 |---|---|
 | Repo | `C:\dev\dd-modern` |
 | Original game (Steam, German, 1.0062A) | `C:\Program Files (x86)\Steam\steamapps\common\divine_divinity` – **read only, never modify** |
-| Working copy German (1.0062A + dgVoodoo2 2.87.5 + ddmod) | `C:\dev\dd-test` – 2560×1440 (keep), originals of changed configs as `*.orig` |
+| Working copy German (1.0062A + dgVoodoo2 2.87.5 + Rivellon Renewed) | `C:\dev\dd-test` – 2560×1440 (keep), originals of changed configs as `*.orig` |
 | Working copy English (same setup) | `C:\dev\dd-test-en` – 2560×1440, originals as `*.orig` |
 | Working copies French / Russian (same setup, language check) | `C:\dev\dd-test-fr` (1.0062A), `C:\dev\dd-test-ru` (**own EXE 1.0061**) |
 | Reference copy 1.0034A (on hold, do not change) | `C:\dev\dd-test-134` |
@@ -72,17 +72,18 @@ Hardware: GTX 1050 Ti (DXGI adapter 1, primary monitor 2560×1440) + Intel UHD 6
 ## Build
 
 - The game is **32-bit** → always build x86.
-- `cmake -S . -B build -G "Visual Studio 17 2022" -A Win32`, then `cmake --build build --config Release` → `build/Release/ddmod.asi` (static CRT, `/W4` clean). Unit tests (no game needed): `ctest -C Release --test-dir build --output-on-failure`.
+- `cmake -S . -B build -G "Visual Studio 17 2022" -A Win32`, then `cmake --build build --config Release` → `build/Release/RivellonRenewed.asi` (static CRT, `/W4` clean). Unit tests (no game needed): `ctest -C Release --test-dir build --output-on-failure`.
 - One feature per branch. Current branch: see `PLAN.md` "Current status".
 
 ## Test workflow (Windows)
 
 PowerShell module `tools/testrun/DdTest.psm1` (refuses the Steam folder):
-- `Install-DdMod -GameDir <copy> [-ResetIni]` – copies the ASI loader as `winmm.dll` (never replaces a foreign `winmm.dll`), `ddmod.asi`, `ddmod.ini` (kept if present).
-- `Uninstall-DdMod -GameDir <copy>` – removes `winmm.dll` (only if it is the loader), `ddmod.asi` and **all logs** (`ddmod.log`, `ddmod.prev.log` = start before, `ddmod-logs\ddmod-<start time>.log` = older starts) – copy the logs to `C:\dev\screenshots` first if they are still needed.
+- `Install-DdMod -GameDir <copy> [-ResetIni]` – copies the ASI loader as `winmm.dll` (never replaces a foreign `winmm.dll`), `RivellonRenewed.asi`, `RivellonRenewed\fonts\`, `RivellonRenewed.ini` (kept if present). Migrates a pre-rename install: removes `ddmod.asi`/`ddmod_fonts`, takes the values of `ddmod.ini` over into the new INI (old file kept as `ddmod.ini.migrated`).
+- `Uninstall-DdMod -GameDir <copy>` – removes `winmm.dll` (only if it is the loader), `RivellonRenewed.asi`, `RivellonRenewed\fonts\` and **all logs** (`RivellonRenewed.log`, `RivellonRenewed.prev.log` = start before, `RivellonRenewed\logs\RivellonRenewed-<start time>.log` = older starts; also leftover `ddmod*` files) – copy the logs to `C:\dev\screenshots` first if they are still needed.
+- `Set-ModIniValue -Path <copy>\RivellonRenewed.ini -Section … -Key … -Value …` – changes one INI value.
 - `Set-DgVoodooProfile -GameDir … -Adapter 1 [-Watermark]`, `Set-DivConfig -GameDir … -Width … -Height …`.
 
-`tools/testrun/Start-GameTest.ps1 -GameDir <copy> [-NoIntro|-Intro] [-FullScreen] [-PressEscapeAt 4,8,…] [-PostKeyAt …] [-PressHotkeyAt …] [-Steps …] -Seconds 15 -Count 2 -Interval 10`: starts the game windowed (temporarily `FullScreenMode=false`), screenshots of the game window to `C:\dev\screenshots`, closes the game, restores configs and the run markers `init.cfg`/`sinfo.000`, answers the "not correctly terminated" dialog with **No**, prints `ddmod.log`. View screenshots with the Read tool – it shows 2560×1440 images downscaled, which fakes glyph defects in small text; judge text details only from full-resolution crops (System.Drawing in PowerShell, output to the scratchpad). Crash details: Windows event log, Application, ID 1000. `-Intro` forces the intro (the EN copy ships `startup logo 0`). `-PostKeyAt` posts a key (no real input); `-PressHotkeyAt` and `-Steps` (input script: mouse, click, keys, held keys, typing, screenshots; verified menu sequences in `docs/testing.md`) type real input via `SendInput` – **only when the human has said the PC is free**. In-game diagnostics: `LogLevel=debug` in `ddmod.ini` (logs every key-down and character message, focus change, game font creation, `.fnt` file open and the characters each GDI font rasterizes – reset to `info` afterwards).
+`tools/testrun/Start-GameTest.ps1 -GameDir <copy> [-NoIntro|-Intro] [-FullScreen] [-PressEscapeAt 4,8,…] [-PostKeyAt …] [-PressHotkeyAt …] [-Steps …] -Seconds 15 -Count 2 -Interval 10`: starts the game windowed (temporarily `FullScreenMode=false`), screenshots of the game window to `C:\dev\screenshots`, closes the game, restores configs and the run markers `init.cfg`/`sinfo.000`, answers the "not correctly terminated" dialog with **No**, prints `RivellonRenewed.log`. View screenshots with the Read tool – it shows 2560×1440 images downscaled, which fakes glyph defects in small text; judge text details only from full-resolution crops (System.Drawing in PowerShell, output to the scratchpad). Crash details: Windows event log, Application, ID 1000. `-Intro` forces the intro (the EN copy ships `startup logo 0`). `-PostKeyAt` posts a key (no real input); `-PressHotkeyAt` and `-Steps` (input script: mouse, click, keys, held keys, typing, screenshots; verified menu sequences in `docs/testing.md`) type real input via `SendInput` – **only when the human has said the PC is free**. In-game diagnostics: `LogLevel=debug` in `RivellonRenewed.ini` (logs every key-down and character message, focus change, game font creation, `.fnt` file open and the characters each GDI font rasterizes). While a test round is running, all working copies stay on `debug`; when it ends, set them back to `info` (and to `debug` again for the next round) – the current state is in `PLAN.md` "Current status".
 
 Font comparison sheets (rule 12): `build/Release/ddmod_fontpreview.exe --out C:\dev\screenshots\fonts\<name>.png [--bg R,G,B]` plus entries `--fnt`, `--gdi`, `--ttf`, `--pixel`, `--smooth`, `--overview <dir> <scale>`, `--charsheet <fnt> <scale> <threshold%> <label>` (usage at the top of `tools/fontpreview/main.cpp`) – renders sample lines with the overlay's text code; game `.fnt` files are read from a working copy (copies only in the scratchpad).
 

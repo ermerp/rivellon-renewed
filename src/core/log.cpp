@@ -47,7 +47,7 @@ std::filesystem::path PreviousFile(const std::filesystem::path& file) {
 }
 
 std::filesystem::path ArchiveDir(const std::filesystem::path& file) {
-    return file.parent_path() / (file.stem().wstring() + L"-logs");
+    return file.parent_path() / file.stem() / L"logs";
 }
 
 std::wstring ArchiveName(std::wstring_view stem, std::string_view firstLine) {

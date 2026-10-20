@@ -1,4 +1,4 @@
-// Unit tests for the parts of ddmod that do not need the game: SHA-256, pattern parsing and
+// Unit tests for the parts of the mod that do not need the game: SHA-256, pattern parsing and
 // matching, PE section scanning, the MinHook wrapper, the hotkey parser, log rotation and the
 // overlay's pixel, blend and glyph code
 // (including the ML_FONT_01 bitmap font reader), the font chain and the font mode hook (its
@@ -504,8 +504,8 @@ void TestLogRotation() {
     const fs::path dir = fs::temp_directory_path() / std::format("ddmod_tests_{}", GetCurrentProcessId());
     fs::remove_all(dir);
     fs::create_directories(dir);
-    const fs::path file = dir / "ddmod.log";
-    const fs::path prev = dir / "ddmod.prev.log";
+    const fs::path file = dir / "RivellonRenewed.log";
+    const fs::path prev = dir / "RivellonRenewed.prev.log";
     CHECK(log::PreviousFile(file) == prev);
 
     log::Open(file, log::Level::Info);  // nothing to keep yet
@@ -534,20 +534,21 @@ void TestLogRotation() {
 void TestLogArchive() {
     namespace fs = std::filesystem;
     using namespace ddmod;
-    CHECK(log::ArchiveName(L"ddmod", "2026-10-20 17:11:06.504 [INFO ] [20900] ddmod 0.1.0 loaded") ==
-          L"ddmod-20261020-171106.log");
-    CHECK(log::ArchiveName(L"ddmod", "2026-10-20 17:11:06") == L"ddmod-20261020-171106.log");
-    CHECK(log::ArchiveName(L"ddmod", "2026-10-20 17:11").empty());
-    CHECK(log::ArchiveName(L"ddmod", "2026-10-20T17:11:06").empty());
-    CHECK(log::ArchiveName(L"ddmod", "garbage line without a time").empty());
-    CHECK(log::ArchiveName(L"ddmod", "").empty());
+    CHECK(log::ArchiveName(L"RivellonRenewed",
+                           "2026-10-20 17:11:06.504 [INFO ] [20900] Rivellon Renewed 0.1.0 loaded") ==
+          L"RivellonRenewed-20261020-171106.log");
+    CHECK(log::ArchiveName(L"RivellonRenewed", "2026-10-20 17:11:06") == L"RivellonRenewed-20261020-171106.log");
+    CHECK(log::ArchiveName(L"RivellonRenewed", "2026-10-20 17:11").empty());
+    CHECK(log::ArchiveName(L"RivellonRenewed", "2026-10-20T17:11:06").empty());
+    CHECK(log::ArchiveName(L"RivellonRenewed", "garbage line without a time").empty());
+    CHECK(log::ArchiveName(L"RivellonRenewed", "").empty());
 
     const fs::path dir = fs::temp_directory_path() / std::format("ddmod_tests_archive_{}", GetCurrentProcessId());
     fs::remove_all(dir);
     fs::create_directories(dir);
-    const fs::path file = dir / "ddmod.log";
+    const fs::path file = dir / "RivellonRenewed.log";
     const fs::path archive = log::ArchiveDir(file);
-    CHECK(archive == dir / "ddmod-logs");
+    CHECK(archive == dir / "RivellonRenewed" / "logs");
 
     // Older starts with known start times, written as the previous log before each Open.
     const char* starts[] = {"2026-10-20 17:00:01", "2026-10-20 17:00:02", "2026-10-20 17:00:03",
@@ -559,18 +560,18 @@ void TestLogArchive() {
         log::Close();
     }
     // Each Open archived the previous log; only the newest two remain.
-    CHECK(!fs::exists(archive / "ddmod-20261020-170001.log"));
-    CHECK(!fs::exists(archive / "ddmod-20261020-170002.log"));
-    CHECK(fs::exists(archive / "ddmod-20261020-170003.log"));
-    CHECK(ReadText(archive / "ddmod-20261020-170004.log").find("old start") != std::string::npos);
+    CHECK(!fs::exists(archive / "RivellonRenewed-20261020-170001.log"));
+    CHECK(!fs::exists(archive / "RivellonRenewed-20261020-170002.log"));
+    CHECK(fs::exists(archive / "RivellonRenewed-20261020-170003.log"));
+    CHECK(ReadText(archive / "RivellonRenewed-20261020-170004.log").find("old start") != std::string::npos);
     CHECK(ReadText(log::PreviousFile(file)).find("current start") != std::string::npos);
 
     // Same start time again: kept under a second name instead of overwriting.
     std::ofstream(log::PreviousFile(file), std::ios::binary) << "2026-10-20 17:00:04.500 [INFO ] twin\n";
     log::Open(file, log::Level::Info, 5);
     log::Close();
-    CHECK(ReadText(archive / "ddmod-20261020-170004-2.log").find("twin") != std::string::npos);
-    CHECK(fs::exists(archive / "ddmod-20261020-170004.log"));
+    CHECK(ReadText(archive / "RivellonRenewed-20261020-170004-2.log").find("twin") != std::string::npos);
+    CHECK(fs::exists(archive / "RivellonRenewed-20261020-170004.log"));
 
     fs::remove_all(dir);
 }
@@ -775,15 +776,18 @@ void TestFntFont() {
 void TestFontChain() {
     using namespace ddmod::fonts;
     const std::filesystem::path base = L"C:\\mod";
-    const auto chain = ParseChain(" Tahoma ,, DejaVu Sans Condensed @ ddmod_fonts\\D.ttf , X @ C:\\abs\\x.ttf,@ only.ttf", base);
+    const auto chain = ParseChain(" Tahoma ,, DejaVu Sans Condensed @ RivellonRenewed\\fonts\\D.ttf , X @ C:\\abs\\x.ttf,@ only.ttf", base);
     CHECK(chain.size() == 3);
     if (chain.size() == 3) {
         CHECK(chain[0].face == L"Tahoma" && chain[0].file.empty());
-        CHECK(chain[1].face == L"DejaVu Sans Condensed" && chain[1].file == base / L"ddmod_fonts\\D.ttf");
+        CHECK(chain[1].face == L"DejaVu Sans Condensed" && chain[1].file == base / L"RivellonRenewed\\fonts\\D.ttf");
         CHECK(chain[2].face == L"X" && chain[2].file == L"C:\\abs\\x.ttf");
     }
     CHECK(ParseChain("", base).empty());
-    CHECK(ParseChain(kDefaultChain, base).size() == 2);
+    const auto defaults = ParseChain(kDefaultChain, base);
+    CHECK(defaults.size() == 2);
+    // Install-DdMod copies the bundled font to exactly this folder.
+    CHECK(defaults.size() == 2 && defaults[1].file == base / L"RivellonRenewed\\fonts\\DejaVuSansCondensed-Bold.ttf");
 
     // A missing face is skipped (GDI would substitute it), an installed one is taken.
     auto picked = Resolve(ParseChain("No Such Face 4711, Tahoma", base), true);

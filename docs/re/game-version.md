@@ -16,7 +16,7 @@ Steam (and presumably GOG) ship `div.exe` FileVersion `1, 0, 0, 62` (= 1.0062A).
 
 `src/game/exe.cpp` (`kKnownBuilds`) knows this `div.exe` as "1.0062A (Steam)"; one set of signatures covers DE, EN and FR.
 
-**Russian Steam version – a different build:** `div.exe` FileVersion `1, 0, 0, 61` (1.0061), linker timestamp 2012-08-01, 2 892 032 bytes, SHA-256 `90599AC1C2F9CC48BF83AEDB9850BA5B487B487E286D3B26C6E7967F0D928E68`, `.text` 2 564 547 bytes, same image base. Also different: `configtool.exe` (`D55DD8145C7270D714A6D9BF4B0F8190BCC7DBDDA5895D50A2B0719D7F2711E1`), `NlsGer.dll`; extra `NlsRus.dll`, `rttmText.dll`/`.dic`/`.tab` (probably what the `rttm on` key belongs to, `config-files.md`). `DivDialogSystem.dll`, `OsirisDLL.dll`, `slash1.dll`, `binkw32.dll` and `fmod.dll` are the same as in 1.0062A. ddmod treats the EXE as unknown (no fixed-address fallbacks); signatures must be checked against it one by one.
+**Russian Steam version – a different build:** `div.exe` FileVersion `1, 0, 0, 61` (1.0061), linker timestamp 2012-08-01, 2 892 032 bytes, SHA-256 `90599AC1C2F9CC48BF83AEDB9850BA5B487B487E286D3B26C6E7967F0D928E68`, `.text` 2 564 547 bytes, same image base. Also different: `configtool.exe` (`D55DD8145C7270D714A6D9BF4B0F8190BCC7DBDDA5895D50A2B0719D7F2711E1`), `NlsGer.dll`; extra `NlsRus.dll`, `rttmText.dll`/`.dic`/`.tab` (probably what the `rttm on` key belongs to, `config-files.md`). `DivDialogSystem.dll`, `OsirisDLL.dll`, `slash1.dll`, `binkw32.dll` and `fmod.dll` are the same as in 1.0062A. The mod treats the EXE as unknown (no fixed-address fallbacks); signatures must be checked against it one by one.
 
 ## PE header of `div.exe`
 
@@ -27,7 +27,7 @@ Steam (and presumably GOG) ship `div.exe` FileVersion `1, 0, 0, 62` (= 1.0062A).
 
 ## Language versions (Steam)
 
-Working copies: `C:\dev\dd-test` (DE), `dd-test-en`, `dd-test-fr`, `dd-test-ru` – set up alike (dgVoodoo2, 2560×1440, `startup logo 0` except DE, ddmod). DE, EN and FR share `div.exe`, DLLs, graphics, sounds, videos and `fonts/`; they differ only in:
+Working copies: `C:\dev\dd-test` (DE), `dd-test-en`, `dd-test-fr`, `dd-test-ru` – set up alike (dgVoodoo2, 2560×1440, `startup logo 0` except DE, Rivellon Renewed). DE, EN and FR share `div.exe`, DLLs, graphics, sounds, videos and `fonts/`; they differ only in:
 
 | File | German | English | French |
 |---|---|---|---|
@@ -41,6 +41,6 @@ Working copies: `C:\dev\dd-test` (DE), `dd-test-en`, `dd-test-fr`, `dd-test-ru` 
 
 Language matters for the dialog loader (gender folders), text lengths in custom dialog boxes (Phase 6) and TTS voices (Phase 7).
 
-**ddmod per language (automated start, `FontHook=1`, windowed 2560×1440):**
+**Rivellon Renewed per language (automated start, `FontHook=1`, windowed 2560×1440):**
 - FR: EXE verified, all hooks and the font mode as in DE/EN, French main menu in Tahoma Bold, overlay normal. Accents are not on the main menu; they are part of the in-game check.
-- RU: EXE known as "Russian edition 1.0061" (`kKnownBuilds`, best effort: no fixed-address fallbacks); input hook, overlay and GDI font hook work. The font mode signature (`FontInit`) does not match 1.0061, so ddmod skips the font mode on this hash (log "Russian edition 1.0061 detected - font mode not supported, using original fonts") and the game draws its Cyrillic bitmap fonts correctly. With `use8bitfont 0` set by hand in `config.lcl`, the game creates the same 61 GDI fonts ("SimSun", weight 600, **`lfCharSet` 0 = ANSI_CHARSET**) and the Russian text comes out as Latin-1 garbage ("ÍÎÂÀß ÈÃÐÀ"): the bytes are code page 1251, GDI reads them as 1252. Replacing `lfCharSet` with `RUSSIAN_CHARSET` (204) in the font hook fixes it – main menu in correct Cyrillic Tahoma Bold; `[Fonts] Charset=auto` does this for the Russian hash (`text-rendering.md`).
+- RU: EXE known as "Russian edition 1.0061" (`kKnownBuilds`, best effort: no fixed-address fallbacks); input hook, overlay and GDI font hook work. The font mode signature (`FontInit`) does not match 1.0061, so the mod skips the font mode on this hash (log "Russian edition 1.0061 detected - font mode not supported, using original fonts") and the game draws its Cyrillic bitmap fonts correctly. With `use8bitfont 0` set by hand in `config.lcl`, the game creates the same 61 GDI fonts ("SimSun", weight 600, **`lfCharSet` 0 = ANSI_CHARSET**) and the Russian text comes out as Latin-1 garbage ("ÍÎÂÀß ÈÃÐÀ"): the bytes are code page 1251, GDI reads them as 1252. Replacing `lfCharSet` with `RUSSIAN_CHARSET` (204) in the font hook fixes it – main menu in correct Cyrillic Tahoma Bold; `[Fonts] Charset=auto` does this for the Russian hash (`text-rendering.md`).

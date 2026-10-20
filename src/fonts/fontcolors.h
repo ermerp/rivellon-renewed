@@ -32,7 +32,7 @@ struct FontColors {
     friend bool operator==(const FontColors&, const FontColors&) = default;
 };
 
-// One font as the game describes it and the colors ddmod gives it. Index = position in the game's
+// One font as the game describes it and the colors the mod gives it. Index = position in the game's
 // creation order (same order as the bitmap files, text-rendering.md).
 struct FontColorEntry {
     std::string_view file;  // bitmap font of the same index, for the log

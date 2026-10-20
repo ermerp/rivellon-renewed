@@ -9,4 +9,4 @@ Source of the lead: Steam forum (atom0s, 2020) – changing one byte in `div.exe
   - if it is 0 the game hides the Windows cursor (`ShowCursor(FALSE)` at `0x40D9E2`);
   - in the main loop it skips a block with the 640×480/800×600 display setup (`0x40CB47`);
   - most other checks are clustered at `0x431000`–`0x434000` (not identified; candidate: debug key handling, see `key-events.md`). The frame-rate effect is not located yet.
-- **Plan:** optional `[Debug] DeveloperMode=0` in `ddmod.ini`, setting `+0x28` in memory right after the constructor (hook it or the creation at `0x40C160`) – only once the ~100 checks are mapped.
+- **Plan:** optional `[Debug] DeveloperMode=0` in `RivellonRenewed.ini`, setting `+0x28` in memory right after the constructor (hook it or the creation at `0x40C160`) – only once the ~100 checks are mapped.

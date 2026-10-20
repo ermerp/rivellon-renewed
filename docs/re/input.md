@@ -9,14 +9,14 @@
 ## The game window
 
 - `div.exe` does not create the window. The renderer plugin does (`slash1`–`4.dll` import `RegisterClassExA`/`CreateWindowExA`, `architecture.md`). All four use the window class **`Divinity`**; the title is also `Divinity`.
-- It is an ANSI window (`RegisterClassExA`) and belongs to the **main thread**, the same thread that runs `DllMain` of ddmod.
-- When it appears: about 1.1–1.9 s after process start in full screen (with or without intro) and windowed with intro; about 7.4–9.4 s only windowed **without** intro (dgVoodoo2, Windows; cause not known). `binkw32.dll` registers a window class of its own too, so ddmod matches on the class name, not on "first visible window".
+- It is an ANSI window (`RegisterClassExA`) and belongs to the **main thread**, the same thread that runs `DllMain` of the mod.
+- When it appears: about 1.1–1.9 s after process start in full screen (with or without intro) and windowed with intro; about 7.4–9.4 s only windowed **without** intro (dgVoodoo2, Windows; cause not known). `binkw32.dll` registers a window class of its own too, so the mod matches on the class name, not on "first visible window".
 - Other top-level windows of the process (full screen, dgVoodoo2): `D3DProxyWindow` and `DXGIWatchdogThreadWindow` (DXGI, hidden) and the IME windows.
-- **The window procedure does not stay put.** In full screen, within 500 ms after ddmod subclassed it, the procedure pointed first into `DDRAW.dll` (dgVoodoo2) and then to code outside every module (`03BA0000`/`03CA0000`, generated at run time), and that chain does not call ours. Key messages then bypass a subclass entirely. Windowed, the subclass stayed in place.
-- Alt+Tab out of full screen and back turns the game into a framed window – also without ddmod (dgVoodoo2/game behavior, not ours). Playing continues normally.
+- **The window procedure does not stay put.** In full screen, within 500 ms after the mod subclassed it, the procedure pointed first into `DDRAW.dll` (dgVoodoo2) and then to code outside every module (`03BA0000`/`03CA0000`, generated at run time), and that chain does not call ours. Key messages then bypass a subclass entirely. Windowed, the subclass stayed in place.
+- Alt+Tab out of full screen and back turns the game into a framed window – also without the mod (dgVoodoo2/game behavior, not ours). Playing continues normally.
 - The game window is destroyed only at exit. Whether a resolution or renderer change re-creates it: not observed yet.
 
-## How ddmod hooks input
+## How the mod hooks input
 
 **Deferred start.** `DllMain` only sets up logging, config, the EXE check and starts a **watcher thread**. The thread polls every 50 ms (`EnumWindows`: own process, no owner, class `Divinity`). When the window exists, it initializes MinHook and installs the input hook. Reasons:
 
@@ -42,6 +42,6 @@ Rejected: subclassing the window procedure (`SetWindowLongPtrA(GWLP_WNDPROC)`) �
 
 **Test hotkey:** `Ctrl+Shift+F3` – free in the game's bindings and the 40 key events.
 
-## Key syntax in `ddmod.ini`
+## Key syntax in `RivellonRenewed.ini`
 
 `[Keys]`: optional modifiers `Ctrl` (alias `Control`), `Shift`, `Alt` joined with `+`, then exactly one key: `A`–`Z`, `0`–`9`, `F1`–`F24`, `Num0`–`Num9`, `NumAdd`/`NumSub`/`NumMul`/`NumDiv`/`NumDecimal`, `Space`, `Enter`, `Escape`, `Tab`, `Backspace`, `Insert`, `Delete`, `Home`, `End`, `PageUp`, `PageDown`, arrows (`Up`, …), `Pause`, `ScrollLock` (plus short aliases such as `Esc`, `PgDn`). Case-insensitive. Empty or `None` = unbound. `PrintScreen` is not allowed (Windows sends no key-down for it). Invalid text disables the hotkey with a warning in the log. Parser: `src/input/keys.cpp`, unit tests in `tests/main.cpp`.

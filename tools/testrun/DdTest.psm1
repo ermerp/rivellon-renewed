@@ -120,18 +120,64 @@ function Set-DivConfig {
     [System.IO.File]::WriteAllBytes((Join-Path $dir 'slashed.cfg'), [byte[]](0, 0, 0, 0))
 }
 
+# File stem of everything the mod puts into the game folder (CMakeLists.txt MOD_FILE_STEM):
+# RivellonRenewed.asi/.ini/.log/.prev.log and the folder RivellonRenewed\ (fonts, logs).
+$script:ModStem = 'RivellonRenewed'
+# Files of builds from before the rename (ddmod); ddmod.ini is migrated, not deleted.
+$script:LegacyFiles = 'ddmod.asi', 'ddmod.log', 'ddmod.prev.log'
+$script:LegacyDirs = 'ddmod_fonts', 'ddmod-logs'
+
+function Set-ModIniValue {
+    # Sets "Key=Value" inside [Section] of the mod's INI, keeping comments and layout.
+    param(
+        [Parameter(Mandatory)] [string] $Path,
+        [Parameter(Mandatory)] [string] $Section,
+        [Parameter(Mandatory)] [string] $Key,
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $Value
+    )
+    $lines = [System.Collections.Generic.List[string]](Get-Content -LiteralPath $Path)
+    $inSection = $false
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^\s*\[(.+)\]\s*$') { $inSection = ($Matches[1] -ieq $Section); continue }
+        if ($inSection -and $lines[$i] -match "^\s*$([regex]::Escape($Key))\s*=") {
+            $lines[$i] = "$Key=$Value"
+            Set-Content -LiteralPath $Path -Value $lines -Encoding ASCII
+            return
+        }
+    }
+    throw "Key [$Section] $Key not found in $Path"
+}
+
+function Copy-ModIniValues {
+    # Copies every Key=Value of an older INI into a fresh default INI (keys the default no longer
+    # has are reported and dropped); the ddmod font folder in [Fonts] Chain is moved to the new one.
+    param([Parameter(Mandatory)] [string] $From, [Parameter(Mandatory)] [string] $To)
+    $section = ''
+    foreach ($line in Get-Content -LiteralPath $From) {
+        if ($line -match '^\s*\[(.+)\]\s*$') { $section = $Matches[1]; continue }
+        if ($line -notmatch '^\s*([^;=\s][^=]*?)\s*=\s*(.*?)\s*$') { continue }
+        $key = $Matches[1]
+        $value = $Matches[2] -replace '(?i)\bddmod_fonts\\', "$script:ModStem\fonts\"
+        try { Set-ModIniValue -Path $To -Section $section -Key $key -Value $value }
+        catch { Write-Warning "[$section] $key from $From is unknown now - dropped" }
+    }
+}
+
 function Install-DdMod {
-    # Copies Ultimate ASI Loader (as winmm.dll), ddmod.asi and ddmod.ini into a working copy.
+    # Copies Ultimate ASI Loader (as winmm.dll), RivellonRenewed.asi, the bundled font and
+    # RivellonRenewed.ini into a working copy. Removes the program files of a ddmod build and
+    # migrates its ddmod.ini (values into the new default INI, the old file kept as
+    # ddmod.ini.migrated); ddmod logs are left for Uninstall-DdMod.
     # Refuses to replace a winmm.dll that is not the given ASI loader (e.g. dgVoodoo's WinMM.dll).
     param(
         [Parameter(Mandatory)] [string] $GameDir,
         [string] $AsiLoader = 'C:\dev\downloads\ultimate-asi-loader_9.7.4\dinput8.dll',
         [string] $BuildDir = (Join-Path $PSScriptRoot '..\..\build\Release'),
-        [switch] $ResetIni   # overwrite an existing ddmod.ini with the repo default
+        [switch] $ResetIni   # overwrite an existing RivellonRenewed.ini with the repo default
     )
     $dir = Assert-WorkingCopy $GameDir
     $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-    $asi = Join-Path $BuildDir 'ddmod.asi'
+    $asi = Join-Path $BuildDir "$script:ModStem.asi"
     foreach ($f in $AsiLoader, $asi) { if (-not (Test-Path -LiteralPath $f)) { throw "Missing: $f" } }
 
     $winmm = Join-Path $dir 'winmm.dll'
@@ -139,22 +185,36 @@ function Install-DdMod {
         (Get-FileHash -LiteralPath $winmm).Hash -ne (Get-FileHash -LiteralPath $AsiLoader).Hash) {
         throw "$winmm exists and is not the ASI loader - not replacing it"
     }
+    # An old ddmod.asi would load next to the new plugin.
+    Remove-Item -LiteralPath (Join-Path $dir 'ddmod.asi') -ErrorAction SilentlyContinue
+    $oldFonts = Join-Path $dir 'ddmod_fonts'
+    if (Test-Path -LiteralPath $oldFonts) { Remove-Item -LiteralPath $oldFonts -Recurse -Force }
+
     Copy-Item -LiteralPath $AsiLoader -Destination $winmm -Force
-    Copy-Item -LiteralPath $asi -Destination (Join-Path $dir 'ddmod.asi') -Force
-    # Bundled fallback font and its license (font chain in ddmod.ini, [Fonts]).
-    $fonts = Join-Path $dir 'ddmod_fonts'
+    Copy-Item -LiteralPath $asi -Destination (Join-Path $dir "$script:ModStem.asi") -Force
+    # Bundled fallback font and its license (font chain in RivellonRenewed.ini, [Fonts]).
+    $fonts = Join-Path $dir "$script:ModStem\fonts"
     New-Item -ItemType Directory -Force -Path $fonts | Out-Null
     Copy-Item -Path (Join-Path $repo 'assets\fonts\*') -Destination $fonts -Force
-    $ini = Join-Path $dir 'ddmod.ini'
+    $ini = Join-Path $dir "$script:ModStem.ini"
+    $oldIni = Join-Path $dir 'ddmod.ini'
     if ($ResetIni -or -not (Test-Path -LiteralPath $ini)) {
-        Copy-Item -LiteralPath (Join-Path $repo 'config\ddmod.ini') -Destination $ini -Force
+        Copy-Item -LiteralPath (Join-Path $repo "config\$script:ModStem.ini") -Destination $ini -Force
+        if (-not $ResetIni -and (Test-Path -LiteralPath $oldIni)) {
+            Copy-ModIniValues -From $oldIni -To $ini
+            Move-Item -LiteralPath $oldIni -Destination "$oldIni.migrated" -Force
+            Write-Host "Settings of ddmod.ini taken over (old file: ddmod.ini.migrated)"
+        }
     }
-    Write-Host "ddmod installed in $dir"
+    Write-Host "Rivellon Renewed installed in $dir"
+    $leftovers = $script:LegacyFiles + $script:LegacyDirs | Where-Object { Test-Path -LiteralPath (Join-Path $dir $_) }
+    if ($leftovers) { Write-Warning "ddmod logs left in $dir ($($leftovers -join ', ')) - Uninstall-DdMod removes them" }
 }
 
 function Uninstall-DdMod {
-    # Removes winmm.dll (only if it is the ASI loader), ddmod.asi and the logs (incl. ddmod-logs);
-    # keeps ddmod.ini.
+    # Removes winmm.dll (only if it is the ASI loader), RivellonRenewed.asi, the bundled font and
+    # all logs (incl. RivellonRenewed\logs), and the same files of a ddmod build;
+    # keeps RivellonRenewed.ini (and an unmigrated ddmod.ini).
     param(
         [Parameter(Mandatory)] [string] $GameDir,
         [string] $AsiLoader = 'C:\dev\downloads\ultimate-asi-loader_9.7.4\dinput8.dll'
@@ -168,12 +228,15 @@ function Uninstall-DdMod {
             Write-Warning "$winmm is not the ASI loader - left in place"
         }
     }
-    foreach ($f in 'ddmod.asi', 'ddmod.log', 'ddmod.prev.log') { Remove-Item -LiteralPath (Join-Path $dir $f) -ErrorAction SilentlyContinue }
-    foreach ($sub in 'ddmod_fonts', 'ddmod-logs') {
+    $files = @("$script:ModStem.asi", "$script:ModStem.log", "$script:ModStem.prev.log") + $script:LegacyFiles
+    foreach ($f in $files) { Remove-Item -LiteralPath (Join-Path $dir $f) -ErrorAction SilentlyContinue }
+    foreach ($sub in @("$script:ModStem\fonts", "$script:ModStem\logs") + $script:LegacyDirs) {
         $path = Join-Path $dir $sub
         if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }
     }
-    Write-Host "ddmod removed from $dir (ddmod.ini kept)"
+    $data = Join-Path $dir $script:ModStem
+    if ((Test-Path -LiteralPath $data) -and -not (Get-ChildItem -LiteralPath $data -Force)) { Remove-Item -LiteralPath $data }
+    Write-Host "Rivellon Renewed removed from $dir ($script:ModStem.ini kept)"
 }
 
-Export-ModuleMember -Function Assert-WorkingCopy, Set-IniValue, Set-DgVoodooProfile, Set-DivConfigValue, Set-DivConfig, Install-DdMod, Uninstall-DdMod
+Export-ModuleMember -Function Assert-WorkingCopy, Set-IniValue, Set-ModIniValue, Set-DgVoodooProfile, Set-DivConfigValue, Set-DivConfig, Install-DdMod, Uninstall-DdMod

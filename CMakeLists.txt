@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.24)
 
 project(ddmod VERSION 0.1.0 LANGUAGES C CXX)
 
+# Public name of the mod and the stem of every file it puts into the game folder:
+# <stem>.asi, <stem>.ini, <stem>.log and the folder <stem>\ (fonts, logs of older starts).
+set(MOD_NAME "Rivellon Renewed")
+set(MOD_FILE_STEM "RivellonRenewed")
+
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR "Divine Divinity is a 32-bit game - configure with -A Win32 (or an x86 toolchain).")
 endif()
@@ -64,18 +69,20 @@ target_compile_definitions(ddmod_core PUBLIC
     UNICODE
     _UNICODE
     DDMOD_VERSION="${PROJECT_VERSION}"
+    DDMOD_NAME="${MOD_NAME}"
+    DDMOD_FILE_STEM="${MOD_FILE_STEM}"
 )
 target_compile_options(ddmod_core PUBLIC /W4 /permissive- /utf-8)
 target_link_libraries(ddmod_core PUBLIC minhook)
 
-# --- ddmod.asi ---
+# --- RivellonRenewed.asi ---
 add_library(ddmod SHARED
     src/proxy/dllmain.cpp
 )
 target_link_libraries(ddmod PRIVATE ddmod_core version)
 
 # Ultimate ASI Loader picks up *.asi files.
-set_target_properties(ddmod PROPERTIES SUFFIX ".asi")
+set_target_properties(ddmod PROPERTIES OUTPUT_NAME "${MOD_FILE_STEM}" SUFFIX ".asi")
 
 # --- Unit tests (run natively, no game needed): ctest -C Release --test-dir build ---
 enable_testing()

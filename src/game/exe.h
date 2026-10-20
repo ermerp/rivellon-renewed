@@ -11,7 +11,7 @@ namespace ddmod::game {
 // Known editions of div.exe (docs/re/game-version.md).
 enum class Edition {
     Unknown,
-    Main,     // 1.0062A: German, English and French Steam; the build ddmod is made for
+    Main,     // 1.0062A: German, English and French Steam; the build the mod is made for
     Russian,  // 1.0061 (Russian Steam): best effort, signatures of 1.0062A only, no fixed fallbacks
 };
 

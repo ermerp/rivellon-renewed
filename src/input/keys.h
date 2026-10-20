@@ -24,9 +24,9 @@ struct KeyCombo {
     bool operator==(const KeyCombo&) const = default;
 };
 
-// Parses "Ctrl+Shift+F10" style text from ddmod.ini: zero or more modifiers (Ctrl, Shift, Alt)
-// followed by exactly one key name, joined with '+', case-insensitive, spaces allowed around
-// the parts. Empty text or "None" gives an unbound combo; syntax errors give nullopt.
+// Parses "Ctrl+Shift+F10" style text from RivellonRenewed.ini: zero or more modifiers (Ctrl,
+// Shift, Alt) followed by exactly one key name, joined with '+', case-insensitive, spaces allowed
+// around the parts. Empty text or "None" gives an unbound combo; syntax errors give nullopt.
 std::optional<KeyCombo> ParseKeyCombo(std::string_view text);
 
 // Canonical text form ("Ctrl+Shift+F10"), "None" for an unbound combo.

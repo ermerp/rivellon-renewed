@@ -31,7 +31,7 @@
 | `alpha bit #` | `+0xF4` | "Use alpha" in `configtool.exe` |
 | `quickstart $` | `+0x118` (string) | **required** – without it `div.exe` exits immediately (exit code 0, no window) |
 | `quicksave $` | `+0x11C` (string) | |
-| `use8bitfont #` | `+0x120` (byte) | read only by the font setup (ddmod's font mode forces it to 0 there, `text-rendering.md`). `0` (default `1`): the game draws text with a Windows (GDI) serif font instead of its own bitmap font – dialogs, tooltips ("Door" instead of the small-caps "DOOR"), character sheet; looks sharper at 2560×1440 (T2.0-W B2, EN, tester screenshots). Fits the `CreateFontA`/`GetGlyphOutlineA` imports (`architecture.md`). Candidate for Phase 6 (readability) |
+| `use8bitfont #` | `+0x120` (byte) | read only by the font setup (the mod's font mode forces it to 0 there, `text-rendering.md`). `0` (default `1`): the game draws text with a Windows (GDI) serif font instead of its own bitmap font – dialogs, tooltips ("Door" instead of the small-caps "DOOR"), character sheet; looks sharper at 2560×1440 (T2.0-W B2, EN, tester screenshots). Fits the `CreateFontA`/`GetGlyphOutlineA` imports (`architecture.md`). Candidate for Phase 6 (readability) |
 | `language #` | `+0x124` | 1 = English, 2 = German |
 
 Further stored keys: `game rate # fps`, `sound #`, `smooth #`, `explain #`, `resolution switch #`, `fog speed #`, `voice comments #`, `force mac id $`, `compress reports #`, `queue sounds #`, `patching #`, `roofs #`, `SplotchProblem #`, `rttm on`, `path $`, `exe name $`, `exe path $`.

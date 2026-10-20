@@ -11,14 +11,15 @@ enum class Level { Debug = 0, Info, Warn, Error, Off };
 // Parses "debug", "info", "warn", "error", "off" (case-insensitive); unknown values give `fallback`.
 Level ParseLevel(std::string_view text, Level fallback);
 
-// "ddmod.log" -> "ddmod.prev.log": where Open keeps the log of the previous start.
+// "RivellonRenewed.log" -> "RivellonRenewed.prev.log": where Open keeps the previous start's log.
 std::filesystem::path PreviousFile(const std::filesystem::path& file);
 
-// "ddmod.log" -> "ddmod-logs": folder for the logs of older starts.
+// "RivellonRenewed.log" -> "RivellonRenewed\logs": folder for the logs of older starts.
 std::filesystem::path ArchiveDir(const std::filesystem::path& file);
 
-// Archive file name from the first line of a log ("2026-10-20 17:11:06.504 ..." with stem "ddmod"
-// -> "ddmod-20261020-171106.log"); empty if the line does not start with a timestamp.
+// Archive file name from the first line of a log ("2026-10-20 17:11:06.504 ..." with stem
+// "RivellonRenewed" -> "RivellonRenewed-20261020-171106.log"); empty if the line does not start
+// with a timestamp.
 std::wstring ArchiveName(std::wstring_view stem, std::string_view firstLine);
 
 // Opens a new log file. An existing one is first renamed to PreviousFile(file); the copy that was

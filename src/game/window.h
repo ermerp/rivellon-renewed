@@ -4,7 +4,7 @@
 
 namespace ddmod::game {
 
-// The game window is created by the renderer plugin (slash*.dll) long after ddmod is loaded.
+// The game window is created by the renderer plugin (slash*.dll) long after the mod is loaded.
 // WatchForMainWindow starts a background thread that polls for it and calls `onFound` once,
 // on that thread, as soon as it exists (docs/re/input.md). The thread then stays alive for the
 // lifetime of the process, because Windows hooks (SetWindowsHookEx) set by `onFound` are removed

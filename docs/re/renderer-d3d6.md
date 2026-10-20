@@ -5,7 +5,7 @@ Internals of the Direct3D renderer plugin, as far as the overlay (Phase 1 step 6
 ## How `div.exe` binds the renderer
 
 - One function in `div.exe` (around `0x5576F0`) builds the file name `slash%d.dll` (or `xslash%d.dll` for an alternative set) from the renderer ID, loads it with `LoadLibraryA` and resolves all 15 `DllSlashed*` exports with `GetProcAddress` into a table of function pointers. A missing export aborts with "Can't find …".
-- This happens **before** `DllSlashedInit` runs, and `DllSlashedInit` is what creates the game window. ddmod's deferred start (`input.md`) therefore comes too late to intercept `GetProcAddress`; instead it hooks the export bodies directly (MinHook on the address `GetProcAddress` returns). The exports are ordinary functions, so this works no matter who resolved them.
+- This happens **before** `DllSlashedInit` runs, and `DllSlashedInit` is what creates the game window. The mod's deferred start (`input.md`) therefore comes too late to intercept `GetProcAddress`; instead it hooks the export bodies directly (MinHook on the address `GetProcAddress` returns). The exports are ordinary functions, so this works no matter who resolved them.
 
 ## Exports
 

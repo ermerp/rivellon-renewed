@@ -521,9 +521,9 @@ finally {
     $results | Format-Table -AutoSize | Out-String | Write-Host
     Write-Host "Game status: $status"
     if ($crashDialogSeen) { Write-Host 'Note: the "not correctly terminated" dialog appeared (answered "No").' }
-    $modLog = Join-Path $dir 'ddmod.log'
+    $modLog = Join-Path $dir 'RivellonRenewed.log'
     if (Test-Path -LiteralPath $modLog) {
-        Write-Host '--- ddmod.log ---'
+        Write-Host '--- RivellonRenewed.log ---'
         Get-Content -LiteralPath $modLog | Write-Host
     }
 }

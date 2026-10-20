@@ -30,6 +30,10 @@ void Init(HMODULE self) {
 
 const std::filesystem::path& ModDir() { return g_modDir; }
 
+std::filesystem::path ConfigFile() { return g_modDir / (std::wstring(kFileStem) + L".ini"); }
+
+std::filesystem::path LogFile() { return g_modDir / (std::wstring(kFileStem) + L".log"); }
+
 const std::filesystem::path& ExePath() { return g_exePath; }
 
 std::string ToUtf8(const std::filesystem::path& path) {

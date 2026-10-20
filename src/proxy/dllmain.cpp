@@ -1,4 +1,4 @@
-// Entry point of ddmod.asi. Loaded into div.exe by Ultimate ASI Loader (installed as winmm.dll).
+// Entry point of RivellonRenewed.asi. Loaded into div.exe by Ultimate ASI Loader (installed as winmm.dll).
 
 #include <cstdint>
 #include <string>
@@ -66,12 +66,12 @@ void OnGameWindow(HWND window) {
 void Startup(HMODULE self) {
     using namespace ddmod;
     paths::Init(self);
-    config::Load(paths::ModDir() / L"ddmod.ini");
+    config::Load(paths::ConfigFile());
 
     const auto level = log::ParseLevel(config::GetString("General", "LogLevel", "info"), log::Level::Info);
-    log::Open(paths::ModDir() / L"ddmod.log", level, config::GetInt("General", "LogHistory", 20));
+    log::Open(paths::LogFile(), level, config::GetInt("General", "LogHistory", 20));
 
-    log::Info("ddmod {} loaded", DDMOD_VERSION);
+    log::Info("{} {} loaded", DDMOD_NAME, DDMOD_VERSION);
     log::Info("Host: {} (file version {})", paths::ToUtf8(paths::ExePath()), ExeFileVersion());
     log::Info("Platform: {}", RunningUnderWine() ? "Wine/Proton" : "Windows");
     if (config::Exists()) {
@@ -111,7 +111,7 @@ void Startup(HMODULE self) {
 void Shutdown() {
     ddmod::input::Uninstall();
     ddmod::hooks::Shutdown();
-    ddmod::log::Info("ddmod unloading");
+    ddmod::log::Info("{} unloading", DDMOD_NAME);
     ddmod::log::Close();
 }
 

@@ -35,4 +35,4 @@ Quick static analysis without Ghidra: `dumpbin /disasm:nobytes [/range:a,b] div.
 
 ## Smart App Control
 
-Disabled on the dev PC (2026-10-17; registry `VerifiedAndReputablePolicyState = 0`) because it blocked Cheat Engine and unsigned builds. For users (Phase 10): with SAC on, the unsigned ASI loader and `ddmod.asi` may be blocked → README known issue; consider code signing.
+Disabled on the dev PC (2026-10-17; registry `VerifiedAndReputablePolicyState = 0`) because it blocked Cheat Engine and unsigned builds. For users (Phase 10): with SAC on, the unsigned ASI loader and `RivellonRenewed.asi` may be blocked → README known issue; consider code signing.

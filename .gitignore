@@ -66,8 +66,8 @@ cmake-build-*/
 *.ilk
 
 # --- Runtime ---
-ddmod.log
-ddmod.prev.log
+RivellonRenewed.log
+RivellonRenewed.prev.log
 *.log
 
 # --- Python ---

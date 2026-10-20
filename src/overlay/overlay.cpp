@@ -124,7 +124,7 @@ HMODULE FindRenderer(std::wstring& name) {
 bool Install() {
     State& st = g_state;
     st.settings = ReadSettings();
-    st.status = Widen(std::format("ddmod {} active", DDMOD_VERSION));
+    st.status = Widen(std::format("{} {}", DDMOD_NAME, DDMOD_VERSION));
     QueryPerformanceFrequency(&st.frequency);
 
     std::wstring name;
