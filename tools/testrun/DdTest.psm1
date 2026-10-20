@@ -38,6 +38,21 @@ function Set-IniValue {
     throw "Key [$Section] $Key not found in $Path"
 }
 
+function Get-IniValue {
+    # Value of "Key = Value" inside [Section] of a dgVoodoo-style INI file.
+    param(
+        [Parameter(Mandatory)] [string] $Path,
+        [Parameter(Mandatory)] [string] $Section,
+        [Parameter(Mandatory)] [string] $Key
+    )
+    $inSection = $false
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        if ($line -match '^\s*\[(.+)\]\s*$') { $inSection = ($Matches[1] -ieq $Section); continue }
+        if ($inSection -and $line -match "^\s*$([regex]::Escape($Key))\s*=\s*(.*?)\s*$") { return $Matches[1] }
+    }
+    throw "Key [$Section] $Key not found in $Path"
+}
+
 function Set-DgVoodooProfile {
     # Applies the dgVoodoo2 settings from PLAN.md Phase 0, step 6 to <GameDir>\dgVoodoo.conf.
     param(
@@ -166,8 +181,8 @@ function Copy-ModIniValues {
 function Install-DdMod {
     # Copies Ultimate ASI Loader (as winmm.dll), RivellonRenewed.asi, the bundled font and
     # RivellonRenewed.ini into a working copy. Removes the program files of a ddmod build and
-    # migrates its ddmod.ini (values into the new default INI, the old file kept as
-    # ddmod.ini.migrated); ddmod logs are left for Uninstall-DdMod.
+    # migrates its ddmod.ini (old file kept as ddmod.ini.migrated); ddmod logs are left for
+    # Uninstall-DdMod.
     # Refuses to replace a winmm.dll that is not the given ASI loader (e.g. dgVoodoo's WinMM.dll).
     param(
         [Parameter(Mandatory)] [string] $GameDir,
@@ -196,15 +211,25 @@ function Install-DdMod {
     $fonts = Join-Path $dir "$script:ModStem\fonts"
     New-Item -ItemType Directory -Force -Path $fonts | Out-Null
     Copy-Item -Path (Join-Path $repo 'assets\fonts\*') -Destination $fonts -Force
+    # The INI is always rebuilt from the repo default (new keys and comments); the values of the
+    # existing RivellonRenewed.ini - or of a ddmod.ini - are taken over unless -ResetIni.
     $ini = Join-Path $dir "$script:ModStem.ini"
     $oldIni = Join-Path $dir 'ddmod.ini'
-    if ($ResetIni -or -not (Test-Path -LiteralPath $ini)) {
-        Copy-Item -LiteralPath (Join-Path $repo "config\$script:ModStem.ini") -Destination $ini -Force
-        if (-not $ResetIni -and (Test-Path -LiteralPath $oldIni)) {
-            Copy-ModIniValues -From $oldIni -To $ini
-            Move-Item -LiteralPath $oldIni -Destination "$oldIni.migrated" -Force
-            Write-Host "Settings of ddmod.ini taken over (old file: ddmod.ini.migrated)"
+    $previous = $null
+    if (-not $ResetIni) {
+        if (Test-Path -LiteralPath $ini) {
+            $previous = "$ini.previous"
+            Copy-Item -LiteralPath $ini -Destination $previous -Force
+        } elseif (Test-Path -LiteralPath $oldIni) {
+            $previous = "$oldIni.migrated"
+            Move-Item -LiteralPath $oldIni -Destination $previous -Force
         }
+    }
+    Copy-Item -LiteralPath (Join-Path $repo "config\$script:ModStem.ini") -Destination $ini -Force
+    if ($previous) {
+        Copy-ModIniValues -From $previous -To $ini
+        Write-Host "Settings of $(Split-Path -Leaf $previous) taken over into the current default INI"
+        if ($previous -like "$ini.*") { Remove-Item -LiteralPath $previous }
     }
     Write-Host "Rivellon Renewed installed in $dir"
     $leftovers = $script:LegacyFiles + $script:LegacyDirs | Where-Object { Test-Path -LiteralPath (Join-Path $dir $_) }
@@ -239,4 +264,4 @@ function Uninstall-DdMod {
     Write-Host "Rivellon Renewed removed from $dir ($script:ModStem.ini kept)"
 }
 
-Export-ModuleMember -Function Assert-WorkingCopy, Set-IniValue, Set-ModIniValue, Set-DgVoodooProfile, Set-DivConfigValue, Set-DivConfig, Install-DdMod, Uninstall-DdMod
+Export-ModuleMember -Function Assert-WorkingCopy, Get-IniValue, Set-IniValue, Set-ModIniValue, Set-DgVoodooProfile, Set-DivConfigValue, Set-DivConfig, Install-DdMod, Uninstall-DdMod

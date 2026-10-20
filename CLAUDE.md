@@ -78,7 +78,7 @@ Hardware: GTX 1050 Ti (DXGI adapter 1, primary monitor 2560×1440) + Intel UHD 6
 ## Test workflow (Windows)
 
 PowerShell module `tools/testrun/DdTest.psm1` (refuses the Steam folder):
-- `Install-DdMod -GameDir <copy> [-ResetIni]` – copies the ASI loader as `winmm.dll` (never replaces a foreign `winmm.dll`), `RivellonRenewed.asi`, `RivellonRenewed\fonts\`, `RivellonRenewed.ini` (kept if present). Migrates a pre-rename install: removes `ddmod.asi`/`ddmod_fonts`, takes the values of `ddmod.ini` over into the new INI (old file kept as `ddmod.ini.migrated`).
+- `Install-DdMod -GameDir <copy> [-ResetIni]` – copies the ASI loader as `winmm.dll` (never replaces a foreign `winmm.dll`), `RivellonRenewed.asi`, `RivellonRenewed\fonts\`, `RivellonRenewed.ini` – rebuilt from the repo default every time (new keys and comments) with the values of the existing INI taken over (`-ResetIni`: pure default). Migrates a pre-rename install: removes `ddmod.asi`/`ddmod_fonts`, takes the values of `ddmod.ini` over (old file kept as `ddmod.ini.migrated`).
 - `Uninstall-DdMod -GameDir <copy>` – removes `winmm.dll` (only if it is the loader), `RivellonRenewed.asi`, `RivellonRenewed\fonts\` and **all logs** (`RivellonRenewed.log`, `RivellonRenewed.prev.log` = start before, `RivellonRenewed\logs\RivellonRenewed-<start time>.log` = older starts; also leftover `ddmod*` files) – copy the logs to `C:\dev\screenshots` first if they are still needed.
 - `Set-ModIniValue -Path <copy>\RivellonRenewed.ini -Section … -Key … -Value …` – changes one INI value.
 - `Set-DgVoodooProfile -GameDir … -Adapter 1 [-Watermark]`, `Set-DivConfig -GameDir … -Width … -Height …`.

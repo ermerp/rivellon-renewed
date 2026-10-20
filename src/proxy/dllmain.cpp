@@ -12,6 +12,7 @@
 #include "core/paths.h"
 #include "core/scanner.h"
 #include "game/exe.h"
+#include "features/dgvoodoo.h"
 #include "fonts/fontcolors.h"
 #include "fonts/fonthook.h"
 #include "fonts/fontmode.h"
@@ -81,6 +82,8 @@ void Startup(HMODULE self) {
     }
 
     game::IdentifyExe(paths::ExePath());
+    // dgVoodoo reads its config when the renderer plugin loads DDraw.dll, after this point.
+    features::ApplyWatermarkSetting(paths::ModDir() / L"dgVoodoo.conf");
 
     std::size_t codeBytes = 0;
     int codeSections = 0;

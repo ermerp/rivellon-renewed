@@ -5,7 +5,7 @@
 .DESCRIPTION
     - Refuses to run from the original Steam folder.
     - Windowed by default: temporarily sets FullScreenMode = false in dgVoodoo.conf and restores
-      the file afterwards (requires dgVoodoo2 in the working copy).
+      that key (and AppControlledScreenMode) afterwards (requires dgVoodoo2 in the working copy).
     - Takes -Count screenshots, the first after -Seconds, then every -Interval seconds.
     - -NoIntro temporarily sets "startup logo 0" in config.div (skips the intro movies) and
       restores config.div afterwards. -Intro does the opposite ("startup logo 1" in config.div and,
@@ -302,7 +302,12 @@ $conf = Join-Path $dir 'dgVoodoo.conf'
 $confBackup = $null
 if (-not $FullScreen) {
     if (-not (Test-Path -LiteralPath $conf)) { throw "Windowed mode needs dgVoodoo.conf in $dir (or use -FullScreen)" }
-    $confBackup = [System.IO.File]::ReadAllBytes($conf)
+    # Only these two keys are restored afterwards, not the whole file: the mod itself may change
+    # dgVoodoo.conf during the run ([DgVoodoo] Watermark) and that change must stay.
+    $confBackup = @(
+        @('General', 'FullScreenMode', (Get-IniValue -Path $conf -Section 'General' -Key 'FullScreenMode')),
+        @('DirectX', 'AppControlledScreenMode', (Get-IniValue -Path $conf -Section 'DirectX' -Key 'AppControlledScreenMode'))
+    )
     Set-IniValue -Path $conf -Section 'General' -Key 'FullScreenMode' -Value 'false'
     Set-IniValue -Path $conf -Section 'DirectX' -Key 'AppControlledScreenMode' -Value 'false'
 }
@@ -511,7 +516,7 @@ finally {
             if (-not $proc.WaitForExit(3000)) { Stop-Process -Id $proc.Id -Force }
         }
     }
-    if ($confBackup) { [System.IO.File]::WriteAllBytes($conf, $confBackup) }
+    if ($confBackup) { foreach ($s in $confBackup) { Set-IniValue -Path $conf -Section $s[0] -Key $s[1] -Value $s[2] } }
     if ($divCfgBackup) { [System.IO.File]::WriteAllBytes($divCfg, $divCfgBackup) }
     if ($lclCfgBackup) { [System.IO.File]::WriteAllBytes($lclCfg, $lclCfgBackup) }
     foreach ($p in $markers.Keys) {

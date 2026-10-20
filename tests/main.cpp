@@ -26,6 +26,7 @@
 #include "core/pattern.h"
 #include "core/scanner.h"
 #include "core/sha256.h"
+#include "features/dgvoodoo.h"
 #include "fonts/fontchain.h"
 #include "fonts/fontcolors.h"
 #include "fonts/fonthook.h"
@@ -773,6 +774,33 @@ void TestFntFont() {
     std::filesystem::remove(path);
 }
 
+void TestDgVoodooWatermark() {
+    using ddmod::features::SetWatermark;
+    using ddmod::features::WatermarkEdit;
+    // Layout as in dgVoodoo's own file: aligned '=', CRLF, the same key name pattern in [Glide].
+    const std::string conf =
+        "[Glide]\r\n3DfxWatermark                       = true\r\n\r\n"
+        "[DirectX]\r\n;dgVoodooWatermark: comment = true\r\n"
+        "dgVoodooWatermark                    = true\r\nFastVideoMemoryAccess = false\r\n";
+    std::string text = conf;
+    CHECK(SetWatermark(text, false) == WatermarkEdit::Changed);
+    CHECK(text.find("dgVoodooWatermark                    = false\r\nFastVideoMemoryAccess") != std::string::npos);
+    CHECK(text.find("3DfxWatermark                       = true\r\n") != std::string::npos);
+    CHECK(text.find(";dgVoodooWatermark: comment = true") != std::string::npos);
+    CHECK(text.size() == conf.size() + 1);
+    CHECK(SetWatermark(text, false) == WatermarkEdit::Unchanged);
+    CHECK(SetWatermark(text, true) == WatermarkEdit::Changed && text == conf);
+
+    std::string bare = "[directx]\ndgVoodooWatermark=\n";  // section name case, no value, LF only
+    CHECK(SetWatermark(bare, true) == WatermarkEdit::Changed && bare == "[directx]\ndgVoodooWatermark= true\n");
+    std::string upper = "[DirectX]\ndgVoodooWatermark = TRUE";  // no line end at all
+    CHECK(SetWatermark(upper, true) == WatermarkEdit::Unchanged);
+    std::string elsewhere = "[General]\ndgVoodooWatermark = true\n";
+    CHECK(SetWatermark(elsewhere, false) == WatermarkEdit::NotFound);
+    std::string longer = "[DirectX]\ndgVoodooWatermarkX = true\n";
+    CHECK(SetWatermark(longer, false) == WatermarkEdit::NotFound);
+}
+
 void TestFontChain() {
     using namespace ddmod::fonts;
     const std::filesystem::path base = L"C:\\mod";
@@ -822,6 +850,7 @@ int main() {
     TestGdiGlyphs();
     TestFntFont();
     TestFontChain();
+    TestDgVoodooWatermark();
     std::printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }
