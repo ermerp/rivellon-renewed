@@ -13,6 +13,19 @@
     - -PostKeyAt posts -PostKeyVk (default F3) to the game window without modifiers - no real input.
     - -PressHotkeyAt types the -HotkeyVk chord as real input (SendInput, so GetKeyState sees the
       modifiers), but only if the game window is in the foreground - never into another program.
+    - -Steps runs an input script instead of the -Count screenshots, one step per entry, in order
+      (real input like -PressHotkeyAt, only into the foreground game window):
+        wait <s>              wait (fractions allowed, e.g. 0.5)
+        mouse [<fx> <fy>]     cursor to that point of the window (fractions, default 0.5 0.5) and
+                              a small move - the menus take arrow keys only after a mouse move
+        click <fx> <fy>       left click at that point of the window (fractions of the client area);
+                              rclick = right click, dclick = double click
+        key <name> [<n>]      press a key n times (default 1); names: Up Down Left Right Enter Esc
+                              Back Tab Space Home End Del F1-F12, a letter or digit, or 0xNN
+        hold <name> <ms>      hold a key, with key-down repeats like a held real key
+        type <text>           letters, digits and spaces as key presses
+        shot <name>           screenshot of the game window
+      Example: -Steps 'wait 20','mouse','key Down 2','key Enter','wait 3','shot load'
     - Saves PNGs to -OutDir (default C:\dev\screenshots, outside the repo).
     - Reports whether the game exited early (crash) or stopped responding.
     - The script has to kill the game, which the game would treat as a crash on the next start
@@ -37,6 +50,7 @@ param(
     [int] $PostKeyVk = 0x72,        # F3
     [int[]] $PressHotkeyAt = @(),   # seconds after start at which the -HotkeyVk chord is typed
     [int[]] $HotkeyVk = @(0x11, 0x10, 0x72),   # virtual keys, pressed in order: Ctrl+Shift+F3
+    [string[]] $Steps = @(),        # input script run instead of the -Count screenshots (see description)
     [string] $OutDir = 'C:\dev\screenshots',
     [string] $Label
 )
@@ -129,6 +143,85 @@ public static class DdCapture {
             inputs[up].type = 1; inputs[up].u.ki.vk = (ushort)vks[i]; inputs[up].u.ki.flags = 2 /* KEYEVENTF_KEYUP */;
         }
         return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT))) == inputs.Length;
+    }
+
+    [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr h, ref POINT p);
+    [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT { public int X, Y; }
+
+    // Brings the window to the foreground (see SendChord); false if that failed.
+    static bool Focus(IntPtr h) {
+        if (GetForegroundWindow() == h) return true;
+        uint dummy;
+        uint fgThread = GetWindowThreadProcessId(GetForegroundWindow(), out dummy);
+        uint self = GetCurrentThreadId();
+        bool attached = fgThread != 0 && fgThread != self && AttachThreadInput(self, fgThread, true);
+        SetForegroundWindow(h);
+        if (attached) AttachThreadInput(self, fgThread, false);
+        System.Threading.Thread.Sleep(300);
+        return GetForegroundWindow() == h;
+    }
+
+    static bool SendKeyEvent(int vk, bool up) {
+        var inputs = new INPUT[1];
+        inputs[0].type = 1; inputs[0].u.ki.vk = (ushort)vk; inputs[0].u.ki.flags = up ? 2u : 0u;
+        return SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT))) == 1;
+    }
+
+    // Presses a key as real input and holds it for holdMs. Injected input has no hardware
+    // auto-repeat, so held keys repeat the key-down like Windows does by default (first repeat
+    // after 500 ms, then about 30 per second). Nothing is sent unless the window has the focus.
+    public static bool SendKey(IntPtr h, int vk, int holdMs) {
+        if (!Focus(h)) return false;
+        if (!SendKeyEvent(vk, false)) return false;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        long next = 500;
+        while (watch.ElapsedMilliseconds < holdMs) {
+            System.Threading.Thread.Sleep(5);
+            if (watch.ElapsedMilliseconds >= next && watch.ElapsedMilliseconds < holdMs) {
+                if (GetForegroundWindow() != h) break;
+                SendKeyEvent(vk, false);
+                next += 33;
+            }
+        }
+        if (holdMs < 50) System.Threading.Thread.Sleep(50);
+        return SendKeyEvent(vk, true);
+    }
+
+    // Puts the cursor on the client area at (fx, fy) as fractions of its size and moves it a
+    // little as real input, so the game sees a mouse move. Nothing happens without the focus.
+    public static bool MoveMouse(IntPtr h, double fx, double fy) {
+        if (!Focus(h)) return false;
+        RECT r; GetClientRect(h, out r);
+        var p = new POINT { X = (int)(r.Right * fx), Y = (int)(r.Bottom * fy) };
+        ClientToScreen(h, ref p);
+        SetCursorPos(p.X, p.Y);
+        var inputs = new INPUT[2];
+        inputs[0].u.mi.dx = 4; inputs[0].u.mi.dy = 4; inputs[0].u.mi.flags = 1 /* MOUSEEVENTF_MOVE */;
+        inputs[1].u.mi.dx = -4; inputs[1].u.mi.dy = -4; inputs[1].u.mi.flags = 1;
+        bool ok = SendInput(1, new[] { inputs[0] }, Marshal.SizeOf(typeof(INPUT))) == 1;
+        System.Threading.Thread.Sleep(50);
+        return ok && SendInput(1, new[] { inputs[1] }, Marshal.SizeOf(typeof(INPUT))) == 1;
+    }
+
+    // Click at (fx, fy) of the client area (fractions of its size) as real input: left (or right)
+    // button, `count` times (2 = double click).
+    public static bool Click(IntPtr h, double fx, double fy, bool right, int count) {
+        if (!MoveMouse(h, fx, fy)) return false;
+        System.Threading.Thread.Sleep(100);
+        var inputs = new INPUT[1];
+        bool ok = true;
+        for (int i = 0; i < count && ok; i++) {
+            inputs[0].u.mi.flags = right ? 8u /* RIGHTDOWN */ : 2u /* LEFTDOWN */;
+            ok = SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT))) == 1;
+            System.Threading.Thread.Sleep(60);
+            inputs[0].u.mi.flags = right ? 16u /* RIGHTUP */ : 4u /* LEFTUP */;
+            ok = ok && SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT))) == 1;
+            System.Threading.Thread.Sleep(60);
+        }
+        return ok;
     }
 
     // Answers a standard message box with the given button id (e.g. 7 = IDNO).
@@ -268,6 +361,82 @@ function Resolve-CrashDialog {
     $script:crashDialogSeen = $true
     Write-Host 'Answered "not correctly terminated" dialog with "No".'
 }
+function Get-KeyVk([string] $name) {
+    $named = @{
+        Up = 0x26; Down = 0x28; Left = 0x25; Right = 0x27; Enter = 0x0D; Esc = 0x1B; Back = 0x08
+        Tab = 0x09; Space = 0x20; Home = 0x24; End = 0x23; Del = 0x2E
+    }
+    if ($named.ContainsKey($name)) { return $named[$name] }
+    if ($name -match '^F([1-9]|1[0-2])$') { return 0x6F + [int]$Matches[1] }
+    if ($name -match '^0x[0-9A-Fa-f]{1,2}$') { return [Convert]::ToInt32($name.Substring(2), 16) }
+    if ($name -match '^[A-Za-z0-9]$') { return [int][char]$name.ToUpperInvariant() }
+    throw "Unknown key '$name' in -Steps"
+}
+
+function Wait-Game([double] $seconds) {
+    $until = (Get-Date).AddSeconds($seconds)
+    while ((Get-Date) -lt $until -and -not $proc.HasExited) {
+        Resolve-CrashDialog
+        Start-Sleep -Milliseconds 100
+    }
+}
+
+# Runs one -Steps entry; returns $false if input could not be sent (game window not in front).
+function Invoke-Step([string] $step) {
+    $parts = @($step.Trim() -split '\s+', 2)
+    $verb = $parts[0]
+    $arg = if ($parts.Count -gt 1) { $parts[1] } else { '' }
+    $h = [DdCapture]::FindMainWindow([uint32]$proc.Id)
+    $elapsed = '{0,6:N1}s' -f ((Get-Date) - $start).TotalSeconds
+    switch ($verb) {
+        'wait' { Wait-Game ([double]::Parse($arg, [Globalization.CultureInfo]::InvariantCulture)); return $true }
+        'shot' {
+            $method = ''
+            $bmp = if ($h -ne [IntPtr]::Zero) { [DdCapture]::CaptureWindow($h, [ref]$method) } else { $method = 'skipped (no game window)'; $null }
+            Save-Shot $bmp $arg $method ([int]((Get-Date) - $start).TotalSeconds)
+            return $true
+        }
+    }
+    if ($h -eq [IntPtr]::Zero) { Write-Host "$elapsed $step - no game window"; return $false }
+    $ok = $true
+    switch ($verb) {
+        'mouse' {
+            $f = @($arg -split '\s+' | Where-Object { $_ } | ForEach-Object { [double]::Parse($_, [Globalization.CultureInfo]::InvariantCulture) })
+            if ($f.Count -ne 2) { $f = @(0.5, 0.5) }
+            $ok = [DdCapture]::MoveMouse($h, $f[0], $f[1])
+        }
+        { $_ -in 'click', 'rclick', 'dclick' } {
+            $f = @($arg -split '\s+' | Where-Object { $_ } | ForEach-Object { [double]::Parse($_, [Globalization.CultureInfo]::InvariantCulture) })
+            if ($f.Count -ne 2) { throw "$verb needs <fx> <fy>: '$step'" }
+            $ok = [DdCapture]::Click($h, $f[0], $f[1], $verb -eq 'rclick', $(if ($verb -eq 'dclick') { 2 } else { 1 }))
+        }
+        'key' {
+            $a = @($arg -split '\s+')
+            $times = if ($a.Count -gt 1) { [int]$a[1] } else { 1 }
+            $vk = Get-KeyVk $a[0]
+            for ($i = 0; $i -lt $times -and $ok; $i++) {
+                $ok = [DdCapture]::SendKey($h, $vk, 0)
+                Start-Sleep -Milliseconds 150
+            }
+        }
+        'hold' {
+            $a = @($arg -split '\s+')
+            $ok = [DdCapture]::SendKey($h, (Get-KeyVk $a[0]), [int]$a[1])
+        }
+        'type' {
+            foreach ($c in $arg.ToCharArray()) {
+                $name = if ($c -eq ' ') { 'Space' } else { [string]$c }
+                $ok = [DdCapture]::SendKey($h, (Get-KeyVk $name), 0)
+                if (-not $ok) { break }
+                Start-Sleep -Milliseconds 100
+            }
+        }
+        default { throw "Unknown step '$step'" }
+    }
+    Write-Host "$elapsed $step$(if (-not $ok) { ' - NOT sent (game window not in the foreground)' })"
+    return $ok
+}
+
 try {
     $proc = Start-Process -FilePath (Join-Path $dir 'div.exe') -WorkingDirectory $dir -PassThru
     $null = $proc.Handle   # keep the handle open, otherwise ExitCode stays empty in PowerShell 5.1
@@ -276,6 +445,15 @@ try {
     $pendingEsc = @($PressEscapeAt | Sort-Object)
     $pendingHotkey = @($PressHotkeyAt | Sort-Object)
     $pendingPost = @($PostKeyAt | Sort-Object)
+
+    if ($Steps.Count -gt 0) {
+        foreach ($step in $Steps) {
+            if ($proc.HasExited) { Write-Host "Game exited before step '$step'"; break }
+            # Stop at the first step that cannot be sent: later input would go elsewhere.
+            if (-not (Invoke-Step $step)) { Write-Host 'Input script stopped.'; break }
+        }
+        $Count = 0
+    }
 
     for ($n = 1; $n -le $Count; $n++) {
         $due = $start.AddSeconds($Seconds + ($n - 1) * $Interval)

@@ -1,13 +1,11 @@
 #include "game/fontlog.h"
 
+#include <atomic>
 #include <cstdint>
 #include <cstring>
-#include <intrin.h>
 #include <map>
 #include <mutex>
 #include <string>
-
-#include <windows.h>
 
 #include "core/hooks.h"
 #include "core/log.h"
@@ -15,11 +13,10 @@
 namespace ddmod::game {
 namespace {
 
-using GetGlyphOutlineAFn = DWORD(WINAPI*)(HDC, UINT, UINT, LPGLYPHMETRICS, DWORD, LPVOID, const MAT2*);
 using CreateFileAFn = HANDLE(WINAPI*)(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
 
-GetGlyphOutlineAFn g_getGlyphOutlineA = nullptr;
 CreateFileAFn g_createFileA = nullptr;
+std::atomic<bool> g_enabled{false};
 
 // Characters each GDI font rasterized, in order of first use, logged in batches. The game caches
 // glyphs, so every character shows up once per font: enough to tell which texts a font draws.
@@ -41,23 +38,6 @@ void Flush(HFONT font, std::string& chars) {
     chars.clear();
 }
 
-DWORD WINAPI GetGlyphOutlineADetour(HDC dc, UINT ch, UINT format, LPGLYPHMETRICS metrics, DWORD size, LPVOID buffer,
-                                    const MAT2* matrix) {
-    // Only the calls that rasterize (the game first asks for the size with a null buffer).
-    if (buffer && format != GGO_METRICS) {
-        const auto font = static_cast<HFONT>(GetCurrentObject(dc, OBJ_FONT));
-        std::lock_guard lock(g_mutex);
-        // Flush other fonts' batches first, so the log keeps the drawing order.
-        for (auto& [other, chars] : g_pending) {
-            if (other != font) Flush(other, chars);
-        }
-        std::string& chars = g_pending[font];
-        chars += AnsiToUtf8(static_cast<char>(ch & 0xFF));
-        if (chars.size() >= kBatch) Flush(font, chars);
-    }
-    return g_getGlyphOutlineA(dc, ch, format, metrics, size, buffer, matrix);
-}
-
 bool EndsWithFnt(LPCSTR name) {
     if (!name) return false;
     const std::size_t len = std::strlen(name);
@@ -70,18 +50,27 @@ HANDLE WINAPI CreateFileADetour(LPCSTR name, DWORD access, DWORD share, LPSECURI
     return g_createFileA(name, access, share, security, disposition, flags, templateFile);
 }
 
-template <typename Fn>
-bool HookExport(const wchar_t* module, const char* name, Fn* detour, Fn** original) {
-    auto* target = reinterpret_cast<Fn*>(GetProcAddress(GetModuleHandleW(module), name));
-    return hooks::Create(name, target, detour, original) && hooks::Enable(name);
-}
-
 }  // namespace
 
+void LogGlyph(HDC dc, UINT ch) {
+    if (!g_enabled) return;
+    const auto font = static_cast<HFONT>(GetCurrentObject(dc, OBJ_FONT));
+    std::lock_guard lock(g_mutex);
+    // Flush other fonts' batches first, so the log keeps the drawing order.
+    for (auto& [other, chars] : g_pending) {
+        if (other != font) Flush(other, chars);
+    }
+    std::string& chars = g_pending[font];
+    chars += AnsiToUtf8(static_cast<char>(ch & 0xFF));
+    if (chars.size() >= kBatch) Flush(font, chars);
+}
+
 bool InstallFontLog() {
-    const bool ok = HookExport(L"gdi32.dll", "GetGlyphOutlineA", &GetGlyphOutlineADetour, &g_getGlyphOutlineA) &&
-                    HookExport(L"kernel32.dll", "CreateFileA", &CreateFileADetour, &g_createFileA);
-    if (ok) log::Debug("Font log installed (GetGlyphOutlineA, CreateFileA for .fnt)");
+    auto* target = reinterpret_cast<CreateFileAFn>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "CreateFileA"));
+    const bool ok = hooks::Create("CreateFileA", target, &CreateFileADetour, &g_createFileA) &&
+                    hooks::Enable("CreateFileA");
+    g_enabled = true;
+    log::Debug("Font log installed (GDI glyphs via the font hook{})", ok ? ", CreateFileA for .fnt" : "");
     return ok;
 }
 

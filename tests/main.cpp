@@ -28,6 +28,7 @@
 #include "fonts/fontchain.h"
 #include "fonts/fonthook.h"
 #include "fonts/fontmode.h"
+#include "fonts/spacing.h"
 #include "input/keys.h"
 #include "overlay/fnt.h"
 #include "overlay/glyphs.h"
@@ -253,6 +254,15 @@ void TestEditionAndCharset() {
     CHECK(fonts::CharsetFor("1252", Edition::Russian) == ANSI_CHARSET);
     CHECK(fonts::CharsetFor("1250", Edition::Main) == fonts::kCharsetInvalid);
     CHECK(fonts::CharsetFor("Auto", Edition::Russian) == fonts::kCharsetInvalid);
+
+    // Control characters get no glyph (Backspace in text fields); the game sign-extends bytes.
+    CHECK(fonts::IsControlCharacter(0x08));
+    CHECK(fonts::IsControlCharacter(0x0D));
+    CHECK(fonts::IsControlCharacter(0x1F));
+    CHECK(!fonts::IsControlCharacter(0x20));
+    CHECK(!fonts::IsControlCharacter('.'));
+    CHECK(!fonts::IsControlCharacter(0xFFFFFFFCu));  // 0xFC (ü) sign-extended
+    CHECK(!fonts::IsControlCharacter(0x7F));
 }
 
 // RVA of a raw file offset, from the section headers of a PE file read into memory (0 = none).
@@ -304,6 +314,32 @@ void TestFontModeSignature() {
     std::uint32_t settingsGlobal = 0;
     std::memcpy(&settingsGlobal, file.data() + matches[0] + operand, 4);
     CHECK(settingsGlobal == 0x0065B3D0u);  // global settings pointer (docs/re/config-files.md)
+
+    // Pair spacing function (fonts/spacing.h): unique and at the documented RVA.
+    const auto spacing = pattern::Parse(fonts::kPairSpacingPattern);
+    CHECK(spacing.has_value());
+    if (!spacing) return;
+    const auto spacingMatches = pattern::FindAll(file, *spacing);
+    CHECK(spacingMatches.size() == 1);
+    if (spacingMatches.size() == 1) CHECK(FileOffsetToRva(file, spacingMatches[0]) == fonts::kPairSpacingRva);
+}
+
+void TestSpacing() {
+    using namespace ddmod::fonts;
+    CHECK(ParseSpacingMode("game") == SpacingMode::Game);
+    CHECK(ParseSpacingMode("gap") == SpacingMode::Gap);
+    CHECK(ParseSpacingMode("font") == SpacingMode::Font);
+    CHECK(!ParseSpacingMode("Gap").has_value());
+    CHECK(!ParseSpacingMode("").has_value());
+
+    // "1." in 12 px Tahoma Bold ('1': origin x 1, advance 6): the game slides the period to 4.
+    CHECK(AdjustSpacing(SpacingMode::Game, 4, 1, 6) == 4);
+    CHECK(AdjustSpacing(SpacingMode::Gap, 4, 1, 6) == 5);
+    CHECK(AdjustSpacing(SpacingMode::Font, 4, 1, 6) == 6);  // the font's advance, origin x not added
+    // Gap never goes beyond the game's no-touch distance, and leaves pairs it did not slide alone.
+    CHECK(AdjustSpacing(SpacingMode::Gap, 6, 1, 6) == 7);
+    CHECK(AdjustSpacing(SpacingMode::Gap, 7, 1, 6) == 7);
+    CHECK(AdjustSpacing(SpacingMode::Gap, 8, 1, 6) == 8);
 }
 
 void TestKeyCombo() {
@@ -682,6 +718,7 @@ int main() {
     TestHooks();
     TestFontModeHook();
     TestFontModeSignature();
+    TestSpacing();
     TestEditionAndCharset();
     TestKeyCombo();
     TestLogRotation();

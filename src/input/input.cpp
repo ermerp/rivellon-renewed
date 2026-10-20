@@ -63,6 +63,12 @@ bool HandleKey(const MSG& msg) {
             if (g_swallowVk == 0 || static_cast<std::uint8_t>(msg.wParam) != g_swallowVk) return false;
             g_swallowVk = 0;
             return true;
+        case WM_CHAR:
+            // Character messages decide what text fields insert; repeats are logged too, they are
+            // what a held key produces.
+            log::Debug("Char {:02X}{} (hwnd {:08X})", static_cast<unsigned>(msg.wParam),
+                       IsRepeat(msg.lParam) ? " repeat" : "", reinterpret_cast<std::uintptr_t>(msg.hwnd));
+            return false;
         default:
             return false;
     }

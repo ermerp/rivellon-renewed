@@ -15,12 +15,17 @@ inline constexpr int kCharsetInvalid = -2;  // unrecognized [Fonts] Charset valu
 // page (docs/re/text-rendering.md).
 int CharsetFor(std::string_view setting, game::Edition edition);
 
+// True for the character bytes the game's bitmap fonts have no glyph for (below 0x20). The game
+// passes characters sign-extended, so only the low byte counts.
+bool IsControlCharacter(unsigned ch);
+
 // Font hook for the game's GDI text path (use8bitfont 0, docs/re/text-rendering.md): the game
 // creates one GDI font per bitmap font, all as "SimSun", through CreateFontIndirectA (and one
 // "Arial Bold" through CreateFontA). The hook replaces the face of every call made from div.exe
 // with the font chain's face ([Fonts] Chain) and scales the height by [Fonts] GameFontSize
-// (percent). With `replace` false it only logs (LogLevel=debug). The GDI path itself is switched
-// on in memory by fontmode.h.
+// (percent). GetGlyphOutlineA reports "no glyph" for control characters (IsControlCharacter), as
+// the bitmap fonts do, so text fields do not insert them. With `replace` false it only logs
+// (LogLevel=debug). The GDI path itself is switched on in memory by fontmode.h.
 //
 // The game creates its fonts within its first ~200 ms, so Install must run during startup
 // (DllMain, after hooks::Init). The font chain is resolved on the first call, on the game thread.

@@ -13,6 +13,7 @@
 #include "core/log.h"
 #include "fonts/fontchain.h"
 #include "game/exe.h"
+#include "game/fontlog.h"
 
 namespace ddmod::fonts {
 namespace {
@@ -20,9 +21,11 @@ namespace {
 using CreateFontAFn = HFONT(WINAPI*)(int, int, int, int, int, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD,
                                      LPCSTR);
 using CreateFontIndirectAFn = HFONT(WINAPI*)(const LOGFONTA*);
+using GetGlyphOutlineAFn = DWORD(WINAPI*)(HDC, UINT, UINT, LPGLYPHMETRICS, DWORD, LPVOID, const MAT2*);
 
 CreateFontAFn g_createFontA = nullptr;
 CreateFontIndirectAFn g_createFontIndirectA = nullptr;
+GetGlyphOutlineAFn g_getGlyphOutlineA = nullptr;
 bool g_replace = false;
 std::uintptr_t g_exeBegin = 0, g_exeEnd = 0;
 
@@ -104,7 +107,20 @@ HFONT WINAPI CreateFontADetour(int height, int width, int escapement, int orient
     return font;
 }
 
+DWORD WINAPI GetGlyphOutlineADetour(HDC dc, UINT ch, UINT format, LPGLYPHMETRICS metrics, DWORD size, LPVOID buffer,
+                                    const MAT2* matrix) {
+    // The bitmap fonts have no glyphs below 0x20, and the game's text fields insert every
+    // character the font has a glyph for - with a Windows font that includes the Backspace
+    // character (WM_CHAR 0x08) as a box. "No glyph" makes them behave like the bitmap fonts.
+    if (g_replace && IsControlCharacter(ch) && FromGame(_ReturnAddress())) return GDI_ERROR;
+    // The game first asks for the size with a null buffer; log only the calls that rasterize.
+    if (buffer && format != GGO_METRICS) game::LogGlyph(dc, ch);
+    return g_getGlyphOutlineA(dc, ch, format, metrics, size, buffer, matrix);
+}
+
 }  // namespace
+
+bool IsControlCharacter(unsigned ch) { return (ch & 0xFF) < 0x20; }
 
 int CharsetFor(std::string_view setting, game::Edition edition) {
     if (setting == "auto" || setting.empty()) {
@@ -132,7 +148,8 @@ bool Install(bool replace) {
     g_exeBegin = reinterpret_cast<std::uintptr_t>(exe);
     g_exeEnd = g_exeBegin + nt->OptionalHeader.SizeOfImage;
     const bool ok = HookGdi("CreateFontIndirectA", &CreateFontIndirectADetour, &g_createFontIndirectA) &&
-                    HookGdi("CreateFontA", &CreateFontADetour, &g_createFontA);
+                    HookGdi("CreateFontA", &CreateFontADetour, &g_createFontA) &&
+                    HookGdi("GetGlyphOutlineA", &GetGlyphOutlineADetour, &g_getGlyphOutlineA);
     if (ok && replace) log::Info("Font hook installed: game GDI fonts use the font chain ([Fonts])");
     if (ok && !replace) log::Info("Font hook installed for logging only (FontHook=0)");
     return ok;

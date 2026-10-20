@@ -14,6 +14,7 @@
 #include "game/exe.h"
 #include "fonts/fonthook.h"
 #include "fonts/fontmode.h"
+#include "fonts/spacing.h"
 #include "game/fontlog.h"
 #include "game/window.h"
 #include "input/input.h"
@@ -96,7 +97,10 @@ void Startup(HMODULE self) {
     if ((fontHook || debug) && hooks::Init()) {
         fonts::Install(fontHook);
         // Switches the game to its GDI text path in memory (config.lcl stays untouched).
-        if (fontHook) fonts::InstallFontMode();
+        if (fontHook) {
+            fonts::InstallFontMode();
+            fonts::InstallSpacing();
+        }
         if (debug) game::InstallFontLog();
     }
     if (game::WatchForMainWindow(&OnGameWindow)) log::Info("Waiting for the game window");
