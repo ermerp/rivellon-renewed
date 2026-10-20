@@ -12,6 +12,7 @@
 #include "core/paths.h"
 #include "core/scanner.h"
 #include "game/exe.h"
+#include "fonts/fontcolors.h"
 #include "fonts/fonthook.h"
 #include "fonts/fontmode.h"
 #include "fonts/spacing.h"
@@ -99,6 +100,7 @@ void Startup(HMODULE self) {
         // Switches the game to its GDI text path in memory (config.lcl stays untouched).
         if (fontHook) {
             fonts::InstallFontMode();
+            fonts::InstallFontColors();
             fonts::InstallSpacing();
         }
         if (debug) game::InstallFontLog();

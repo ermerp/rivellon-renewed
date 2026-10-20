@@ -48,6 +48,7 @@ add_library(ddmod_core STATIC
     src/input/input.cpp
     src/fonts/fontchain.cpp
     src/fonts/fonthook.cpp
+    src/fonts/fontcolors.cpp
     src/fonts/fontmode.cpp
     src/fonts/spacing.cpp
     src/overlay/surface.cpp

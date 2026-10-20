@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -26,6 +27,7 @@
 #include "core/scanner.h"
 #include "core/sha256.h"
 #include "fonts/fontchain.h"
+#include "fonts/fontcolors.h"
 #include "fonts/fonthook.h"
 #include "fonts/fontmode.h"
 #include "fonts/spacing.h"
@@ -322,6 +324,91 @@ void TestFontModeSignature() {
     const auto spacingMatches = pattern::FindAll(file, *spacing);
     CHECK(spacingMatches.size() == 1);
     if (spacingMatches.size() == 1) CHECK(FileOffsetToRva(file, spacingMatches[0]) == fonts::kPairSpacingRva);
+
+    // Font descriptor function (fonts/fontcolors.h): unique and at the documented RVA.
+    const auto descriptor = pattern::Parse(fonts::kAddFontDescriptorPattern);
+    CHECK(descriptor.has_value());
+    if (!descriptor) return;
+    const auto descriptorMatches = pattern::FindAll(file, *descriptor);
+    CHECK(descriptorMatches.size() == 1);
+    if (descriptorMatches.size() == 1) {
+        CHECK(FileOffsetToRva(file, descriptorMatches[0]) == fonts::kAddFontDescriptorRva);
+    }
+}
+
+void TestFontColors() {
+    using namespace ddmod::fonts;
+    CHECK(ParseColorMode("original") == ColorMode::Original);
+    CHECK(ParseColorMode("game") == ColorMode::Game);
+    CHECK(!ParseColorMode("Original").has_value());
+    CHECK(!ParseColorMode("").has_value());
+
+    const auto& table = FontColorTable();
+    // The game's first font: fontn1, height 15, white on black.
+    const FontColors white{{0xFF, 0xFF, 0xFF}, {0, 0, 0}};
+    const auto first = OriginalColors(0, 15, white);
+    CHECK(first && first->text == (Rgb8{0xE7, 0xE7, 0xE7}) && first->edge == (Rgb8{0, 0, 0}));
+    CHECK(!OriginalColors(0, 14, white));                                  // other height
+    CHECK(!OriginalColors(0, 15, {{0xFF, 0xFF, 0x00}, {0, 0, 0}}));        // other color
+    CHECK(!OriginalColors(kGameFontCount, 15, white));                     // beyond the table
+    // dialog_yellow (index 50): pure yellow in the game, the bitmap font's gold.
+    CHECK(table[50].file == "dialog_yellow");
+    const auto yellow = OriginalColors(50, 14, {{0xFF, 0xFF, 0x00}, {0, 0, 0}});
+    CHECK(yellow && yellow->text == (Rgb8{0xDE, 0xBA, 0x18}));
+    CHECK(table[60].file == "paper_red_high" && table[60].height == 15);
+
+    // The game's 8-bit to 565 conversion (c * 31 / 255, green c * 63 / 255) of ToDescriptor's value
+    // gives the 565 level of the visible color for every channel value.
+    bool exact = true;
+    for (int v = 0; v < 256; ++v) {
+        const auto c = static_cast<std::uint8_t>(v);
+        const Rgb8 d = ToDescriptor({c, c, c});
+        exact = exact && d.r * 31 / 255 == v >> 3 && d.g * 63 / 255 == v >> 2 && d.b * 31 / 255 == v >> 3;
+    }
+    CHECK(exact);
+    CHECK(ToDescriptor({0xDE, 0xBA, 0x18}) == (Rgb8{0xDF, 0xBB, 0x19}));  // gold: one step up
+    CHECK(ToDescriptor({0xFF, 0xFF, 0xFF}) == (Rgb8{0xFF, 0xFF, 0xFF}));
+    CHECK(ToDescriptor({0, 0, 0}) == (Rgb8{0, 0, 0}));
+
+    // Against the bitmap fonts of the German working copy (never in the repo): the text color of
+    // every flat font is the most frequent color inside its glyphs (pixels with four opaque neighbors).
+    const std::filesystem::path fonts = L"C:\\dev\\dd-test\\fonts";
+    if (!std::filesystem::exists(fonts / L"fontn1.fnt")) {
+        std::printf("note: %s not found - font colors not checked against the bitmap fonts\n", fonts.string().c_str());
+        return;
+    }
+    for (const FontColorEntry& entry : table) {
+        if (entry.file.starts_with("fontbig") || entry.file.starts_with("diary")) continue;  // textured: mean
+        auto source = ddmod::overlay::CreateFntGlyphSource(fonts / (std::string(entry.file) + ".fnt"));
+        CHECK(source != nullptr);
+        if (!source) continue;
+        std::map<std::uint32_t, int> counts;
+        for (int ch = 0x21; ch <= 0xFF; ++ch) {
+            ddmod::overlay::Glyph g;
+            if (!source->Rasterize(static_cast<wchar_t>(ch), g)) continue;
+            const auto opaque = [&](int x, int y) {
+                return x >= 0 && y >= 0 && x < g.width && y < g.height && g.coverage[y * g.width + x] != 0;
+            };
+            for (int y = 0; y < g.height; ++y) {
+                for (int x = 0; x < g.width; ++x) {
+                    if (!opaque(x, y) || !opaque(x - 1, y) || !opaque(x + 1, y) || !opaque(x, y - 1) || !opaque(x, y + 1)) {
+                        continue;
+                    }
+                    const auto& c = g.colors[y * g.width + x];
+                    ++counts[(std::uint32_t{c.r} << 16) | (std::uint32_t{c.g} << 8) | c.b];
+                }
+            }
+        }
+        std::uint32_t mode = 0;
+        int best = 0;
+        for (const auto& [color, count] : counts) {
+            if (count > best) best = count, mode = color;
+        }
+        const auto& t = entry.original.text;
+        const bool same = mode == ((std::uint32_t{t.r} << 16) | (std::uint32_t{t.g} << 8) | t.b);
+        if (!same) std::printf("  %s: most frequent inner color #%06X\n", std::string(entry.file).c_str(), mode);
+        CHECK(same);
+    }
 }
 
 void TestSpacing() {
@@ -719,6 +806,7 @@ int main() {
     TestFontModeHook();
     TestFontModeSignature();
     TestSpacing();
+    TestFontColors();
     TestEditionAndCharset();
     TestKeyCombo();
     TestLogRotation();
