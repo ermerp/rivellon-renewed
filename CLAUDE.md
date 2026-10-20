@@ -93,7 +93,7 @@ Pitfalls:
 - After repeated crashes the game may reset `config.div` and delete `slashed-d3d6.cfg` → restore from backup. Back up any config file before changing it in a test.
 - The game rewrites `config.div` on exit. Resolution lives in `config.div` **and** `slashed-d3d6.cfg` (offsets 0x0C/0x10).
 - `config.lcl` needs `flat files` and `quickstart` – without them the game does not start.
-- In heredocs of the Bash tool, backslash escapes in inline Python can get mangled – write scripts with the Write tool instead.
+- In heredocs of the Bash tool, backslash escapes in inline Python can get mangled, and so do Windows paths in `sed` replacements – write scripts with the Write tool and change text with the Edit tool instead.
 
 ## Steam Deck access (SSH)
 
