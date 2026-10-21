@@ -1,6 +1,7 @@
 #include "overlay/overlay.h"
 
 #include <algorithm>
+#include <atomic>
 #include <format>
 #include <memory>
 #include <string>
@@ -21,7 +22,8 @@ namespace {
 using EndFrameFn = int(__cdecl*)();
 
 struct Settings {
-    bool showFps = true;
+    StatusMode status = StatusMode::Banner;
+    int bannerSeconds = 5;
     std::wstring fontFace;  // from the font chain ([Fonts] Chain)
     int fontSize = 0;  // 0 = from the frame height
 };
@@ -32,8 +34,9 @@ struct State {
     std::unique_ptr<GlyphCache> glyphs;
     int glyphsForHeight = 0;
     std::wstring status;
-    // FPS, measured over half-second windows.
     LARGE_INTEGER frequency{};
+    LARGE_INTEGER firstFrame{};  // the banner time counts from here
+    // FPS, measured over half-second windows.
     LARGE_INTEGER windowStart{};
     int framesInWindow = 0;
     int fps = 0;
@@ -41,6 +44,8 @@ struct State {
 
 State g_state;
 EndFrameFn g_originalEndFrame = nullptr;
+// Written by the hotkey handler, read at the end of each frame.
+std::atomic<bool> g_showFps{false};
 
 std::wstring Widen(const std::string& text) {
     if (text.empty()) return {};
@@ -52,16 +57,18 @@ std::wstring Widen(const std::string& text) {
 
 Settings ReadSettings() {
     Settings s;
-    s.showFps = config::GetBool("Overlay", "ShowFps", true);
+    const std::string status = config::GetString("Overlay", "Status", "banner");
+    if (!ParseStatusMode(status, s.status)) {
+        log::Warn("[Overlay] Status=\"{}\" is not banner, always or off - using banner", status);
+    }
+    s.bannerSeconds = std::clamp(config::GetInt("Overlay", "BannerSeconds", 5), 1, 60);
     const auto& font = fonts::Configured();
     s.fontFace = font ? font->face : L"Tahoma";  // nothing available: let GDI substitute
     s.fontSize = std::clamp(config::GetInt("Overlay", "FontSize", 0), 0, 96);
     return s;
 }
 
-void CountFrame(State& st) {
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
+void CountFrame(State& st, LARGE_INTEGER now) {
     if (st.framesInWindow++ == 0 && st.windowStart.QuadPart == 0) st.windowStart = now;
     const long long elapsed = now.QuadPart - st.windowStart.QuadPart;
     if (elapsed >= st.frequency.QuadPart / 2) {
@@ -82,26 +89,41 @@ GlyphCache* GlyphsFor(State& st, int frameHeight) {
     return st.glyphs->LineHeight() > 0 ? st.glyphs.get() : nullptr;
 }
 
-void Draw(State& st, const SurfaceView& view) {
+void Draw(State& st, const SurfaceView& view, bool showStatus, bool showFps) {
     GlyphCache* glyphs = GlyphsFor(st, view.height);
     if (!glyphs) return;
-    const std::wstring fps = st.settings.showFps ? std::format(L"{} FPS", st.fps) : std::wstring();
+    const std::wstring status = showStatus ? st.status : std::wstring();
+    const std::wstring fps = showFps ? std::format(L"{} FPS", st.fps) : std::wstring();
     const int line = glyphs->LineHeight();
     const int pad = std::max(2, line / 4);
     const int margin = pad * 2;
-    const int lines = fps.empty() ? 1 : 2;
-    const int width = std::max(MeasureString(*glyphs, st.status), MeasureString(*glyphs, fps)) + 2 * pad;
+    const int lines = (showStatus ? 1 : 0) + (showFps ? 1 : 0);
+    const int width = std::max(MeasureString(*glyphs, status), MeasureString(*glyphs, fps)) + 2 * pad;
     FillRect(view, margin, margin, width, lines * line + 2 * pad, Rgb{0, 0, 0}, 140);
-    DrawString(view, *glyphs, margin + pad, margin + pad, st.status, Rgb{255, 255, 255}, true);
-    if (!fps.empty()) DrawString(view, *glyphs, margin + pad, margin + pad + line, fps, Rgb{255, 214, 96}, true);
+    int y = margin + pad;
+    if (showStatus) {
+        DrawString(view, *glyphs, margin + pad, y, status, Rgb{255, 255, 255}, true);
+        y += line;
+    }
+    if (showFps) DrawString(view, *glyphs, margin + pad, y, fps, Rgb{255, 214, 96}, true);
 }
 
 int __cdecl EndFrameDetour() {
     State& st = g_state;
-    CountFrame(st);
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    if (st.firstFrame.QuadPart == 0) {
+        st.firstFrame = now;
+        log::Info("Overlay: first frame");
+    }
+    CountFrame(st, now);
+    const double elapsed = static_cast<double>(now.QuadPart - st.firstFrame.QuadPart) / st.frequency.QuadPart;
+    const bool showStatus = StatusShown(st.settings.status, elapsed, st.settings.bannerSeconds);
+    const bool showFps = g_showFps.load(std::memory_order_relaxed);
+    // Nothing to show: the frame is not even locked.
     SurfaceView view;
-    if (st.backend->BeginFrame(view)) {
-        Draw(st, view);
+    if ((showStatus || showFps) && st.backend->BeginFrame(view)) {
+        Draw(st, view, showStatus, showFps);
         st.backend->EndFrame();
     }
     return g_originalEndFrame();
@@ -121,10 +143,37 @@ HMODULE FindRenderer(std::wstring& name) {
 
 }  // namespace
 
+void ToggleFps() {
+    const bool on = !g_showFps.load();
+    g_showFps.store(on);
+    log::Info("Overlay: FPS display {}", on ? "on" : "off");
+}
+
+bool ParseStatusMode(std::string_view text, StatusMode& mode) {
+    const auto is = [text](std::string_view word) {
+        return std::ranges::equal(text, word, [](char a, char b) { return (a | 0x20) == b; });
+    };
+    if (is("banner")) mode = StatusMode::Banner;
+    else if (is("always")) mode = StatusMode::Always;
+    else if (is("off")) mode = StatusMode::Off;
+    else return false;
+    return true;
+}
+
+bool StatusShown(StatusMode mode, double elapsedSeconds, int bannerSeconds) {
+    switch (mode) {
+        case StatusMode::Always: return true;
+        case StatusMode::Banner: return elapsedSeconds < bannerSeconds;
+        case StatusMode::Off: break;
+    }
+    return false;
+}
+
 bool Install() {
     State& st = g_state;
     st.settings = ReadSettings();
-    st.status = Widen(std::format("{} {}", DDMOD_NAME, DDMOD_VERSION));
+    g_showFps.store(config::GetBool("Overlay", "ShowFps", false));
+    st.status = Widen(std::format("{} {} active", DDMOD_NAME, DDMOD_VERSION));
     QueryPerformanceFrequency(&st.frequency);
 
     std::wstring name;
@@ -149,6 +198,10 @@ bool Install() {
     if (!hooks::Create("DllSlashedEndFrame", endFrame, &EndFrameDetour, &g_originalEndFrame)) return false;
     if (!hooks::Enable("DllSlashedEndFrame")) return false;
     log::Info("Overlay: backend {}", st.backend->Name());
+    static constexpr const char* kModes[] = {"banner", "always", "off"};
+    log::Info("Overlay: status {}{}, FPS {}", kModes[static_cast<int>(st.settings.status)],
+              st.settings.status == StatusMode::Banner ? std::format(" ({} s)", st.settings.bannerSeconds) : "",
+              g_showFps.load() ? "on" : "off");
     return true;
 }
 

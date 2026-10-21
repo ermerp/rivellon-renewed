@@ -8,7 +8,14 @@ How the mod draws its own overlay ("Rivellon Renewed <version>" + FPS, later deb
 - Draw first, then call the original: the frame's game drawing is finished, the scene is still open, `EndScene` and present follow.
 - Only `slash1.dll` (Direct3D) has a backend; for `slash2`–`4.dll`/`xslash*.dll` the overlay logs a warning and stays off.
 - The deferred start (`input.md`) happens while `DllSlashedInit` is still running: the export can be hooked then, but `GetInfo(3)` is null until initialization finishes → no drawing while null.
-- FPS: `DllSlashedEndFrame` calls per half-second window (`QueryPerformanceCounter`).
+- FPS: `DllSlashedEndFrame` calls per half-second window (`QueryPerformanceCounter`), counted also while the FPS line is hidden, so it is right at once when switched on.
+
+## What is shown
+
+- Status line "Rivellon Renewed <version> active": `[Overlay] Status` – `banner` (default: for `BannerSeconds` = 5 s from the first drawn frame, then hidden), `always`, `off`.
+- FPS line: `[Overlay] ShowFps` (default 0) sets it at start; the hotkey `[Keys] ToggleFps` (default Ctrl+Shift+F2) switches it on the game thread (atomic flag).
+- When neither is shown, the detour does not lock the frame at all.
+- **Save pictures:** the game reads the screen for a save's preview picture between frames (`renderer-d3d6.md`, Screen captures), so whatever the overlay shows at that moment ends up in the picture. With the banner and FPS off by default this only happens on purpose (FPS on, or saving during the banner) – a README known issue. Fix for when the overlay gets lasting content: `PLAN.md`, Decisions (HideInCaptures).
 
 ## Drawing path: own blitter through `CD3D6VideoMem`
 

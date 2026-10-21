@@ -51,13 +51,15 @@ void OnTestHotkey() { ddmod::log::Info("Test hotkey pressed"); }
 void OnGameWindow(HWND window) {
     using namespace ddmod;
     if (hooks::Init()) log::Info("Hook manager ready (MinHook)");
+    const bool overlay = config::GetBool("Features", "Overlay", true);
     if (config::GetBool("Features", "InputHook", true)) {
         input::RegisterHotkey("TestHotkey", "Ctrl+Shift+F3", &OnTestHotkey);
+        if (overlay) input::RegisterHotkey("ToggleFps", "Ctrl+Shift+F2", &overlay::ToggleFps);
         input::Install(window);
     } else {
         log::Info("Input hook disabled ([Features] InputHook=0)");
     }
-    if (config::GetBool("Features", "Overlay", true)) {
+    if (overlay) {
         overlay::Install();
     } else {
         log::Info("Overlay disabled ([Features] Overlay=0)");

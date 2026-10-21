@@ -69,13 +69,25 @@ Virtual methods (thiscall, vtable byte offsets):
 | `+0x1C` / `+0x20` | width / height |
 | `+0x24` | pitch in bytes |
 | `+0x28` | "direct 16-bit access" flag |
-| `+0x2C`, `+0x30`, `+0x34` | copy a rectangle of 16-bit pixels from a game buffer into the frame (variants with/without blending); all end in the internal copy at `+0x38` |
-| `+0x38` | internal copy: direct access → writes the pixels into the locked back buffer; otherwise reads the target area of the back buffer into the conversion surface (`GetDC` on both + GDI `BitBlt`), writes the 565 pixels there, and copies it back the same way |
+| `+0x2C`, `+0x30`, `+0x34` | copy a rectangle of 16-bit pixels between a game buffer and the frame; arguments (buffer, x, y, width, height), −1 for width/height = whole frame, the buffer's row length is the rectangle width. `+0x2C` writes the buffer into the frame, **`+0x30` reads the frame into the buffer** (the game's only way to read the screen back, see "Screen captures"), `+0x34` converts the buffer from 555 to 565 in place (only when the frame is 565) and then writes it. All end in the internal copy at `+0x38` |
+| `+0x38` | internal copy, same arguments plus a direction flag (1 = buffer → frame, 0 = frame → buffer); locks the object itself. Direct access → copies row by row to/from the locked back buffer; otherwise it goes through the 565 conversion surface (`GetDC` on both + GDI `BitBlt` between back buffer and conversion surface) |
 
 Data members (byte offsets): `+0x04`/`+0x08` width/height, `+0x0C` pitch, `+0x10` direct flag, `+0x14` base pointer, `+0x18` lock count, `+0x1C` (byte) 1 = 565, `+0x20` DirectDraw object, `+0x24` back buffer (`IDirectDrawSurface4`), `+0x28` set while the internal copy works on the conversion surface, `+0x2C` conversion surface (null with direct access).
 
   `div.exe` caches the `GetInfo` results 0–5 in globals after every (re)configuration (around `0x557B40`; it also sets `+0x2C` of the configuration block to 1). Its frame functions – about 15 different loops (game, menus, loading screens, credits) each call `StartFrame` … `EndFrame` – lock this object, write 16-bit pixels through its base pointer (direct access) or through the copy methods, unlock it and pass it to the sprite container, all **while the Direct3D scene is open**. So locking the back buffer mid-scene is something the game itself does on Windows ddraw, dgVoodoo2 and WineD3D; with a non-16-bit back buffer it additionally uses `GetDC` on it mid-scene.
 - **dgVoodoo2 2.87.5 windowed** (2560×1440, 32-bit desktop) reports a **16-bit RGB565** back buffer – direct access, no conversion surface (T1.6-W).
+
+## Screen captures
+
+`div.exe` reads the screen back only through `CD3D6VideoMem` `+0x30`, always for the whole frame (x = y = 0, width = height = −1), between lock (`+0x04`) and unlock (`+0x08`) on the object it caches from `GetInfo(3)`. Four readers:
+
+| Reader (1.0062A) | Purpose |
+|---|---|
+| savegame shot (`0x4A9350`, file name as argument) | writes the frame to `dynamic\shot.xxx`: uncompressed 24-bit TGA (18-byte header, bottom-up rows), 565 or 555 depending on the settings. Followed by a thumbnail function (`0x4A9690`) that reads the frame again via `+0x30` and box-filters it into a small 16-bit image inside a game object (`+0xCC` of the object at global `0x741F24`). The save copies `dynamic\shot.xxx` into `savegames\<name>\shot.xxx`; the load screen shows it |
+| bug report (`0x518ED0`, `BugReportPlate.cpp`) | frame as 24-bit RGB buffer |
+| editor map capture (`0x5A5D99`) | frame scaled down tile by tile into `capture\big_shot.png` (developer feature) |
+
+The savegame shot is taken from three places: a key handler for key code `0x1B` (Escape – before the game menu opens, so this is presumably the picture of a normal save), the quicksave path in `GAME\render.cpp` (`0x4A9FB0`, `savegames\quicksave.<n>`), and one Osiris story command. A capture outside the drawing of a frame reads the last finished frame – including everything drawn at `DllSlashedEndFrame`, which is how the overlay gets into saves. Which captures run between `EndFrame` and the next `StartFrame` and which inside a frame is open (runtime check).
 
 ## Hook point for the overlay
 

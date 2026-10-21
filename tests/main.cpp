@@ -35,6 +35,7 @@
 #include "input/keys.h"
 #include "overlay/fnt.h"
 #include "overlay/glyphs.h"
+#include "overlay/overlay.h"
 #include "overlay/surface.h"
 
 namespace {
@@ -827,6 +828,22 @@ void TestFontChain() {
     CHECK(!Resolve(ParseChain("No Such Face 4711, Y @ missing.ttf", assets), true));
 }
 
+void TestOverlayStatus() {
+    using namespace ddmod::overlay;
+    StatusMode mode = StatusMode::Off;
+    CHECK(ParseStatusMode("banner", mode) && mode == StatusMode::Banner);
+    CHECK(ParseStatusMode("Always", mode) && mode == StatusMode::Always);
+    CHECK(ParseStatusMode("OFF", mode) && mode == StatusMode::Off);
+    mode = StatusMode::Always;
+    CHECK(!ParseStatusMode("bannerx", mode) && mode == StatusMode::Always);
+    CHECK(!ParseStatusMode("", mode));
+    CHECK(StatusShown(StatusMode::Banner, 0.0, 5));
+    CHECK(StatusShown(StatusMode::Banner, 4.99, 5));
+    CHECK(!StatusShown(StatusMode::Banner, 5.0, 5));
+    CHECK(StatusShown(StatusMode::Always, 1e6, 5));
+    CHECK(!StatusShown(StatusMode::Off, 0.0, 5));
+}
+
 }  // namespace
 
 int main() {
@@ -851,6 +868,7 @@ int main() {
     TestFntFont();
     TestFontChain();
     TestDgVoodooWatermark();
+    TestOverlayStatus();
     std::printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }
