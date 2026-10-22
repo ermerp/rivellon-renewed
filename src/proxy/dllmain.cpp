@@ -16,6 +16,7 @@
 #include "fonts/fontcolors.h"
 #include "fonts/fonthook.h"
 #include "fonts/fontmode.h"
+#include "fonts/glyphtable.h"
 #include "fonts/spacing.h"
 #include "game/fontlog.h"
 #include "game/window.h"
@@ -100,10 +101,17 @@ void Startup(HMODULE self) {
     // the font hooks go in right here. Only the loading thread runs at this point.
     const bool fontHook = config::GetBool("Features", "FontHook", true);
     const bool debug = log::Enabled(log::Level::Debug);
-    if ((fontHook || debug) && hooks::Init()) {
+    // The experimental own glyph tables replace glyphs of the bitmap fonts, so they keep the game
+    // on its bitmap path (no font mode, no GDI colors).
+    const bool glyphTable = fonts::GlyphTableConfigured();
+    if ((fontHook || debug || glyphTable) && hooks::Init()) {
         fonts::Install(fontHook);
-        // Switches the game to its GDI text path in memory (config.lcl stays untouched).
-        if (fontHook) {
+        if (glyphTable) {
+            if (fontHook) log::Info("Glyph table active: font mode and font colors skipped (bitmap fonts stay)");
+            fonts::InstallGlyphTable();
+            fonts::InstallSpacing();
+        } else if (fontHook) {
+            // Switches the game to its GDI text path in memory (config.lcl stays untouched).
             fonts::InstallFontMode();
             fonts::InstallFontColors();
             fonts::InstallSpacing();

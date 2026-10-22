@@ -4,7 +4,7 @@ Our own descriptions of Divine Divinity's data formats.
 
 ## ML_FONT_01 (fonts)
 
-Bitmap fonts in `fonts/*.fnt` (`use8bitfont 1`), identical in the German and English copy. 61 files, but only **five typefaces** – one file per size **and color** (colors are baked in, edge pixels differ slightly between color variants):
+Bitmap fonts in `fonts/*.fnt` (`use8bitfont 1`), identical in the German and English copy. The Russian edition ships its own files in code page 1251 order (e.g. `dialog_white`: all 64 slots 0xC0–0xFF filled = А–я, 159 glyphs instead of 122). 61 files, but only **five typefaces** – one file per size **and color** (colors are baked in, edge pixels differ slightly between color variants):
 
 | Family | Files | Sizes (line height) | Characters | Look / probable source typeface |
 |---|---|---|---|---|
@@ -26,10 +26,12 @@ Source typefaces were identified by the human from the character sheets (WhatThe
 
 Each glyph is a 16-byte prefix followed by the record:
 
-- Prefix: 8 bytes `32 54 76 98 CC DD EE FF` (same in every glyph, meaning unknown), u32 0, **i32 = minus the glyph's top row** relative to the top of the line (e.g. −3 for capitals, −5 for lowercase, −11 for `.` in `dialog_white`).
-- Record: u32 advance, u16 character code, u32 size (= next field + 2 × pixel count), u32 (= 12 + size of the row table), u16 width, u16 height; then one row entry per pixel row – u16 span count *n*, u32 byte offset of the row's first pixel in the pixel block, *n* × (u16 x, u16 length), u16 *n* again; then the pixel block: RGB565 values of all spans, row by row; then one padding byte.
+Prefix and record together are exactly the game's in-memory glyph followed by its sprite (`text-rendering.md`, Glyph table) – the loader uses them in place.
+
+- Prefix: 8 bytes `32 54 76 98 CC DD EE FF` (same in every glyph; the slot of the GDI black-box size, unused for bitmap fonts), i32 origin x (0), **i32 = minus the glyph's top row** relative to the top of the line (origin y; e.g. −3 for capitals, −5 for lowercase, −11 for `.` in `dialog_white`).
+- Record: i16 advance, i16 vertical advance (0), u16 character code, then the sprite: u32 size (= next field + 2 × pixel count), u32 offset of the pixel block (= 12 + size of the row table), u16 width, u16 height; then one row entry per pixel row – u16 span count *n*, u32 byte offset of the row's first pixel in the pixel block, *n* × (u16 x, u16 length), u16 *n* again; then the pixel block: RGB565 values of all spans, row by row; then one padding byte.
 - Pixels outside spans are transparent. The colors are pre-shaded (anti-aliased edges darkened towards black), so the glyphs are made for dark backgrounds.
-- There is no space glyph (entry 0) and no space width in the header – the game's spacing is not known yet (the overlay uses the width of `i`).
+- There is no space glyph (entry 0) and no space width in the header – the game then uses a built-in space of **6 px** for every bitmap font. There is no kerning table; the game spaces each pair by sliding the glyphs together (`text-rendering.md`, pair spacing).
 
 ## Hero sprites (`static/heroes/<class><gender><sheet>.bic|.idc`, `<class><gender>.key`)
 

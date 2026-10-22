@@ -9,7 +9,7 @@ Findings in our own words – **no decompiled code, no pseudocode** (CLAUDE.md r
 | [architecture.md](architecture.md) | Imports, renderer plugins (`slash*.dll`), input/audio/video/dialog APIs, proxy and overlay decisions |
 | [renderer-d3d6.md](renderer-d3d6.md) | `slash1.dll` internals: how `div.exe` binds it, exports, DirectDraw/D3D6 objects, `DllSlashedGetInfo`, `CD3D6VideoMem` methods and members, `slashed-d3d6.cfg` layout |
 | [overlay.md](overlay.md) | Overlay hook point (`DllSlashedEndFrame`), drawing through `CD3D6VideoMem`, pixel formats, glyph source and font, backend interface |
-| [text-rendering.md](text-rendering.md) | Which texts use `.fnt` vs. GDI (`use8bitfont`), the 61 SimSun GDI fonts, glyph path and pair spacing, text colors (descriptors, 565 conversion, 23 original colors), text fields (Backspace), font hook, font mode (use8bitfont in memory), `[Fonts] Spacing`, code-page consequences |
+| [text-rendering.md](text-rendering.md) | Which texts use `.fnt` vs. GDI (`use8bitfont`), the 61 SimSun GDI fonts, glyph path and pair spacing, font object/glyph/sprite layout, drawing and line pitch (`+0x0C`), ways to feed own glyphs, text colors (descriptors, 565 conversion, 23 original colors), text fields (Backspace), font hook, font mode (use8bitfont in memory), `[Fonts] Spacing`, code-page consequences |
 | [config-files.md](config-files.md) | `config.div`/`config.lcl`/`slashed*.cfg`, run markers, settings object and all config keys |
 | [developer-mode.md](developer-mode.md) | Developer flag (settings `+0x28`) and the forum byte patch |
 | [input.md](input.md) | Message loop, game window (class `Divinity`), deferred start, `WH_GETMESSAGE` hotkeys, why subclassing fails in full screen, `[Keys]` syntax |

@@ -55,6 +55,7 @@ add_library(ddmod_core STATIC
     src/fonts/fonthook.cpp
     src/fonts/fontcolors.cpp
     src/fonts/fontmode.cpp
+    src/fonts/glyphtable.cpp
     src/fonts/spacing.cpp
     src/features/dgvoodoo.cpp
     src/overlay/surface.cpp

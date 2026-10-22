@@ -31,6 +31,7 @@
 #include "fonts/fontcolors.h"
 #include "fonts/fonthook.h"
 #include "fonts/fontmode.h"
+#include "fonts/glyphtable.h"
 #include "fonts/spacing.h"
 #include "input/keys.h"
 #include "overlay/fnt.h"
@@ -336,6 +337,56 @@ void TestFontModeSignature() {
     if (descriptorMatches.size() == 1) {
         CHECK(FileOffsetToRva(file, descriptorMatches[0]) == fonts::kAddFontDescriptorRva);
     }
+
+    // Font file loader (fonts/glyphtable.h): unique and at the documented RVA.
+    const auto loader = pattern::Parse(fonts::kLoadFontFilePattern);
+    CHECK(loader.has_value());
+    if (!loader) return;
+    const auto loaderMatches = pattern::FindAll(file, *loader);
+    CHECK(loaderMatches.size() == 1);
+    if (loaderMatches.size() == 1) CHECK(FileOffsetToRva(file, loaderMatches[0]) == fonts::kLoadFontFileRva);
+}
+
+void TestGlyphTable() {
+    using namespace ddmod::fonts;
+    // 3x2 glyph: row 0 = pixel, gap, pixel (two spans); row 1 empty.
+    PixelGlyph glyph;
+    glyph.width = 3;
+    glyph.height = 2;
+    glyph.originX = 1;
+    glyph.originY = -4;
+    glyph.advance = 5;
+    glyph.character = 'A';
+    glyph.pixels = {0x1111, 0, 0x2222, 0, 0, 0};
+    const auto memory = BuildGameGlyph(glyph);
+    const std::uint8_t* g = memory.get();
+    const auto u16 = [](const std::uint8_t* at) { std::uint16_t v; std::memcpy(&v, at, 2); return v; };
+    const auto u32 = [](const std::uint8_t* at) { std::uint32_t v; std::memcpy(&v, at, 4); return v; };
+    CHECK(u32(g + 0x00) == 3 && u32(g + 0x04) == 2);
+    CHECK(static_cast<std::int32_t>(u32(g + 0x08)) == 1 && static_cast<std::int32_t>(u32(g + 0x0C)) == -4);
+    CHECK(u16(g + 0x10) == 5 && u16(g + 0x12) == 0 && u16(g + 0x14) == 'A');
+    const std::uint8_t* sprite = g + kGlyphSprite;
+    // Header: 12 + row 0 (2 + 4 + 2 spans * 4 + 2) + row 1 (2 + 4 + 2) = 36; 2 pixels.
+    CHECK(u32(sprite + 4) == 36);
+    CHECK(u32(sprite + 0) == 36 + 4);
+    CHECK(u16(sprite + 8) == 3 && u16(sprite + 10) == 2);
+    const std::uint8_t* row = sprite + 12;
+    CHECK(u16(row) == 2);
+    CHECK(u32(row + 2) == static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(sprite + 36)));
+    CHECK(u16(row + 6) == 0 && u16(row + 8) == 1 && u16(row + 10) == 2 && u16(row + 12) == 1);
+    CHECK(u16(row + 14) == 2);
+    CHECK(u16(row + 16) == 0 && u16(row + 22) == 0);
+    CHECK(u16(sprite + 36) == 0x1111 && u16(sprite + 38) == 0x2222);
+
+    CHECK(ShadePixel({255, 255, 255}, {0, 0, 0}, 255) == 0xFFFF);
+    CHECK(ShadePixel({255, 255, 255}, {0, 0, 0}, 0) == 1);  // black stays visible
+    CHECK(ShadePixel({0, 0, 0}, {0x9C, 0x8E, 0x5A}, 0) == ((0x9C >> 3) << 11 | (0x8E >> 2) << 5 | (0x5A >> 3)));
+
+    const auto fonts = ParseFontList(" fontn1, FontBlack1 ,,");
+    CHECK(fonts.size() == 2 && fonts[0] == "fontn1" && fonts[1] == "fontblack1");
+    CHECK(ParseFontList("").empty());
+    CHECK(FontStem("fonts\\FontN1.fnt") == "fontn1");
+    CHECK(FontStem("dialog_white") == "dialog_white");
 }
 
 void TestFontColors() {
@@ -855,6 +906,7 @@ int main() {
     TestFontModeHook();
     TestFontModeSignature();
     TestSpacing();
+    TestGlyphTable();
     TestFontColors();
     TestEditionAndCharset();
     TestKeyCombo();

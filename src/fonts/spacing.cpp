@@ -6,6 +6,7 @@
 #include "core/config.h"
 #include "core/hooks.h"
 #include "core/log.h"
+#include "fonts/glyphtable.h"
 #include "game/exe.h"
 
 namespace ddmod::fonts {
@@ -32,7 +33,7 @@ T Field(const void* object, std::size_t offset) {
 int __fastcall PairSpacingDetour(void* font, void* /*edx*/, int previous, int next) {
     // The original also creates both glyphs on first use.
     const int spacing = g_pairSpacing(font, previous, next);
-    if (!Field<void*>(font, kGdiPart) || (previous & 0xFF) == ' ') return spacing;
+    if ((!Field<void*>(font, kGdiPart) && !IsOwnGlyphFont(font)) || (previous & 0xFF) == ' ') return spacing;
     const auto* const* glyphs = Field<void* const*>(font, kGlyphTable);
     const void* glyph = glyphs ? glyphs[previous & 0xFF] : nullptr;
     if (!glyph) return spacing;

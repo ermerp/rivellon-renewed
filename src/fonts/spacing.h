@@ -9,7 +9,8 @@ namespace ddmod::fonts {
 // Letter spacing of the game's GDI fonts (docs/re/text-rendering.md, "Pair spacing"). The game
 // places each character by sliding it left towards the previous one until their pixels would
 // touch; the bitmap fonts are drawn for that, a Windows font is not (a period after "1" merges with
-// its foot). [Fonts] Spacing picks how the GDI fonts are spaced; bitmap fonts always keep the game's.
+// its foot). [Fonts] Spacing picks how the GDI fonts and the fonts with an own glyph table
+// (glyphtable.h) are spaced; the original bitmap fonts always keep the game's.
 enum class SpacingMode {
     Game,  // as the game computes it: characters may touch
     Gap,   // one pixel more where the game slid characters together (the game's test misses the
