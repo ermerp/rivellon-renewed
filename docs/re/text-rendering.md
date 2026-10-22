@@ -50,6 +50,8 @@ Since no `.fnt` file is loaded with `use8bitfont 0`, every text that is drawn at
 | Paper green / green high / red / red high | `#008000` / `#20A020` / `#800000` / `#A02020`, edge `#808080` | `#006D42` / `#29966B` / `#6B3000` / `#A55918` | paper `#9C8E5A` |
 | Diary headings | `#000000`, edge gray | `#5D421F` (textured, mean) | `#947D4A` |
 
+- **Stroke edges of the textured families** (`ddmod_fontpreview --scene`, style `measured`: brightness of the 1st/2nd/3rd pixel from a stroke's top, bottom, left and right end relative to the row's mean color): menu capitals (`fontbig36*`) only slightly darker at the outermost pixel (×0.84–0.89, then ×1.0) – no light gloss edge; their shine is a rounding **across** each stroke (style `shine`: brightness per fifth of every horizontal run 0.88 / 1.12 / 1.12 / 1.02 / 0.79, of every vertical run 0.93 / 1.09 / 1.07 / 1.02 / 0.88 – light from the upper left) plus a texture of about 15 % (standard deviation of each inner pixel against its four neighbors); diary headings clearly lighter at the outermost pixel (×1.6–1.7, ×1.1 at the 2nd) – the light rim towards `#947D4A`. The diary color also runs from `#634928` at the top of the capitals to `#563B16` at the bottom; the menu capitals have no vertical gradient worth naming.
+
 ## Text fields
 
 - The save dialog's name field handles keys in two places: a **key-down handler** (around `0x4633B0`, virtual keys 0x08–0x2E: Backspace deletes the character before the cursor, Delete, arrows, Home/End, Enter, Esc) and a **character handler** (around `0x4632E0`, `WM_CHAR`), which inserts the character if the font has a glyph for it ("has glyph" check above) and, in name fields, rejects `/ \ ? $ " ! : ; . , < > | * %`.
@@ -74,9 +76,24 @@ Since no `.fnt` file is loaded with `use8bitfont 0`, every text that is drawn at
 - **Write-back:** on exit the game writes `config.div` (`0x48C6F0`), only keys found in a set at settings `+0x154` – in practice the keys that were in `config.div` (`config-files.md`); `use8bitfont` lives in `config.lcl` and does not end up there. Because the hook restores the byte, even a `use8bitfont` line in `config.div` would be written back with the user's value.
 - Measured (DE + EN, Windows): with `use8bitfont 1` in `config.lcl` and `FontHook=1` no `.fnt` file is opened, the main menu is drawn in Tahoma Bold; with `FontHook=0` the original bitmap fonts.
 
+## Faces per family (human's choice, PLAN.md Decisions)
+
+| Family | Face (OFL) | GDI height for the original's capital H | Style |
+|---|---|---|---|
+| Menu capitals (`fontbig36*`) | Uncial Antiqua, weight 600 | 37 | measured color, rounding across the strokes ×2 plus own texture noise (`shine200`, `tex`) |
+| Diary title (`diary_head_1024`) | Almendra SC, weight 600 | 42 | measured color profile and light rim (`measured`) |
+| Interface (`font*1–5`) | Marcellus SC, weight 600 | 17 / 16 / 14 / 12 for sizes 1–4 | game ramp |
+| Books/letters (`fontblack1/2`) | Fondamento, weight 400 | 21 / 29 | game ramp |
+| Dialog | Tahoma Bold (system) | game height | game ramp |
+
+- **Height:** the game passes one cell height per family and every face fills it differently, so each family needs its own height (factor) to match the original's capital height.
+- **Line pitch of books and letters is 12 px** (measured on the "Windgeflüster" letter); the bitmap original fills it with almost no ascenders or descenders. Any vector face at the original's capital height touches the neighboring lines ("g" into "fl"); at the largest non-touching size it comes out smaller than the original (GDI height 12–16). The human accepted the touching lines; a wider pitch is open (`open-questions.md`).
+- **Licenses:** all chosen faces are SIL OFL 1.1 (ship with `OFL.txt`). Probable source faces of the bitmap fonts: dialog Tahoma/Verdana Bold, interface Lithos, handwriting Ondine (commercial), diary Vinque (Typodermic; its free desktop license excludes games and software that include the font), menu capitals unknown Lombardic (free Lombardic faces do not exist; Goudy Text Lombardic and Tarisel are commercial).
+- **Comparison sheets** (outside the repo, `C:\dev\screenshots\fonts\`): `candidates\Schriftvergleich.pdf` (round 1) to `candidates5\Schriftvergleich-Runde5.pdf`, `candidates6\Menue-Glanz.pdf` (gloss); specs and fonts: `--scene` (CLAUDE.md), downloads in `environment.md`.
+
 ## Consequences
 
-- **All or nothing:** because `use8bitfont` switches all 61 fonts at once, the font mode also turns the ornate menu capitals (`fontbig24`/`fontbig36`, Lombardic-like) into the chain's face (Tahoma Bold, seen by the tester in DE). Keeping one family as the bitmap original is not possible without further RE of the font setup; the per-family font choice (PLAN.md next step 2, possibly with a free uncial/Lombardic face for the menu) is the way to stay close to the original look. Decision after the human's T1.7-W B screenshots.
+- **All or nothing:** because `use8bitfont` switches all 61 fonts at once, the font mode turns every family into the chain's face (Tahoma Bold). The per-family faces above need the per-family font chain (PLAN.md next steps) and, for the styles, the target text renderer.
 - **Code page:** the character is passed to `GetGlyphOutlineA` as a *signed* `char`, so bytes ≥ 0x80 (umlauts, accents, Cyrillic) arrive sign-extended. German umlauts and ß of the main-menu hint arrive as the correct characters (font log). The game asks for `ANSI_CHARSET` (0), so GDI maps the bytes through code page 1252. Measured in the Russian version (1.0061, `use8bitfont 0` set by hand, `game-version.md`): the 1251 bytes come out as Latin-1 letters ("ÍÎÂÀß ÈÃÐÀ"). **Setting `lfCharSet = RUSSIAN_CHARSET` (204) in the font hook is enough** – GDI then maps the same bytes through code page 1251 and the main menu shows correct Cyrillic in Tahoma Bold. The hook does this via `[Fonts] Charset` (`auto` = 1251 for the Russian EXE hash, otherwise the game's charset; `1252`/`1251` force it). The font mode does not run on 1.0061 (best effort, no RE on that EXE), so the Russian version keeps its Cyrillic bitmap fonts unless `use8bitfont 0` is set by hand.
 - **Proton:** SimSun is a Windows font; under Proton the game's request is substituted by Wine – one more reason for the hook. Whether Proton's own Tahoma is found by the chain shows in the Deck log (step 7).
 - **Overlay:** the game offers no GDI-on-surface path to reuse; the overlay's text approach is decided in `overlay.md`.

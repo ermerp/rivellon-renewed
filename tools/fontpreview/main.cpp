@@ -11,6 +11,8 @@
 //                                           (for font identification services; use --bg 255,255,255)
 //   --smooth <file.fnt> <label>             game glyphs at 2x and 4x: nearest neighbor, Scale2x,
 //                                           distance field
+//   --scene <spec.txt>                      real game lines on a crop of a game screenshot, once per
+//                                           candidate font, drawn like the font mode (scene.cpp)
 
 #include <algorithm>
 #include <cstdio>
@@ -30,6 +32,7 @@ using std::min;
 #include "overlay/glyphs.h"
 #include "overlay/surface.h"
 #include "scale.h"
+#include "scene.h"
 
 using namespace ddmod::overlay;
 
@@ -89,6 +92,7 @@ const std::vector<std::wstring> kCharSheet = {
 struct Block {
     std::wstring caption;
     std::vector<Canvas> lines;  // already at final size
+    bool warn = false;          // caption in red
 };
 
 Canvas RenderLine(GlyphCache& cache, const std::wstring& text, Rgb bg, Rgb color, int scale) {
@@ -140,6 +144,10 @@ int wmain(int argc, wchar_t** argv) {
     Rgb bg{28, 22, 16};
     const Rgb text{235, 225, 205};
     std::vector<Block> blocks;
+
+    Gdiplus::GdiplusStartupInput input;
+    ULONG_PTR token = 0;
+    Gdiplus::GdiplusStartup(&token, &input, nullptr);
 
     std::unique_ptr<GlyphCache> captionFont;
     {
@@ -235,6 +243,20 @@ int wmain(int argc, wchar_t** argv) {
             add(L"4× nearest neighbor (reference)", [](const Image& l) { return fontpreview::ScaleNearest(l, 4); });
             add(L"4× Scale2x twice", [](const Image& l) { return fontpreview::ScaleEpx(fontpreview::ScaleEpx(l)); });
             add(L"4× distance field", [](const Image& l) { return fontpreview::ScaleSdf(l, 4); });
+        } else if (arg == L"--scene") {
+            need(1);
+            std::vector<fontpreview::SceneRow> rows;
+            std::wstring error;
+            if (!fontpreview::RenderScene(argv[++i], rows, error)) {
+                std::fwprintf(stderr, L"%ls\n", error.c_str());
+                return 1;
+            }
+            for (auto& r : rows) {
+                std::fwprintf(stdout, L"%ls\n", r.caption.c_str());
+                Block block{r.caption, {}, r.warn};
+                if (!r.pixels.empty()) block.lines.push_back({r.width, r.height, std::move(r.pixels)});
+                blocks.push_back(std::move(block));
+            }
         } else if (arg == L"--pixel") {
             // --pixel <file.fnt | face | font file> <face or -> <px> <weight> <label>: first two
             // sample lines at the given size, then 4x nearest neighbor - for pixel-level
@@ -321,8 +343,8 @@ int wmain(int argc, wchar_t** argv) {
     for (const Block& b : blocks) {
         FillRect(sheet.View(), kMargin, y - kMargin / 2, width - 2 * kMargin, 1,
                  light ? Rgb{200, 200, 200} : Rgb{90, 80, 65}, 255);
-        DrawString(sheet.View(), *captionFont, kMargin, y, b.caption, light ? Rgb{60, 60, 60} : Rgb{150, 170, 200},
-                   false);
+        const Rgb captionColor = b.warn ? Rgb{235, 80, 60} : light ? Rgb{60, 60, 60} : Rgb{150, 170, 200};
+        DrawString(sheet.View(), *captionFont, kMargin, y, b.caption, captionColor, false);
         y += captionFont->LineHeight() + 6;
         for (const Canvas& l : b.lines) {
             BlitScaled(sheet, l, kMargin, y, 1);
@@ -331,9 +353,6 @@ int wmain(int argc, wchar_t** argv) {
         y += kMargin;
     }
 
-    Gdiplus::GdiplusStartupInput input;
-    ULONG_PTR token = 0;
-    Gdiplus::GdiplusStartup(&token, &input, nullptr);
     const bool ok = SavePng(sheet, out);
     Gdiplus::GdiplusShutdown(token);
     std::fwprintf(stdout, ok ? L"saved %ls (%dx%d)\n" : L"could not save %ls\n", out.c_str(), sheet.width, sheet.height);

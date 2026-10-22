@@ -1,0 +1,1127 @@
+// Scene sheets: each candidate font draws the same real game lines on the same crop of a real
+// game screen, the way the game would draw them, at 1x and as a 2x copy for detail.
+//
+// Spec file (UTF-8, one entry per line, fields separated by '|', '#' starts a comment):
+//   title|<text>                                  section caption
+//   background|<png>|<x>|<y>|<w>|<h>              crop of a game screenshot (mirrored if lines are wider)
+//   fntdir|<dir>                                  the game's fonts folder (read only)
+//   align|left|center    spacing|<px>    top|<px>    left|<px>
+//   line|<file.fnt>|<GDI height>|<text RRGGBB>|<edge RRGGBB>|<text>
+//                                                 one game line: its bitmap font, and for GDI fonts
+//                                                 the game's height and the mod's colors
+//   original|<label>                              the bitmap fonts as the game draws them
+//   smooth|<label>                                bitmap fonts; the 2x copy smoothed (distance field)
+//   font|<label>|<face>|<font file or empty>|<weight>[|option...]  options: match, ramp|gradient|
+//                                                 gloss|measured, lower, bold<n>|thin<n>, track<n>,
+//                                                 fit<n> (largest height whose ink - the lines plus
+//                                                 accented capitals and all extenders - fits in n px),
+//                                                 matchx (lowercase x as high as in the bitmap font,
+//                                                 same baseline), squeeze<n> (ascenders and
+//                                                 descenders compressed so the ink fits in n px)
+//   alt|<face>|<file>|<weight>|<from>|<to>        following font candidates draw the characters in
+//                                                 <from> as the same-position characters of <to> in
+//                                                 this face, at the same capital height; `alt` alone
+//                                                 ends it
+//                                                 a GDI font as in the font mode: positive height
+//                                                 (cell), GGO_GRAY8_BITMAP, 65-step ramp from the
+//                                                 edge to the text color, RGB565, the font's own
+//                                                 advance ([Fonts] Spacing=font). `match`: height
+//                                                 so the capital H is as high as in the line's
+//                                                 bitmap font. `gradient`: color profile measured
+//                                                 from the bitmap font plus a contour in the edge
+//                                                 color; `gloss`: also light upper and dark lower
+//                                                 stroke edges; `measured`: profile plus the edge
+//                                                 shading measured from the bitmap font. `lower`:
+//                                                 text in lowercase (the uncial forms of unicase
+//                                                 faces). `bold<n>`/`thin<n>`: stroke weight +/- n
+//                                                 quarter pixels. `track<n>`: n extra pixels per
+//                                                 character
+//   charset|<file.fnt>|<scale>|<text RRGGBB>|<edge RRGGBB>|<bg RRGGBB>
+//                                                 instead of background/line: the whole character
+//                                                 set, the bitmap font scaled by <scale> and every
+//                                                 GDI font sized to the same capital height
+
+#include "scene.h"
+
+#include <algorithm>
+#include <climits>
+#include <fstream>
+#include <memory>
+#include <sstream>
+
+#include <windows.h>
+#include <objidl.h>
+using std::max;
+using std::min;
+#include <gdiplus.h>
+
+#include "overlay/fnt.h"
+#include "overlay/glyphs.h"
+#include "scale.h"
+
+namespace fontpreview {
+namespace {
+
+using ddmod::overlay::Glyph;
+using ddmod::overlay::GlyphCache;
+
+const std::wstring kGerman = L"ÄÖÜäöüß";
+const std::wstring kFrench = L"ÀÂÇÈÉÊËÎÏÔÙÛàâçèéêëîïôùûÿŒœÆæ«»";
+const std::wstring kRussian =
+    L"АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя";
+
+struct Picture {
+    int width = 0, height = 0;
+    std::vector<Rgb> px;
+    Rgb& At(int x, int y) { return px[static_cast<std::size_t>(y) * width + x]; }
+};
+
+struct Line {
+    std::wstring fnt;
+    int height = 0;
+    Rgb text, edge;
+    std::wstring str;
+};
+
+struct Spec {
+    std::wstring bgFile;
+    int bgX = 0, bgY = 0, bgW = 0, bgH = 0;
+    std::wstring fntDir;
+    bool center = false;
+    int spacing = 20, top = 8, left = 12;
+    std::vector<Line> lines;
+    // Second face for single characters (Candidate::altFace), set by an `alt` entry.
+    std::wstring altFace, altFile, altFrom, altTo;
+    int altWeight = 400;
+    // Character set mode.
+    std::wstring charsetFnt;
+    int charsetScale = 1;
+    Rgb text, edge, bg;
+};
+
+const std::vector<std::wstring> kCharset = {
+    L"ABCDEFGHIJKLM", L"NOPQRSTUVWXYZ", L"ÄÖÜ ÀÂÇÉÈÊËÎÔÙ", L"abcdefghijklm", L"nopqrstuvwxyz",
+    L"äöüß àâçéèêëîïôûù", L"0123456789 .,;:!?-'\"()&%",
+};
+
+std::wstring Widen(const std::string& s) {
+    if (s.empty()) return {};
+    std::wstring w(static_cast<std::size_t>(MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0)), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), w.data(), static_cast<int>(w.size()));
+    return w;
+}
+
+std::vector<std::wstring> Split(const std::wstring& s) {
+    std::vector<std::wstring> parts;
+    std::size_t start = 0;
+    for (;;) {
+        const std::size_t bar = s.find(L'|', start);
+        parts.push_back(s.substr(start, bar - start));
+        if (bar == std::wstring::npos) return parts;
+        start = bar + 1;
+    }
+}
+
+Rgb ParseHex(const std::wstring& s) {
+    const unsigned long v = std::wcstoul(s.c_str(), nullptr, 16);
+    return {static_cast<std::uint8_t>(v >> 16), static_cast<std::uint8_t>(v >> 8), static_cast<std::uint8_t>(v)};
+}
+
+// What the game's 16-bit back buffer keeps of a color.
+Rgb To565(Rgb c) {
+    const int r = c.r >> 3, g = c.g >> 2, b = c.b >> 3;
+    return {static_cast<std::uint8_t>(r << 3 | r >> 2), static_cast<std::uint8_t>(g << 2 | g >> 4),
+            static_cast<std::uint8_t>(b << 3 | b >> 2)};
+}
+
+bool LoadCrop(const Spec& spec, Picture& out) {
+    Gdiplus::Bitmap bmp(spec.bgFile.c_str());
+    if (bmp.GetLastStatus() != Gdiplus::Ok) return false;
+    Gdiplus::Rect rect(spec.bgX, spec.bgY, spec.bgW, spec.bgH);
+    Gdiplus::BitmapData data{};
+    if (bmp.LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppRGB, &data) != Gdiplus::Ok) return false;
+    out = {spec.bgW, spec.bgH, std::vector<Rgb>(static_cast<std::size_t>(spec.bgW) * spec.bgH)};
+    for (int y = 0; y < spec.bgH; ++y) {
+        const auto* row = reinterpret_cast<const std::uint32_t*>(static_cast<const std::uint8_t*>(data.Scan0) + y * data.Stride);
+        for (int x = 0; x < spec.bgW; ++x) {
+            out.At(x, y) = {static_cast<std::uint8_t>(row[x] >> 16), static_cast<std::uint8_t>(row[x] >> 8),
+                            static_cast<std::uint8_t>(row[x])};
+        }
+    }
+    bmp.UnlockBits(&data);
+    return true;
+}
+
+// The crop widened to `width`, centered and mirrored at its edges.
+Picture Widen(const Picture& crop, int width) {
+    Picture out{width, crop.height, std::vector<Rgb>(static_cast<std::size_t>(width) * crop.height)};
+    const int shift = (width - crop.width) / 2, period = 2 * crop.width;
+    for (int y = 0; y < out.height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            int sx = ((x - shift) % period + period) % period;
+            if (sx >= crop.width) sx = period - 1 - sx;
+            out.At(x, y) = crop.px[static_cast<std::size_t>(y) * crop.width + sx];
+        }
+    }
+    return out;
+}
+
+Picture Nearest(const Picture& src, int scale) {
+    Picture out{src.width * scale, src.height * scale, std::vector<Rgb>(src.px.size() * scale * scale)};
+    for (int y = 0; y < out.height; ++y) {
+        for (int x = 0; x < out.width; ++x) out.At(x, y) = src.px[static_cast<std::size_t>(y / scale) * src.width + x / scale];
+    }
+    return out;
+}
+
+void Blend(Picture& dst, const Image& img, int x0, int y0) {
+    for (int y = 0; y < img.height; ++y) {
+        for (int x = 0; x < img.width; ++x) {
+            const int dx = x0 + x, dy = y0 + y;
+            const float a = img.A(x, y);
+            if (a <= 0.0f || dx < 0 || dy < 0 || dx >= dst.width || dy >= dst.height) continue;
+            dst.At(dx, dy) = ddmod::overlay::Mix(dst.At(dx, dy), img.C(x, y), static_cast<std::uint8_t>(a * 255.0f + 0.5f));
+        }
+    }
+}
+
+constexpr int kPad = 3;
+
+// A line in a game bitmap font with the glyphs' own colors (pad of kPad on every side).
+Image FntLine(GlyphCache& cache, const std::wstring& text) {
+    Image img = MakeImage(ddmod::overlay::MeasureString(cache, text) + 2 * kPad, cache.LineHeight() + 2 * kPad);
+    int pen = kPad;
+    for (const wchar_t ch : text) {
+        const Glyph& g = cache.Get(ch);
+        for (int y = 0; y < g.height; ++y) {
+            for (int x = 0; x < g.width; ++x) {
+                const std::size_t i = static_cast<std::size_t>(y) * g.width + x;
+                const int ox = pen + g.offsetX + x, oy = kPad + g.offsetY + y;
+                if (g.coverage[i] == 0 || ox < 0 || oy < 0 || ox >= img.width || oy >= img.height) continue;
+                img.A(ox, oy) = g.coverage[i] / 255.0f;
+                img.C(ox, oy) = g.colors.empty() ? Rgb{255, 255, 255} : g.colors[i];
+            }
+        }
+        pen += g.advance;
+    }
+    return img;
+}
+
+class GdiFont {
+public:
+    GdiFont(const std::wstring& face, int height, int weight) {
+        dc_ = CreateCompatibleDC(nullptr);
+        font_ = CreateFontW(height, 0, 0, 0, weight, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_TT_PRECIS,
+                            CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, face.c_str());
+        old_ = SelectObject(dc_, font_);
+        GetTextMetricsW(dc_, &tm_);
+    }
+    ~GdiFont() {
+        SelectObject(dc_, old_);
+        DeleteObject(font_);
+        DeleteDC(dc_);
+    }
+    GdiFont(const GdiFont&) = delete;
+    GdiFont& operator=(const GdiFont&) = delete;
+
+    std::wstring ActualFace() const {
+        wchar_t name[LF_FACESIZE] = {};
+        GetTextFaceW(dc_, LF_FACESIZE, name);
+        return name;
+    }
+    // Characters of `chars` the font has no glyph for.
+    std::wstring Missing(const std::wstring& chars) const {
+        std::vector<WORD> idx(chars.size());
+        GetGlyphIndicesW(dc_, chars.c_str(), static_cast<int>(chars.size()), idx.data(), GGI_MARK_NONEXISTING_GLYPHS);
+        std::wstring missing;
+        for (std::size_t i = 0; i < chars.size(); ++i) {
+            if (idx[i] == 0xFFFF) missing += chars[i];
+        }
+        return missing;
+    }
+    // Distance from the top of the line to the top of the capital H.
+    int CapTop() const {
+        static const MAT2 kIdentity = {{0, 1}, {0, 0}, {0, 0}, {0, 1}};
+        GLYPHMETRICS gm{};
+        if (GetGlyphOutlineW(dc_, L'H', GGO_METRICS, &gm, 0, nullptr, &kIdentity) == GDI_ERROR) return 0;
+        return tm_.tmAscent - gm.gmptGlyphOrigin.y;
+    }
+    // Highest and lowest inked row over all characters of `text`, relative to the baseline
+    // (top negative).
+    void InkRange(const std::wstring& text, int& top, int& bottom) const {
+        static const MAT2 kIdentity = {{0, 1}, {0, 0}, {0, 0}, {0, 1}};
+        top = INT_MAX;
+        bottom = INT_MIN;
+        for (const wchar_t ch : text) {
+            GLYPHMETRICS gm{};
+            if (ch == L' ' || GetGlyphOutlineW(dc_, ch, GGO_METRICS, &gm, 0, nullptr, &kIdentity) == GDI_ERROR) continue;
+            top = std::min(top, static_cast<int>(-gm.gmptGlyphOrigin.y));
+            bottom = std::max(bottom, static_cast<int>(-gm.gmptGlyphOrigin.y + static_cast<int>(gm.gmBlackBoxY)));
+        }
+    }
+    // Pixels from the highest to the lowest inked row over all characters of `text`.
+    int InkExtent(const std::wstring& text) const {
+        int top = 0, bottom = 0;
+        InkRange(text, top, bottom);
+        return bottom > top ? bottom - top : 0;
+    }
+    int Ascent() const { return tm_.tmAscent; }
+    int CellHeight() const { return tm_.tmHeight; }
+    // Height of the lowercase x in pixels.
+    int XHeight() const {
+        static const MAT2 kIdentity = {{0, 1}, {0, 0}, {0, 0}, {0, 1}};
+        GLYPHMETRICS gm{};
+        if (GetGlyphOutlineW(dc_, L'x', GGO_METRICS, &gm, 0, nullptr, &kIdentity) == GDI_ERROR) return 0;
+        return static_cast<int>(gm.gmBlackBoxY);
+    }
+    // Gray-level bitmap (0-64, rows padded to 4 bytes) of one character; false if GDI has none.
+    bool GlyphBits(wchar_t ch, GLYPHMETRICS& gm, std::vector<BYTE>& bits) const {
+        static const MAT2 kIdentity = {{0, 1}, {0, 0}, {0, 0}, {0, 1}};
+        const DWORD size = GetGlyphOutlineW(dc_, ch, GGO_GRAY8_BITMAP, &gm, 0, nullptr, &kIdentity);
+        if (size == GDI_ERROR) return false;
+        bits.assign(size, 0);
+        if (size > 0) GetGlyphOutlineW(dc_, ch, GGO_GRAY8_BITMAP, &gm, size, bits.data(), &kIdentity);
+        return true;
+    }
+    // Height of the capital H in pixels.
+    int CapHeight() const {
+        static const MAT2 kIdentity = {{0, 1}, {0, 0}, {0, 0}, {0, 1}};
+        GLYPHMETRICS gm{};
+        if (GetGlyphOutlineW(dc_, L'H', GGO_METRICS, &gm, 0, nullptr, &kIdentity) == GDI_ERROR) return 0;
+        return static_cast<int>(gm.gmBlackBoxY);
+    }
+
+    // Draws like the game's font mode: gray level 0 transparent, 1-64 opaque on the ramp.
+    // `tracking` adds pixels after every character.
+    Image Line(const std::wstring& text, Rgb textColor, Rgb edgeColor, int tracking = 0) const {
+        static const MAT2 kIdentity = {{0, 1}, {0, 0}, {0, 0}, {0, 1}};
+        struct Placed {
+            GLYPHMETRICS gm;
+            std::vector<BYTE> bits;
+            int pen;
+        };
+        std::vector<Placed> placed;
+        int pen = kPad, right = 0;
+        for (const wchar_t ch : text) {
+            Placed p{};
+            p.pen = pen;
+            const DWORD size = GetGlyphOutlineW(dc_, ch, GGO_GRAY8_BITMAP, &p.gm, 0, nullptr, &kIdentity);
+            if (size != GDI_ERROR && size > 0) {
+                p.bits.resize(size);
+                GetGlyphOutlineW(dc_, ch, GGO_GRAY8_BITMAP, &p.gm, size, p.bits.data(), &kIdentity);
+            }
+            if (size != GDI_ERROR) {
+                right = std::max(right, pen + static_cast<int>(p.gm.gmptGlyphOrigin.x + p.gm.gmBlackBoxX));
+                pen += p.gm.gmCellIncX + tracking;
+            }
+            placed.push_back(std::move(p));
+        }
+        Image img = MakeImage(std::max(pen, right) + kPad, tm_.tmHeight + 2 * kPad);
+        Rgb ramp[65];
+        for (int v = 0; v <= 64; ++v) {
+            const auto lerp = [v](std::uint8_t e, std::uint8_t t) {
+                return static_cast<std::uint8_t>((e * (64 - v) + t * v + 32) / 64);
+            };
+            ramp[v] = To565({lerp(edgeColor.r, textColor.r), lerp(edgeColor.g, textColor.g), lerp(edgeColor.b, textColor.b)});
+        }
+        for (const Placed& p : placed) {
+            if (p.bits.empty()) continue;
+            const int pitch = (static_cast<int>(p.gm.gmBlackBoxX) + 3) & ~3;
+            for (int y = 0; y < static_cast<int>(p.gm.gmBlackBoxY); ++y) {
+                for (int x = 0; x < static_cast<int>(p.gm.gmBlackBoxX); ++x) {
+                    const int v = std::min<int>(p.bits[static_cast<std::size_t>(y) * pitch + x], 64);
+                    const int ox = p.pen + p.gm.gmptGlyphOrigin.x + x;
+                    const int oy = kPad + tm_.tmAscent - p.gm.gmptGlyphOrigin.y + y;
+                    if (v == 0 || ox < 0 || oy < 0 || ox >= img.width || oy >= img.height) continue;
+                    img.A(ox, oy) = 1.0f;
+                    img.C(ox, oy) = ramp[v];
+                }
+            }
+        }
+        return img;
+    }
+
+private:
+    HDC dc_ = nullptr;
+    HFONT font_ = nullptr;
+    HGDIOBJ old_ = nullptr;
+    TEXTMETRICW tm_{};
+};
+
+enum class Kind { Original, Smooth, Font };
+// Ramp: the game's two-color ramp. Gradient: measured color profile plus a one-pixel contour in
+// the edge color. Gloss: gradient plus a fixed light upper and dark lower stroke edge. Measured:
+// profile plus the edge shading measured from the bitmap font (Bevel), no extra contour.
+enum class Style { Ramp, Gradient, Gloss, Measured, Shine };
+
+struct Candidate {
+    Kind kind;
+    std::wstring label, face, file;
+    int weight = 600;
+    bool matchHeight = false;  // capital H as high as in the bitmap font instead of the game's height
+    Style style = Style::Ramp;
+    bool lower = false;  // draw the text in lowercase (unicase faces keep their uncial forms there)
+    int morph = 0;       // stroke weight in quarter pixels: > 0 bolder, < 0 thinner
+    int tracking = 0;    // extra pixels after every character
+    int fit = 0;         // > 0: largest height whose ink over all lines' characters fits in this many pixels
+    bool matchX = false; // lowercase x as high as in the bitmap font
+    int squeeze = 0;     // > 0: ascenders and descenders compressed so the ink fits in this many pixels
+    // Characters drawn from a second face (a mix like the original's roman capitals with uncial
+    // forms): altFrom[i] in the text is drawn as altTo[i] of altFace, scaled to the same capital height.
+    std::wstring altFace, altFile, altFrom, altTo;
+    int altWeight = 400;
+    float shineStrength = 1.0f;  // Style::Shine: 1 = as measured
+    bool texture = false;        // Style::Shine: add our own noise of the measured texture strength
+};
+
+int FntCapHeight(GlyphCache& cache);
+int FntCapTop(GlyphCache& cache);
+
+// Mean color of the inner pixels (all four neighbors drawn, so not the shaded edge) per step from
+// the top to the bottom of the capital H, over A-Z. A measured style parameter - no pixels kept.
+std::vector<Rgb> MeasureProfile(GlyphCache& cache) {
+    constexpr int kSteps = 16;
+    const Glyph& h = cache.Get(L'H');
+    int top = -1;
+    for (int y = 0; y < h.height && top < 0; ++y) {
+        for (int x = 0; x < h.width; ++x) {
+            if (h.coverage[static_cast<std::size_t>(y) * h.width + x] != 0) {
+                top = y + h.offsetY;
+                break;
+            }
+        }
+    }
+    const int height = std::max(1, FntCapHeight(cache));
+    std::vector<double> sum(kSteps * 3, 0.0);
+    std::vector<int> count(kSteps, 0);
+    for (wchar_t ch = L'A'; ch <= L'Z'; ++ch) {
+        const Glyph& g = cache.Get(ch);
+        if (g.colors.empty()) continue;
+        const auto on = [&](int x, int y) {
+            return x >= 0 && y >= 0 && x < g.width && y < g.height && g.coverage[static_cast<std::size_t>(y) * g.width + x] != 0;
+        };
+        for (int y = 0; y < g.height; ++y) {
+            const int step = (y + g.offsetY - top) * kSteps / height;
+            if (step < 0 || step >= kSteps) continue;
+            for (int x = 0; x < g.width; ++x) {
+                if (!on(x, y) || !on(x - 1, y) || !on(x + 1, y) || !on(x, y - 1) || !on(x, y + 1)) continue;
+                const Rgb c = g.colors[static_cast<std::size_t>(y) * g.width + x];
+                sum[step * 3] += c.r;
+                sum[step * 3 + 1] += c.g;
+                sum[step * 3 + 2] += c.b;
+                ++count[step];
+            }
+        }
+    }
+    std::vector<Rgb> profile(kSteps);
+    for (int s = 0; s < kSteps; ++s) {
+        int src = s;  // empty steps take the nearest filled one
+        for (int d = 1; count[src] == 0 && d < kSteps; ++d) {
+            if (s - d >= 0 && count[s - d] > 0) src = s - d;
+            else if (s + d < kSteps && count[s + d] > 0) src = s + d;
+        }
+        const int n = std::max(1, count[src]);
+        profile[s] = {static_cast<std::uint8_t>(sum[src * 3] / n), static_cast<std::uint8_t>(sum[src * 3 + 1] / n),
+                      static_cast<std::uint8_t>(sum[src * 3 + 2] / n)};
+    }
+    return profile;
+}
+
+// Smallest GDI height whose capital H is at least `target` pixels high.
+int HeightForCap(const std::wstring& face, int weight, int target) {
+    int height = 4;
+    while (height < 600 && GdiFont(face, height, weight).CapHeight() < target) ++height;
+    return height;
+}
+
+// Smallest GDI height whose lowercase x is at least `target` pixels high.
+int HeightForX(const std::wstring& face, int weight, int target) {
+    int height = 4;
+    while (height < 600 && GdiFont(face, height, weight).XHeight() < target) ++height;
+    return height;
+}
+
+// Coverage of a line (alpha 0-1) with the same layout as GdiFont::Line. Characters listed in
+// `from` are taken from `alt` (character `to[i]`), standing on the same baseline.
+Image Coverage(const GdiFont& font, const std::wstring& text, int tracking, const GdiFont* alt = nullptr,
+               const std::wstring& from = {}, const std::wstring& to = {}) {
+    struct Placed {
+        GLYPHMETRICS gm{};
+        std::vector<BYTE> bits;
+        int pen = 0;
+    };
+    std::vector<Placed> placed;
+    int pen = kPad, right = 0;
+    for (const wchar_t ch : text) {
+        const std::size_t k = alt ? from.find(ch) : std::wstring::npos;
+        const bool useAlt = k != std::wstring::npos && k < to.size();
+        Placed p;
+        p.pen = pen;
+        if (!(useAlt ? alt->GlyphBits(to[k], p.gm, p.bits) : font.GlyphBits(ch, p.gm, p.bits))) continue;
+        right = std::max(right, pen + static_cast<int>(p.gm.gmptGlyphOrigin.x + p.gm.gmBlackBoxX));
+        pen += p.gm.gmCellIncX + tracking;
+        placed.push_back(std::move(p));
+    }
+    Image mask = MakeImage(std::max(pen, right) + kPad, font.CellHeight() + 2 * kPad);
+    for (const Placed& p : placed) {
+        if (p.bits.empty()) continue;
+        const int pitch = (static_cast<int>(p.gm.gmBlackBoxX) + 3) & ~3;
+        for (int y = 0; y < static_cast<int>(p.gm.gmBlackBoxY); ++y) {
+            for (int x = 0; x < static_cast<int>(p.gm.gmBlackBoxX); ++x) {
+                const int v = std::min<int>(p.bits[static_cast<std::size_t>(y) * pitch + x], 64);
+                const int ox = p.pen + p.gm.gmptGlyphOrigin.x + x;
+                const int oy = kPad + font.Ascent() - p.gm.gmptGlyphOrigin.y + y;
+                if (v == 0 || ox < 0 || oy < 0 || ox >= mask.width || oy >= mask.height) continue;
+                mask.A(ox, oy) = std::max(mask.A(ox, oy), v / 64.0f);
+            }
+        }
+    }
+    return mask;
+}
+
+// Compresses the rows above the x-height and below the baseline so the ink of `text` (plus the
+// tallest and deepest characters any text may hold) fits in `budget` pixels; the band between
+// x-height and baseline keeps its size.
+Image Squeeze(const Image& mask, const GdiFont& font, int budget, const std::wstring& text) {
+    int top = 0, bottom = 0;
+    font.InkRange(L"ÄÖÜÁÉbdfghjklpqyß" + text, top, bottom);
+    const int xh = font.XHeight();
+    const int ascender = -top - xh, descender = bottom;
+    if (ascender + descender <= 0) return mask;
+    const float k = std::clamp(static_cast<float>(budget - xh) / static_cast<float>(ascender + descender), 0.3f, 1.0f);
+    const float baseline = static_cast<float>(kPad + font.Ascent()), xTop = baseline - static_cast<float>(xh);
+    Image out = MakeImage(mask.width, mask.height);
+    for (int y = 0; y < out.height; ++y) {
+        const float yo = y + 0.5f;
+        const float ys = yo < xTop ? xTop - (xTop - yo) / k : yo > baseline ? baseline + (yo - baseline) / k : yo;
+        const float sy = ys - 0.5f;
+        const int y0 = static_cast<int>(std::floor(sy));
+        const float f = sy - static_cast<float>(y0);
+        for (int x = 0; x < out.width; ++x) {
+            const float a0 = y0 >= 0 && y0 < mask.height ? mask.A(x, y0) : 0.0f;
+            const float a1 = y0 + 1 >= 0 && y0 + 1 < mask.height ? mask.A(x, y0 + 1) : 0.0f;
+            out.A(x, y) = a0 * (1.0f - f) + a1 * f;
+        }
+    }
+    return out;
+}
+
+// Grows (steps > 0) or shrinks (steps < 0) the coverage by one pixel per step (4-neighborhood).
+Image Morph(Image mask, int steps) {
+    for (int s = 0; s < std::abs(steps); ++s) {
+        Image next = mask;
+        for (int y = 0; y < mask.height; ++y) {
+            for (int x = 0; x < mask.width; ++x) {
+                float v = mask.A(x, y);
+                const int nx[4] = {x - 1, x + 1, x, x}, ny[4] = {y, y, y - 1, y + 1};
+                for (int k = 0; k < 4; ++k) {
+                    const float n = nx[k] < 0 || ny[k] < 0 || nx[k] >= mask.width || ny[k] >= mask.height
+                                        ? 0.0f
+                                        : mask.A(nx[k], ny[k]);
+                    v = steps > 0 ? std::max(v, n) : std::min(v, n);
+                }
+                next.A(x, y) = v;
+            }
+        }
+        mask = std::move(next);
+    }
+    return mask;
+}
+
+// Box-filters a coverage rendered at `f` times the size back down, keeping the kPad margin.
+Image Downsample(const Image& hi, int f) {
+    Image out = MakeImage((hi.width - 2 * kPad) / f + 2 * kPad + 1, (hi.height - 2 * kPad) / f + 2 * kPad + 1);
+    for (int y = 0; y < out.height; ++y) {
+        for (int x = 0; x < out.width; ++x) {
+            float sum = 0.0f;
+            for (int k = 0; k < f * f; ++k) {
+                const int hx = kPad + (x - kPad) * f + k % f, hy = kPad + (y - kPad) * f + k / f;
+                if (hx >= 0 && hy >= 0 && hx < hi.width && hy < hi.height) sum += hi.A(hx, hy);
+            }
+            out.A(x, y) = sum / static_cast<float>(f * f);
+        }
+    }
+    return out;
+}
+
+// The candidate's coverage at `height`: stroke weight changes and squeezing are made at 4x and
+// filtered down.
+Image CandidateMask(const Candidate& c, int height, const std::wstring& text) {
+    const int f = c.morph != 0 || c.squeeze > 0 ? 4 : 1;
+    const GdiFont font(c.face, height * f, c.weight);
+    std::unique_ptr<GdiFont> alt;
+    if (!c.altFace.empty()) {
+        if (!c.altFile.empty()) AddFontResourceExW(c.altFile.c_str(), FR_PRIVATE, nullptr);
+        alt = std::make_unique<GdiFont>(c.altFace, HeightForCap(c.altFace, c.altWeight, font.CapHeight()), c.altWeight);
+    }
+    Image mask = Coverage(font, text, c.tracking * f, alt.get(), c.altFrom, c.altTo);
+    if (c.morph != 0) mask = Morph(std::move(mask), c.morph);
+    if (c.squeeze > 0) mask = Squeeze(mask, font, c.squeeze * f, text);
+    return f == 1 ? mask : Downsample(mask, f);
+}
+
+// Rows with any pixel of `ch` in a bitmap font.
+int FntInkHeight(GlyphCache& cache, wchar_t ch) {
+    const Glyph& g = cache.Get(ch);
+    int top = g.height, bottom = -1;
+    for (int y = 0; y < g.height; ++y) {
+        for (int x = 0; x < g.width; ++x) {
+            if (g.coverage[static_cast<std::size_t>(y) * g.width + x] != 0) {
+                top = std::min(top, y);
+                bottom = std::max(bottom, y);
+            }
+        }
+    }
+    return bottom >= top ? bottom - top + 1 : 0;
+}
+
+// Brightness of a bitmap font's stroke edges relative to the color profile: factor per distance
+// (1-3 pixels) from the top, bottom, left and right end of the stroke. A measured style
+// parameter - no pixels kept.
+struct Bevel {
+    float side[4][3] = {{1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}};  // top, bottom, left, right
+};
+
+int Lum3(Rgb c) { return c.r + c.g + c.b; }
+
+Bevel MeasureBevel(GlyphCache& cache, const std::vector<Rgb>& profile) {
+    const int top = FntCapTop(cache), height = std::max(1, FntCapHeight(cache));
+    double sum[4][3] = {}, count[4][3] = {};
+    for (wchar_t ch = L'A'; ch <= L'Z'; ++ch) {
+        const Glyph& g = cache.Get(ch);
+        if (g.colors.empty()) continue;
+        const auto on = [&](int x, int y) {
+            return x >= 0 && y >= 0 && x < g.width && y < g.height && g.coverage[static_cast<std::size_t>(y) * g.width + x] != 0;
+        };
+        const auto run = [&](int x, int y, int dx, int dy) {
+            int d = 0;
+            while (on(x + d * dx, y + d * dy)) ++d;
+            return d;  // 1 = the pixel itself is the last one in that direction
+        };
+        for (int y = 0; y < g.height; ++y) {
+            const int bin = std::clamp((y + g.offsetY - top) * static_cast<int>(profile.size()) / height, 0,
+                                       static_cast<int>(profile.size()) - 1);
+            const int ref = std::max(1, Lum3(profile[static_cast<std::size_t>(bin)]));
+            for (int x = 0; x < g.width; ++x) {
+                if (!on(x, y)) continue;
+                const int d[4] = {run(x, y, 0, -1), run(x, y, 0, 1), run(x, y, -1, 0), run(x, y, 1, 0)};
+                const double ratio = static_cast<double>(Lum3(g.colors[static_cast<std::size_t>(y) * g.width + x])) / ref;
+                for (int s = 0; s < 4; ++s) {
+                    const int across = s < 2 ? std::min(d[2], d[3]) : std::min(d[0], d[1]);
+                    const int opposite = d[s ^ 1];
+                    if (d[s] <= 3 && opposite > d[s] && across > 1) {
+                        sum[s][d[s] - 1] += ratio;
+                        count[s][d[s] - 1] += 1;
+                    }
+                }
+            }
+        }
+    }
+    Bevel b;
+    for (int s = 0; s < 4; ++s) {
+        for (int k = 0; k < 3; ++k) {
+            if (count[s][k] > 0) b.side[s][k] = static_cast<float>(sum[s][k] / count[s][k]);
+        }
+    }
+    return b;
+}
+
+// Brightness across the strokes of a bitmap font: for every horizontal and vertical run of drawn
+// pixels (4 or more long), the brightness relative to the run's mean in kShineBins steps from one
+// end to the other; plus the remaining unevenness (texture) as a standard deviation. Measured
+// style parameters - no pixels kept.
+constexpr int kShineBins = 5;
+struct Shine {
+    float across[2][kShineBins] = {{1, 1, 1, 1, 1}, {1, 1, 1, 1, 1}};  // horizontal runs, vertical runs
+    float texture = 0.0f;
+};
+
+Shine MeasureShine(GlyphCache& cache) {
+    double sum[2][kShineBins] = {}, count[2][kShineBins] = {};
+    double resid = 0.0, residCount = 0.0;
+    for (wchar_t ch = L'A'; ch <= L'Z'; ++ch) {
+        const Glyph& g = cache.Get(ch);
+        if (g.colors.empty()) continue;
+        const auto on = [&](int x, int y) {
+            return x >= 0 && y >= 0 && x < g.width && y < g.height && g.coverage[static_cast<std::size_t>(y) * g.width + x] != 0;
+        };
+        const auto lum = [&](int x, int y) { return static_cast<double>(Lum3(g.colors[static_cast<std::size_t>(y) * g.width + x])); };
+        for (int dir = 0; dir < 2; ++dir) {
+            const int outer = dir == 0 ? g.height : g.width, inner = dir == 0 ? g.width : g.height;
+            for (int o = 0; o < outer; ++o) {
+                for (int i = 0; i < inner;) {
+                    const auto at = [&](int k) { return dir == 0 ? on(k, o) : on(o, k); };
+                    if (!at(i)) {
+                        ++i;
+                        continue;
+                    }
+                    int end = i;
+                    while (end < inner && at(end)) ++end;
+                    const int len = end - i;
+                    if (len >= 4) {
+                        double mean = 0.0;
+                        for (int k = i; k < end; ++k) mean += dir == 0 ? lum(k, o) : lum(o, k);
+                        mean /= len;
+                        for (int k = i; k < end; ++k) {
+                            const double v = (dir == 0 ? lum(k, o) : lum(o, k)) / std::max(1.0, mean);
+                            const int bin = std::min(kShineBins - 1, (k - i) * kShineBins / len);
+                            sum[dir][bin] += v;
+                            count[dir][bin] += 1;
+                        }
+                    }
+                    i = end;
+                }
+            }
+        }
+    }
+    Shine s;
+    for (int dir = 0; dir < 2; ++dir) {
+        for (int b = 0; b < kShineBins; ++b) {
+            if (count[dir][b] > 0) s.across[dir][b] = static_cast<float>(sum[dir][b] / count[dir][b]);
+        }
+    }
+    // Texture: what is left of the inner pixels after the run profiles, as a standard deviation.
+    for (wchar_t ch = L'A'; ch <= L'Z'; ++ch) {
+        const Glyph& g = cache.Get(ch);
+        if (g.colors.empty()) continue;
+        for (int y = 1; y + 1 < g.height; ++y) {
+            for (int x = 1; x + 1 < g.width; ++x) {
+                const auto c = [&](int dx, int dy) {
+                    return g.coverage[static_cast<std::size_t>(y + dy) * g.width + x + dx] != 0;
+                };
+                if (!c(0, 0) || !c(-1, 0) || !c(1, 0) || !c(0, -1) || !c(0, 1)) continue;
+                double around = 0.0;
+                for (int k = 0; k < 4; ++k) {
+                    const int dx = k == 0 ? -1 : k == 1 ? 1 : 0, dy = k == 2 ? -1 : k == 3 ? 1 : 0;
+                    around += Lum3(g.colors[static_cast<std::size_t>(y + dy) * g.width + x + dx]);
+                }
+                const double v = Lum3(g.colors[static_cast<std::size_t>(y) * g.width + x]) / std::max(1.0, around / 4.0) - 1.0;
+                resid += v * v;
+                residCount += 1;
+            }
+        }
+    }
+    if (residCount > 0) s.texture = static_cast<float>(std::sqrt(resid / residCount));
+    return s;
+}
+
+// Deterministic value noise in -1..1 with cells of `cell` pixels (our own texture, not the game's).
+float ValueNoise(int x, int y, int cell) {
+    const auto hash = [](int i, int j) {
+        std::uint32_t h = static_cast<std::uint32_t>(i) * 374761393u + static_cast<std::uint32_t>(j) * 668265263u;
+        h = (h ^ (h >> 13)) * 1274126177u;
+        return static_cast<float>((h ^ (h >> 16)) & 0xFFFF) / 32767.5f - 1.0f;
+    };
+    const int cx = x / cell, cy = y / cell;
+    const float fx = static_cast<float>(x % cell) / cell, fy = static_cast<float>(y % cell) / cell;
+    const float a = hash(cx, cy) * (1 - fx) + hash(cx + 1, cy) * fx;
+    const float b = hash(cx, cy + 1) * (1 - fx) + hash(cx + 1, cy + 1) * fx;
+    return a * (1 - fy) + b * fy;
+}
+
+std::uint8_t Scale(std::uint8_t v, float k) { return static_cast<std::uint8_t>(std::clamp(v * k + 0.5f, 0.0f, 255.0f)); }
+
+Rgb Shade(Rgb c, Rgb to, float k) {
+    return Rgb{static_cast<std::uint8_t>(c.r + (to.r - c.r) * k), static_cast<std::uint8_t>(c.g + (to.g - c.g) * k),
+               static_cast<std::uint8_t>(c.b + (to.b - c.b) * k)};
+}
+
+// The game's look: every covered pixel opaque on the ramp from the edge to the text color.
+Image PaintRamp(const Image& mask, Rgb text, Rgb edge) {
+    Image img = MakeImage(mask.width, mask.height);
+    for (int y = 0; y < mask.height; ++y) {
+        for (int x = 0; x < mask.width; ++x) {
+            const int v = static_cast<int>(mask.A(x, y) * 64.0f + 0.5f);
+            if (v == 0) continue;
+            img.A(x, y) = 1.0f;
+            img.C(x, y) = To565(Shade(edge, text, v / 64.0f));
+        }
+    }
+    return img;
+}
+
+// Our own style: color from `profile` between the top and the bottom of the capital H. `outline`
+// lays a one-pixel contour in `contour` under the glyph; `gloss` lightens the upper and darkens the
+// lower stroke edge by fixed amounts; `bevel` scales the stroke edges by measured factors and
+// shades partly covered pixels towards `contour`.
+// `shine` scales every stroke pixel by the measured brightness across the stroke (horizontal and
+// vertical run, strength 1 = as measured) and, with `texture`, by our own noise of the measured
+// texture strength.
+Image PaintStyled(const Image& mask, int capTop, int capHeight, const std::vector<Rgb>& profile, Rgb contour,
+                  bool outline, bool gloss, const Bevel* bevel, const Shine* shine = nullptr,
+                  float shineStrength = 1.0f, bool texture = false) {
+    const auto a = [&](int x, int y) {
+        return x < 0 || y < 0 || x >= mask.width || y >= mask.height ? 0.0f : mask.A(x, y);
+    };
+    const auto run = [&](int x, int y, int dx, int dy) {
+        int d = 0;
+        while (d < 4 && a(x + d * dx, y + d * dy) >= 0.5f) ++d;
+        return d;
+    };
+    Image img = MakeImage(mask.width, mask.height);
+    for (int y = 0; y < mask.height; ++y) {
+        const int bin = std::clamp((y - capTop) * static_cast<int>(profile.size()) / std::max(1, capHeight), 0,
+                                   static_cast<int>(profile.size()) - 1);
+        for (int x = 0; x < mask.width; ++x) {
+            const float own = a(x, y);
+            float around = own;
+            if (outline) {
+                for (int dy = -1; dy <= 1; ++dy) {
+                    for (int dx = -1; dx <= 1; ++dx) around = std::max(around, a(x + dx, y + dy));
+                }
+            }
+            if (around <= 0.0f) continue;
+            Rgb c = profile[static_cast<std::size_t>(bin)];
+            if (gloss && own >= 0.5f) {
+                if (a(x, y - 1) < 0.5f) c = Shade(c, Rgb{255, 255, 255}, 0.45f);
+                else if (a(x, y + 1) < 0.5f) c = Shade(c, Rgb{0, 0, 0}, 0.35f);
+            }
+            if (bevel && own >= 0.5f) {
+                const int d[4] = {run(x, y, 0, -1), run(x, y, 0, 1), run(x, y, -1, 0), run(x, y, 1, 0)};
+                float k = 1.0f;
+                for (int s = 0; s < 4; ++s) {
+                    if (d[s] >= 1 && d[s] <= 3) k *= bevel->side[s][d[s] - 1];
+                }
+                c = {Scale(c.r, k), Scale(c.g, k), Scale(c.b, k)};
+            }
+            if (shine && own >= 0.5f) {
+                float k = 1.0f;
+                for (int dir = 0; dir < 2; ++dir) {
+                    const int dx = dir == 0 ? 1 : 0, dy = dir == 0 ? 0 : 1;
+                    int lo = 0, hi = 0;
+                    while (lo < 60 && a(x - (lo + 1) * dx, y - (lo + 1) * dy) >= 0.5f) ++lo;
+                    while (hi < 60 && a(x + (hi + 1) * dx, y + (hi + 1) * dy) >= 0.5f) ++hi;
+                    const int len = lo + hi + 1;
+                    if (len < 3) continue;
+                    const int step = std::min(kShineBins - 1, lo * kShineBins / len);
+                    k *= 1.0f + (shine->across[dir][step] - 1.0f) * shineStrength;
+                }
+                if (texture) k *= 1.0f + shine->texture * shineStrength * ValueNoise(x + 1000, y + 1000, 2);
+                c = {Scale(c.r, k), Scale(c.g, k), Scale(c.b, k)};
+            }
+            if ((bevel || shine) && own < 0.5f) c = Shade(contour, c, own * 2.0f);
+            img.A(x, y) = around;
+            img.C(x, y) = To565(outline ? Shade(contour, c, own / around) : c);
+        }
+    }
+    return img;
+}
+
+// Appends the face actually used and the coverage per language to the row's caption; a missing
+// face or missing German characters mark the candidate as out.
+void AddCoverage(const GdiFont& font, const std::wstring& face, SceneRow& row) {
+    const std::wstring actual = font.ActualFace();
+    const std::wstring de = font.Missing(kGerman), fr = font.Missing(kFrench), ru = font.Missing(kRussian);
+    row.caption += L"   [" + actual + L"]   DE " + (de.empty() ? L"✓" : L"✗") + L"  FR " +
+                   (fr.empty() ? L"✓" : L"✗ (" + std::to_wstring(fr.size()) + L" missing)") + L"  RU " +
+                   (ru.empty() ? L"✓" : L"✗");
+    if (_wcsicmp(actual.c_str(), face.c_str()) != 0) {
+        row.warn = true;
+        row.caption += L"   OUT: face not found";
+    } else if (!de.empty()) {
+        row.warn = true;
+        row.caption += L"   OUT: no " + de;
+    }
+}
+
+SceneRow ToRow(SceneRow row, const Picture& p) {
+    row.width = p.width;
+    row.height = p.height;
+    row.pixels.resize(p.px.size());
+    for (std::size_t i = 0; i < p.px.size(); ++i) row.pixels[i] = ddmod::overlay::Pack(ddmod::overlay::PixelFormat::Xrgb8888, p.px[i]);
+    return row;
+}
+
+// Distance from the top of the line to the first row of the capital H in a bitmap font.
+int FntCapTop(GlyphCache& cache) {
+    const Glyph& g = cache.Get(L'H');
+    for (int y = 0; y < g.height; ++y) {
+        for (int x = 0; x < g.width; ++x) {
+            if (g.coverage[static_cast<std::size_t>(y) * g.width + x] != 0) return g.offsetY + y;
+        }
+    }
+    return 0;
+}
+
+// Rows with any pixel of the capital H in a bitmap font.
+int FntCapHeight(GlyphCache& cache) {
+    const Glyph& g = cache.Get(L'H');
+    int top = g.height, bottom = -1;
+    for (int y = 0; y < g.height; ++y) {
+        for (int x = 0; x < g.width; ++x) {
+            if (g.coverage[static_cast<std::size_t>(y) * g.width + x] != 0) {
+                top = std::min(top, y);
+                bottom = std::max(bottom, y);
+            }
+        }
+    }
+    return bottom >= top ? bottom - top + 1 : 0;
+}
+
+// The whole character set, all candidates at the same capital height.
+SceneRow RenderCharset(const Spec& spec, const Candidate& c) {
+    SceneRow row;
+    row.caption = c.label;
+    const std::filesystem::path fnt = std::filesystem::path(spec.fntDir) / spec.charsetFnt;
+    GlyphCache reference(ddmod::overlay::CreateFntGlyphSource(fnt));
+    const int target = FntCapHeight(reference) * spec.charsetScale;
+    std::vector<Image> images;
+    if (c.kind == Kind::Font) {
+        if (!c.file.empty()) AddFontResourceExW(c.file.c_str(), FR_PRIVATE, nullptr);
+        const int height = HeightForCap(c.face, c.weight, target);
+        const GdiFont font(c.face, height, c.weight);
+        AddCoverage(font, c.face, row);
+        row.caption += L"   (GDI height " + std::to_wstring(height) + L")";
+        for (const auto& s : kCharset) images.push_back(font.Line(s, spec.text, spec.edge));
+    } else {
+        // Leave out characters the bitmap font does not have (they would show as '?').
+        auto probe = ddmod::overlay::CreateFntGlyphSource(fnt);
+        for (const auto& all : kCharset) {
+            std::wstring s;
+            for (const wchar_t ch : all) {
+                Glyph g;
+                s += ch == L' ' || probe->Rasterize(ch, g) ? ch : L' ';
+            }
+            const Image line = FntLine(reference, s);
+            images.push_back(c.kind == Kind::Smooth ? ScaleSdf(line, spec.charsetScale)
+                                                    : ScaleNearest(line, spec.charsetScale));
+        }
+    }
+    constexpr int kMargin = 16;
+    int width = 0, height = kMargin;
+    for (const Image& img : images) {
+        width = std::max(width, img.width + 2 * kMargin);
+        height += img.height;
+    }
+    Picture p{width, height + kMargin, std::vector<Rgb>(static_cast<std::size_t>(width) * (height + kMargin), spec.bg)};
+    int y = kMargin;
+    for (const Image& img : images) {
+        Blend(p, img, kMargin, y);
+        y += img.height;
+    }
+    return ToRow(std::move(row), p);
+}
+
+// Lays the lines out on the background and returns the row (1x left, 2x right).
+SceneRow RenderCandidate(const Spec& spec, const Picture& crop, const Candidate& c) {
+    SceneRow row;
+    row.caption = c.label;
+    std::vector<Image> images;
+    std::vector<int> shifts(spec.lines.size(), 0);  // matched fonts: capital H top where the original's is
+    if (c.kind == Kind::Font) {
+        if (!c.file.empty()) AddFontResourceExW(c.file.c_str(), FR_PRIVATE, nullptr);
+        bool faceChecked = false;
+        std::wstring heights;
+        int fitHeight = 0;
+        if (c.fit > 0) {
+            // Also the tallest and deepest characters any text may hold, not only those of the sample.
+            std::wstring all = L"ÄÖÜÁÉbdfghjklpqyß";
+            for (const Line& line : spec.lines) all += line.str;
+            for (int h = 4; h < 200 && GdiFont(c.face, h, c.weight).InkExtent(all) <= c.fit; ++h) fitHeight = h;
+        }
+        for (const Line& line : spec.lines) {
+            GlyphCache original(ddmod::overlay::CreateFntGlyphSource(std::filesystem::path(spec.fntDir) / line.fnt));
+            const int height = c.fit > 0          ? std::max(4, fitHeight)
+                               : c.matchX      ? HeightForX(c.face, c.weight, FntInkHeight(original, L'x'))
+                               : c.matchHeight ? HeightForCap(c.face, c.weight, FntCapHeight(original))
+                                               : line.height;
+            const GdiFont font(c.face, height, c.weight);
+            if (!faceChecked) {
+                faceChecked = true;
+                AddCoverage(font, c.face, row);
+            }
+            if (heights.find(L" " + std::to_wstring(height) + L" ") == std::wstring::npos) {
+                heights += L" " + std::to_wstring(height) + L" ";
+            }
+            if (c.matchX) {
+                // Same baseline as the original (the row under its capital H).
+                shifts[images.size()] = FntCapTop(original) + FntCapHeight(original) - font.Ascent();
+            } else if (c.matchHeight || c.fit > 0) {
+                shifts[images.size()] = FntCapTop(original) - font.CapTop();
+            }
+            std::wstring str = line.str;
+            if (c.lower) CharLowerBuffW(str.data(), static_cast<DWORD>(str.size()));
+            if (c.style == Style::Ramp) {
+                const bool plain = c.morph == 0 && c.squeeze == 0 && c.altFace.empty();
+                images.push_back(plain ? font.Line(str, line.text, line.edge, c.tracking)
+                                       : PaintRamp(CandidateMask(c, height, str), line.text, line.edge));
+            } else {
+                const std::vector<Rgb> profile = MeasureProfile(original);
+                const Bevel bevel = MeasureBevel(original, profile);
+                if (c.style == Style::Measured && images.empty()) {
+                    std::fwprintf(stdout, L"  %ls: profile", line.fnt.c_str());
+                    for (const Rgb p : profile) std::fwprintf(stdout, L" %02X%02X%02X", p.r, p.g, p.b);
+                    std::fwprintf(stdout, L"\n  edge factors (top, bottom, left, right; 1-3 px):");
+                    for (const auto& s : bevel.side) std::fwprintf(stdout, L"  %.2f %.2f %.2f", s[0], s[1], s[2]);
+                    std::fwprintf(stdout, L"\n");
+                }
+                const Shine shine = MeasureShine(original);
+                if (c.style == Style::Shine && images.empty()) {
+                    std::fwprintf(stdout, L"  %ls: across strokes (horizontal | vertical):", line.fnt.c_str());
+                    for (const auto& d : shine.across) {
+                        for (const float v : d) std::fwprintf(stdout, L" %.2f", v);
+                        std::fwprintf(stdout, L" |");
+                    }
+                    std::fwprintf(stdout, L" texture %.3f\n", shine.texture);
+                }
+                const bool own = c.style == Style::Measured || c.style == Style::Shine;
+                images.push_back(PaintStyled(CandidateMask(c, height, str), kPad + font.CapTop(), font.CapHeight(), profile,
+                                             line.edge, !own, c.style == Style::Gloss,
+                                             c.style == Style::Measured ? &bevel : nullptr,
+                                             c.style == Style::Shine ? &shine : nullptr, c.shineStrength, c.texture));
+            }
+        }
+        if (c.fit > 0) {
+            row.caption += L"   (GDI height" + heights + L"= largest without touching lines " + std::to_wstring(c.fit) +
+                           L" px apart)";
+        } else if (c.matchX) {
+            row.caption += L"   (GDI height" + heights + L"= lowercase x as in the original" +
+                           (c.squeeze > 0 ? L", extenders squeezed into " + std::to_wstring(c.squeeze) + L" px)" : L")");
+        } else if (c.matchHeight) {
+            row.caption += L"   (GDI height" + heights + L"= capital H as in the original)";
+        }
+    } else {
+        for (const Line& line : spec.lines) {
+            GlyphCache cache(ddmod::overlay::CreateFntGlyphSource(std::filesystem::path(spec.fntDir) / line.fnt));
+            images.push_back(FntLine(cache, line.str));
+        }
+    }
+
+    int width = crop.width;
+    for (const Image& img : images) width = std::max(width, img.width + 2 * spec.left);
+    Picture one = Widen(crop, width);
+    Picture two = Nearest(one, 2);
+    for (std::size_t i = 0; i < images.size(); ++i) {
+        const int x = spec.center ? (width - images[i].width) / 2 : spec.left - kPad;
+        const int y = spec.top + static_cast<int>(i) * spec.spacing - kPad + shifts[i];
+        Blend(one, images[i], x, y);
+        if (c.kind == Kind::Smooth) Blend(two, ScaleSdf(images[i], 2), 2 * x, 2 * y);
+    }
+    if (c.kind != Kind::Smooth) two = Nearest(one, 2);
+
+    constexpr int kGap = 24;
+    row.width = one.width + kGap + two.width;
+    row.height = two.height;
+    row.pixels.assign(static_cast<std::size_t>(row.width) * row.height, 0x00101010);
+    const auto put = [&](const Picture& p, int x0) {
+        for (int y = 0; y < p.height; ++y) {
+            for (int x = 0; x < p.width; ++x) {
+                row.pixels[static_cast<std::size_t>(y) * row.width + x0 + x] =
+                    ddmod::overlay::Pack(ddmod::overlay::PixelFormat::Xrgb8888, p.px[static_cast<std::size_t>(y) * p.width + x]);
+            }
+        }
+    };
+    put(one, 0);
+    put(two, one.width + kGap);
+    return row;
+}
+
+}  // namespace
+
+bool RenderScene(const std::filesystem::path& specFile, std::vector<SceneRow>& rows, std::wstring& error) {
+    std::ifstream in(specFile, std::ios::binary);
+    if (!in) {
+        error = L"cannot read " + specFile.wstring();
+        return false;
+    }
+    std::stringstream buffer;
+    buffer << in.rdbuf();
+    std::wstring text = Widen(buffer.str());
+    if (!text.empty() && text[0] == 0xFEFF) text.erase(0, 1);
+
+    Spec spec;
+    Picture crop;
+    std::wistringstream lines(text);
+    std::wstring raw;
+    while (std::getline(lines, raw)) {
+        if (!raw.empty() && raw.back() == L'\r') raw.pop_back();
+        if (raw.empty() || raw[0] == L'#') continue;
+        const auto f = Split(raw);
+        const std::wstring& key = f[0];
+        const auto need = [&](std::size_t n) {
+            if (f.size() < n + 1) error = key + L" needs " + std::to_wstring(n) + L" fields: " + raw;
+            return f.size() >= n + 1;
+        };
+        if (key == L"title" && need(1)) {
+            rows.push_back({f[1], false, 0, 0, {}});
+        } else if (key == L"background" && need(5)) {
+            spec.bgFile = f[1];
+            spec.bgX = _wtoi(f[2].c_str());
+            spec.bgY = _wtoi(f[3].c_str());
+            spec.bgW = _wtoi(f[4].c_str());
+            spec.bgH = _wtoi(f[5].c_str());
+            if (!LoadCrop(spec, crop)) {
+                error = L"cannot load background " + spec.bgFile;
+                return false;
+            }
+        } else if (key == L"fntdir" && need(1)) {
+            spec.fntDir = f[1];
+        } else if (key == L"align" && need(1)) {
+            spec.center = f[1] == L"center";
+        } else if (key == L"spacing" && need(1)) {
+            spec.spacing = _wtoi(f[1].c_str());
+        } else if (key == L"top" && need(1)) {
+            spec.top = _wtoi(f[1].c_str());
+        } else if (key == L"left" && need(1)) {
+            spec.left = _wtoi(f[1].c_str());
+        } else if (key == L"line" && need(5)) {
+            spec.lines.push_back({f[1], _wtoi(f[2].c_str()), ParseHex(f[3]), ParseHex(f[4]), f[5]});
+        } else if (key == L"alt") {
+            // alt|<face>|<file>|<weight>|<from>|<to> for the following candidates; alt alone clears it.
+            spec.altFace = f.size() > 5 ? f[1] : L"";
+            spec.altFile = f.size() > 5 ? f[2] : L"";
+            spec.altWeight = f.size() > 5 ? _wtoi(f[3].c_str()) : 400;
+            spec.altFrom = f.size() > 5 ? f[4] : L"";
+            spec.altTo = f.size() > 5 ? f[5] : L"";
+        } else if (key == L"charset" && need(5)) {
+            spec.charsetFnt = f[1];
+            spec.charsetScale = std::max(1, _wtoi(f[2].c_str()));
+            spec.text = ParseHex(f[3]);
+            spec.edge = ParseHex(f[4]);
+            spec.bg = ParseHex(f[5]);
+        } else if ((key == L"original" || key == L"smooth" || key == L"font") && need(key == L"font" ? 4 : 1)) {
+            const bool charset = !spec.charsetFnt.empty();
+            if (!charset && (crop.px.empty() || spec.lines.empty())) {
+                error = L"charset, or background and lines, must come before " + key;
+                return false;
+            }
+            Candidate c{key == L"original" ? Kind::Original : key == L"smooth" ? Kind::Smooth : Kind::Font, f[1], {}, {}};
+            if (c.kind == Kind::Font) {
+                c.face = f[2];
+                c.file = f[3];
+                c.weight = _wtoi(f[4].c_str());
+                for (std::size_t k = 5; k < f.size(); ++k) {
+                    const std::wstring& t = f[k];
+                    if (t == L"match") c.matchHeight = true;
+                    else if (t == L"gradient") c.style = Style::Gradient;
+                    else if (t == L"gloss") c.style = Style::Gloss;
+                    else if (t == L"measured") c.style = Style::Measured;
+                    else if (t == L"lower") c.lower = true;
+                    else if (t.starts_with(L"bold")) c.morph = _wtoi(t.c_str() + 4);
+                    else if (t.starts_with(L"thin")) c.morph = -_wtoi(t.c_str() + 4);
+                    else if (t.starts_with(L"track")) c.tracking = _wtoi(t.c_str() + 5);
+                    else if (t.starts_with(L"fit")) c.fit = _wtoi(t.c_str() + 3);
+                    else if (t == L"matchx") c.matchX = true;
+                    else if (t == L"tex") c.texture = true;
+                    else if (t.starts_with(L"shine")) {
+                        c.style = Style::Shine;
+                        if (t.size() > 5) c.shineStrength = static_cast<float>(_wtoi(t.c_str() + 5)) / 100.0f;
+                    }
+                    else if (t.starts_with(L"squeeze")) c.squeeze = _wtoi(t.c_str() + 7);
+                }
+                c.altFace = spec.altFace;
+                c.altFile = spec.altFile;
+                c.altWeight = spec.altWeight;
+                c.altFrom = spec.altFrom;
+                c.altTo = spec.altTo;
+            }
+            rows.push_back(charset ? RenderCharset(spec, c) : RenderCandidate(spec, crop, c));
+        } else if (error.empty()) {
+            error = L"unknown entry: " + raw;
+        }
+        if (!error.empty()) return false;
+    }
+    return true;
+}
+
+}  // namespace fontpreview
