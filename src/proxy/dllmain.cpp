@@ -101,13 +101,11 @@ void Startup(HMODULE self) {
     // the font hooks go in right here. Only the loading thread runs at this point.
     const bool fontHook = config::GetBool("Features", "FontHook", true);
     const bool debug = log::Enabled(log::Level::Debug);
-    // The experimental own glyph tables replace glyphs of the bitmap fonts, so they keep the game
-    // on its bitmap path (no font mode, no GDI colors).
-    const bool glyphTable = fonts::GlyphTableConfigured();
-    if ((fontHook || debug || glyphTable) && hooks::Init()) {
+    // The glyph renderer replaces the glyphs of the bitmap fonts, so it keeps the game on its
+    // bitmap path (no font mode, no GDI colors).
+    if ((fontHook || debug) && hooks::Init()) {
         fonts::Install(fontHook);
-        if (glyphTable) {
-            if (fontHook) log::Info("Glyph table active: font mode and font colors skipped (bitmap fonts stay)");
+        if (fontHook && fonts::ConfiguredRenderer() == fonts::Renderer::Glyphs) {
             fonts::InstallGlyphTable();
             fonts::InstallSpacing();
         } else if (fontHook) {

@@ -33,4 +33,6 @@ Own code under the [MIT License](LICENSE).
 
 Third-party code: [MinHook](https://github.com/TsudaKageyu/minhook) by Tsuda Kageyu (BSD 2-Clause License), statically linked into `RivellonRenewed.asi`; its license text must ship with binary releases.
 
-Bundled font: DejaVu Sans Condensed Bold from [DejaVu Fonts](https://dejavu-fonts.github.io/) 2.37 (`assets/fonts/`, installed as `RivellonRenewed\fonts\`), under the Bitstream Vera / DejaVu license in `assets/fonts/LICENSE-DejaVu.txt`. It is only a fallback: the mod uses the system font Tahoma when it is available (`[Fonts] Chain` in `RivellonRenewed.ini`).
+Bundled fonts (`assets/fonts/`, installed as `RivellonRenewed\fonts\`):
+- DejaVu Sans Condensed Bold from [DejaVu Fonts](https://dejavu-fonts.github.io/) 2.37, under the Bitstream Vera / DejaVu license in `assets/fonts/LICENSE-DejaVu.txt`. It is only a fallback: the mod uses the system font Tahoma when it is available (`[Fonts] Chain` and `[Family.Dialog]` in `RivellonRenewed.ini`).
+- Marcellus SC, Fondamento and Uncial Antiqua by Brian J. Bonislawsky (Astigmatic) and Almendra SC by Ana Sanfelippo, from the [Google Fonts](https://github.com/google/fonts) repository, each under the SIL Open Font License 1.1 (`assets/fonts/OFL-<font>.txt`). The game's texts are drawn in them (`[Family.*]` in `RivellonRenewed.ini`).

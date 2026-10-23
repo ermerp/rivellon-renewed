@@ -1,7 +1,9 @@
 #include "fonts/glyphtable.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <chrono>
 #include <cstring>
 #include <map>
 
@@ -11,9 +13,12 @@
 #include "core/hooks.h"
 #include "core/log.h"
 #include "core/paths.h"
+#include "fonts/families.h"
 #include "fonts/fontchain.h"
+#include "fonts/fontcolors.h"
 #include "game/exe.h"
-#include "overlay/glyphs.h"
+#include "text/gdiface.h"
+#include "text/style.h"
 
 namespace ddmod::fonts {
 namespace {
@@ -24,27 +29,38 @@ constexpr std::size_t kLineHeight = 0x0C;
 constexpr std::size_t kGlyphTable = 0x14;
 constexpr std::size_t kFileBlock = 0x18;
 constexpr std::size_t kSpaceWidth = 0x2C;
-// Glyph: +0x0C origin y (i32). Sprite: +0x00 total size, +0x04 offset of the pixel block,
-// +0x0A height (u16).
+// Glyph: +0x08 origin x (i32), +0x0C origin y (i32), +0x10 advance (i16). Sprite: +0x08 width,
+// +0x0A height (u16), row entries from +0x0C.
+constexpr std::size_t kGlyphOriginX = 0x08;
 constexpr std::size_t kGlyphOriginY = 0x0C;
-constexpr std::size_t kSpriteTotal = 0x00;
-constexpr std::size_t kSpritePixels = 0x04;
+constexpr std::size_t kGlyphAdvance = 0x10;
+constexpr std::size_t kSpriteWidth = 0x08;
 constexpr std::size_t kSpriteHeight = 0x0A;
-
-// Edge tones the originals blend their anti-aliasing into (Colors).
-constexpr overlay::Rgb kBlack{0, 0, 0};
-constexpr overlay::Rgb kPaper{0x9C, 0x8E, 0x5A};
-constexpr overlay::Rgb kDiary{0x94, 0x7D, 0x4A};
+constexpr std::size_t kSpriteRows = 0x0C;
+// Characters that reach down and up the furthest in ordinary text; an `auto` line height keeps
+// them of neighboring lines apart.
+constexpr wchar_t kExtenders[] = L"bdfhklgjpqyß";
 
 using LoadFontFileFn = void*(__thiscall*)(void* font, const char* path);
 
 LoadFontFileFn g_loadFontFile = nullptr;
-std::vector<std::string> g_fonts;
-int g_linePitchPercent = 100;
 std::vector<const void*> g_ownFonts;
 // The game never frees glyphs of a bitmap font one by one (only its file block), so the own
 // glyphs live as long as the process.
 std::vector<std::unique_ptr<std::uint8_t[]>> g_glyphMemory;
+int g_fontsSeen = 0;
+int g_fontsReplaced = 0;
+int g_glyphsReplaced = 0;
+double g_milliseconds = 0.0;
+
+// A family's settings and face, resolved when its first font is loaded.
+struct FamilyState {
+    bool resolved = false;
+    FamilySettings settings;
+    std::optional<FontEntry> face;
+    std::map<int, int> heightForCap;  // capital height -> GDI height
+};
+std::array<FamilyState, std::size(kFamilies)> g_families;
 
 template <typename T>
 T& Field(void* object, std::size_t offset) {
@@ -63,133 +79,145 @@ void Write(std::uint8_t* at, T value) {
     std::memcpy(at, &value, sizeof(T));
 }
 
-overlay::Rgb FromRgb565(std::uint16_t value) {
-    const int r = (value >> 11) & 0x1F, g = (value >> 5) & 0x3F, b = value & 0x1F;
-    return {static_cast<std::uint8_t>(r * 255 / 31), static_cast<std::uint8_t>(g * 255 / 63),
-            static_cast<std::uint8_t>(b * 255 / 31)};
-}
-
-overlay::Rgb Scaled(overlay::Rgb color, double factor) {
-    const auto channel = [factor](std::uint8_t c) {
-        return static_cast<std::uint8_t>(std::clamp(static_cast<int>(c * factor + 0.5), 0, 255));
-    };
-    return {channel(color.r), channel(color.g), channel(color.b)};
-}
-
-overlay::Rgb EdgeToneFor(const std::string& stem) {
-    if (stem.starts_with("fontblack") || stem.starts_with("paper")) return kPaper;
-    if (stem.starts_with("diary")) return kDiary;
-    return kBlack;
-}
-
-// What the original font looks like: the most frequent pixel color of its capitals, and the top
-// row and height of its "H" relative to the top of the line.
-struct OriginalLook {
-    overlay::Rgb color{0xE7, 0xE7, 0xE7};
-    int capTop = 0;
-    int capHeight = 0;
-};
-
-OriginalLook MeasureOriginal(void* font) {
-    OriginalLook look;
-    void** table = Field<void**>(font, kGlyphTable);
-    std::map<std::uint16_t, int> counts;
-    for (int ch = 'A'; ch <= 'Z'; ++ch) {
-        const auto* glyph = static_cast<const std::uint8_t*>(table[ch]);
-        if (!glyph) continue;
-        const std::uint8_t* sprite = glyph + kGlyphSprite;
-        const auto total = Read<std::uint32_t>(sprite, kSpriteTotal);
-        const auto pixels = Read<std::uint32_t>(sprite, kSpritePixels);
-        for (std::uint32_t at = pixels; at + 2 <= total; at += 2) ++counts[Read<std::uint16_t>(sprite, at)];
+FamilyState& StateOf(Family family) {
+    FamilyState& state = g_families[static_cast<std::size_t>(family)];
+    if (state.resolved) return state;
+    state.resolved = true;
+    state.settings = ConfiguredSettings(family);
+    const char* name = FamilyName(family);
+    if (!state.settings.enabled) {
+        log::Info("Glyph renderer: family {} off ([Family.{}] Enabled=0) - original glyphs", name, name);
+        return state;
     }
+    state.face = Resolve(ParseChain(state.settings.chain, paths::ModDir()), state.settings.weight >= FW_SEMIBOLD);
+    if (!state.face) {
+        log::Warn("Glyph renderer: family {} has no available face - original glyphs", name);
+        return state;
+    }
+    const LineHeight& line = state.settings.lineHeight;
+    log::Info("Glyph renderer: family {} - \"{}\" weight {}, line height {}", name, paths::ToUtf8(state.face->face),
+              state.settings.weight, line.automatic ? std::string("auto") : std::to_string(line.percent) + "%");
+    return state;
+}
+
+// The original's text and edge color: the measured table (fontcolors.cpp), or for a name it does
+// not know the most frequent capital color and the family's usual edge tone.
+text::Rgb ToRgb(Rgb8 c) { return {c.r, c.g, c.b}; }
+
+FontColors ColorsOf(const std::string& stem, Family family, const text::Capitals& caps) {
+    for (const FontColorEntry& entry : FontColorTable()) {
+        if (entry.file == stem) return entry.original;
+    }
+    std::map<std::uint32_t, int> counts;
+    for (const overlay::Glyph& g : caps) {
+        for (std::size_t i = 0; i < g.colors.size(); ++i) {
+            if (g.coverage[i]) ++counts[static_cast<std::uint32_t>(g.colors[i].r) << 16 | g.colors[i].g << 8 | g.colors[i].b];
+        }
+    }
+    FontColors colors{{0xE7, 0xE7, 0xE7}, {0, 0, 0}};
     const auto most = std::max_element(counts.begin(), counts.end(),
                                        [](const auto& a, const auto& b) { return a.second < b.second; });
-    if (most != counts.end()) look.color = FromRgb565(most->first);
-    const auto* h = static_cast<const std::uint8_t*>(table['H']);
-    if (h) {
-        look.capTop = -Read<std::int32_t>(h, kGlyphOriginY);
-        look.capHeight = Read<std::uint16_t>(h + kGlyphSprite, kSpriteHeight);
-    } else {
-        look.capHeight = std::max(1, Field<int>(font, kLineHeight) * 2 / 3);
+    if (most != counts.end()) {
+        colors.text = {static_cast<std::uint8_t>(most->first >> 16), static_cast<std::uint8_t>(most->first >> 8),
+                       static_cast<std::uint8_t>(most->first)};
     }
-    return look;
+    if (family == Family::Books) colors.edge = {0x9C, 0x8E, 0x5A};
+    if (family == Family::DiaryTitle) colors.edge = {0x94, 0x7D, 0x4A};
+    return colors;
 }
 
-std::unique_ptr<overlay::GlyphSource> OpenFace(const FontEntry& face, int pixelHeight) {
-    overlay::FontSpec spec;
-    spec.face = face.face;
-    spec.file = face.file;
-    spec.pixelHeight = pixelHeight;
-    return overlay::CreateGdiGlyphSource(spec);
-}
-
-// Replaces every glyph the original font has (except the space and control characters) with one
-// rasterized from the font chain's face at the original's capital height.
-void ReplaceGlyphs(void* font, const std::string& stem) {
-    const auto& face = Configured();
-    if (!face) {
-        log::Warn("Glyph table: no face from the font chain - {} keeps its glyphs", stem);
-        return;
-    }
-    const OriginalLook look = MeasureOriginal(font);
-    // Scale the face so that its "H" is as tall as the original's.
-    overlay::Glyph probe;
-    auto reference = OpenFace(*face, 100);
-    if (!reference || !reference->Rasterize(L'H', probe) || probe.height <= 0) {
-        log::Warn("Glyph table: face cannot be measured - {} keeps its glyphs", stem);
-        return;
-    }
-    const int pixelHeight = std::max(4, (look.capHeight * 100 + probe.height / 2) / probe.height);
-    auto source = OpenFace(*face, pixelHeight);
-    if (!source || !source->Rasterize(L'H', probe)) return;
-    // Our baseline onto the original's.
-    const int shift = look.capTop + look.capHeight - (probe.offsetY + probe.height);
-    const overlay::Rgb edge = EdgeToneFor(stem);
-    const unsigned codePage = game::Exe().edition == game::Edition::Russian ? 1251 : 1252;
-
+// Replaces every glyph the original font has (except the space and control characters, and
+// characters the family's face lacks) with one of the family's face at the original's capital
+// height, painted in the family's style.
+void ReplaceGlyphs(void* font, const std::string& stem, Family family) {
+    FamilyState& state = StateOf(family);
+    if (!state.settings.enabled || !state.face) return;
+    const auto start = std::chrono::steady_clock::now();
     void** table = Field<void**>(font, kGlyphTable);
-    int replaced = 0;
+    text::Capitals caps;
+    for (int ch = 'A'; ch <= 'Z'; ++ch) caps.push_back(table[ch] ? DecodeGameGlyph(table[ch]) : overlay::Glyph{});
+    const text::CapMetrics cap = text::MeasureCap(caps);
+    if (cap.height <= 0) {
+        log::Warn("Glyph renderer: {} has no capital H to measure - original glyphs", stem);
+        return;
+    }
+    const FamilySettings& settings = state.settings;
+    const std::wstring& faceName = state.face->face;
+    auto [known, inserted] = state.heightForCap.try_emplace(cap.height, 0);
+    if (inserted) known->second = text::HeightForCap(faceName, settings.weight, cap.height);
+    const int height = known->second;
+    const text::GdiFace face(faceName, height, settings.weight);
+    if (!face.Valid()) {
+        log::Warn("Glyph renderer: {} - GDI cannot create \"{}\" {} - original glyphs", stem, paths::ToUtf8(faceName), height);
+        return;
+    }
+    // The face's capital H where the original's is.
+    const int shift = cap.top - face.CapTop();
+    const FontColors colors = ColorsOf(stem, family, caps);
+    const text::Rgb textColor = ToRgb(colors.text), edge = ToRgb(colors.edge);
+
+    text::Bevel bevel;
+    text::Shine shine;
+    text::StyleParams style;
+    if (settings.style != GlyphStyle::Ramp) {
+        style.profile = text::MeasureProfile(caps);
+        style.contour = edge;
+        if (settings.style == GlyphStyle::Measured) {
+            bevel = text::MeasureBevel(caps, style.profile);
+            style.bevel = &bevel;
+        } else {
+            shine = text::MeasureShine(caps);
+            style.shine = &shine;
+            style.shineStrength = settings.shineStrength;
+            style.texture = settings.texture;
+        }
+    }
+
+    int replaced = 0, kept = 0;
     for (int byte = 0x21; byte < 0x100; ++byte) {
         if (!table[byte]) continue;
         const char ansi = static_cast<char>(byte);
         wchar_t wide = 0;
-        if (MultiByteToWideChar(codePage, MB_ERR_INVALID_CHARS, &ansi, 1, &wide, 1) != 1) continue;
-        overlay::Glyph glyph;
-        if (!source->Rasterize(wide, glyph) || glyph.width <= 0 || glyph.height <= 0) continue;
-        PixelGlyph out;
-        out.width = glyph.width;
-        out.height = glyph.height;
-        out.originX = glyph.offsetX;
-        out.originY = -(glyph.offsetY + shift);
-        out.advance = glyph.advance;
-        out.character = static_cast<std::uint16_t>(byte);
-        out.pixels.resize(glyph.coverage.size());
-        for (int row = 0; row < glyph.height; ++row) {
-            // Vertical gradient over the capital height (lighter at the top), the same for every
-            // glyph of the line - shows that each pixel can have its own color.
-            const int lineY = glyph.offsetY + shift + row;
-            const double t = std::clamp(static_cast<double>(lineY - look.capTop) / std::max(1, look.capHeight), 0.0, 1.0);
-            const overlay::Rgb color = Scaled(look.color, 1.25 - 0.5 * t);
-            for (int col = 0; col < glyph.width; ++col) {
-                const std::size_t at = static_cast<std::size_t>(row) * glyph.width + col;
-                const std::uint8_t coverage = glyph.coverage[at];
-                out.pixels[at] = coverage ? ShadePixel(color, edge, coverage) : 0;
-            }
+        text::GdiFace::Mask m;
+        if (MultiByteToWideChar(1252, MB_ERR_INVALID_CHARS, &ansi, 1, &wide, 1) != 1 ||
+            !face.Missing(std::wstring(1, wide)).empty() || !face.GlyphMask(wide, 0, m) || m.mask.alpha.empty()) {
+            ++kept;
+            continue;
         }
+        const text::Image painted = settings.style == GlyphStyle::Ramp
+                                        ? text::PaintRamp(m.mask, textColor, edge)
+                                        : text::PaintStyled(m.mask, face.CapTop() - m.top, face.CapHeight(), style);
+        PixelGlyph out;
+        out.width = m.mask.width;
+        out.height = m.mask.height;
+        out.originX = m.left;
+        out.originY = -(m.top + shift);
+        out.advance = m.advance;
+        out.character = static_cast<std::uint16_t>(byte);
+        out.pixels = text::ToGamePixels(painted, edge);
         g_glyphMemory.push_back(BuildGameGlyph(out));
         table[byte] = g_glyphMemory.back().get();
         ++replaced;
     }
-    overlay::Glyph space;
-    if (source->Rasterize(L' ', space) && space.advance > 0) Field<std::int16_t>(font, kSpaceWidth) = static_cast<std::int16_t>(space.advance);
+    text::GdiFace::Mask space;
+    if (face.GlyphMask(L' ', 0, space) && space.advance > 0) {
+        Field<std::int16_t>(font, kSpaceWidth) = static_cast<std::int16_t>(space.advance);
+    }
     int& lineHeight = Field<int>(font, kLineHeight);
     const int originalLine = lineHeight;
-    lineHeight = std::max(1, originalLine * g_linePitchPercent / 100);
+    if (settings.lineHeight.automatic) {
+        lineHeight = std::max(originalLine, face.InkExtent(kExtenders) + 1);
+    } else {
+        lineHeight = std::max(1, originalLine * settings.lineHeight.percent / 100);
+    }
     g_ownFonts.push_back(font);
-    log::Info("Glyph table: {} - {} glyphs replaced (face {} {} px, capital height {}, color #{:02X}{:02X}{:02X}, "
-              "line height {} -> {})",
-              stem, replaced, paths::ToUtf8(std::filesystem::path(face->face)), pixelHeight, look.capHeight,
-              look.color.r, look.color.g, look.color.b, originalLine, lineHeight);
+    ++g_fontsReplaced;
+    g_glyphsReplaced += replaced;
+    g_milliseconds += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    log::Debug("Glyph renderer: {} - {} glyphs replaced, {} kept (GDI height {}, capital height {}, color "
+               "#{:02X}{:02X}{:02X} on #{:02X}{:02X}{:02X}, line height {} -> {})",
+               stem, replaced, kept, height, cap.height, textColor.r, textColor.g, textColor.b, edge.r, edge.g, edge.b,
+               originalLine, lineHeight);
 }
 
 // See FontInitDetour (fontmode.cpp) for the __fastcall stand-in of __thiscall.
@@ -197,11 +225,30 @@ void* __fastcall LoadFontFileDetour(void* font, void* /*edx*/, const char* path)
     void* result = g_loadFontFile(font, path);
     if (!path || !Field<void*>(font, kFileBlock) || !Field<void**>(font, kGlyphTable)) return result;
     const std::string stem = FontStem(path);
-    if (std::find(g_fonts.begin(), g_fonts.end(), stem) != g_fonts.end()) ReplaceGlyphs(font, stem);
+    if (const auto family = FamilyOf(stem)) ReplaceGlyphs(font, stem, *family);
+    if (++g_fontsSeen == static_cast<int>(kGameFontCount)) {
+        log::Info("Glyph renderer: {} of {} fonts replaced, {} glyphs, {:.0f} ms", g_fontsReplaced, g_fontsSeen,
+                  g_glyphsReplaced, g_milliseconds);
+    }
     return result;
 }
 
 }  // namespace
+
+std::optional<Renderer> ParseRenderer(std::string_view text) {
+    std::string value(text);
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (value == "glyphs") return Renderer::Glyphs;
+    if (value == "gdi") return Renderer::Gdi;
+    return std::nullopt;
+}
+
+Renderer ConfiguredRenderer() {
+    const std::string text = config::GetString("Fonts", "Renderer", "glyphs");
+    if (const auto renderer = ParseRenderer(text)) return *renderer;
+    log::Warn("[Fonts] Renderer=\"{}\" is not glyphs or gdi - using glyphs", text);
+    return Renderer::Glyphs;
+}
 
 std::unique_ptr<std::uint8_t[]> BuildGameGlyph(const PixelGlyph& glyph) {
     struct Span {
@@ -260,30 +307,37 @@ std::unique_ptr<std::uint8_t[]> BuildGameGlyph(const PixelGlyph& glyph) {
     return memory;
 }
 
-std::uint16_t ShadePixel(overlay::Rgb color, overlay::Rgb background, std::uint8_t coverage) {
-    const auto mix = [coverage](int c, int bg) { return bg + ((c - bg) * coverage + 127) / 255; };
-    const int r = mix(color.r, background.r), g = mix(color.g, background.g), b = mix(color.b, background.b);
-    const auto value = static_cast<std::uint16_t>(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
-    return value ? value : 1;
-}
-
-std::vector<std::string> ParseFontList(std::string_view text) {
-    std::vector<std::string> fonts;
-    std::string current;
-    const auto flush = [&] {
-        while (!current.empty() && std::isspace(static_cast<unsigned char>(current.back()))) current.pop_back();
-        if (!current.empty()) fonts.push_back(current);
-        current.clear();
-    };
-    for (const char c : text) {
-        if (c == ',') {
-            flush();
-        } else if (!current.empty() || !std::isspace(static_cast<unsigned char>(c))) {
-            current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+overlay::Glyph DecodeGameGlyph(const void* glyph) {
+    overlay::Glyph out;
+    const auto* sprite = static_cast<const std::uint8_t*>(glyph) + kGlyphSprite;
+    const int width = Read<std::uint16_t>(sprite, kSpriteWidth);
+    const int height = Read<std::uint16_t>(sprite, kSpriteHeight);
+    if (width <= 0 || height <= 0 || width > 1024 || height > 1024) return out;
+    out.width = width;
+    out.height = height;
+    out.offsetX = Read<std::int32_t>(glyph, kGlyphOriginX);
+    out.offsetY = -Read<std::int32_t>(glyph, kGlyphOriginY);
+    out.advance = Read<std::int16_t>(glyph, kGlyphAdvance);
+    out.coverage.assign(static_cast<std::size_t>(width) * height, 0);
+    out.colors.assign(out.coverage.size(), overlay::Rgb{});
+    const std::uint8_t* row = sprite + kSpriteRows;
+    for (int y = 0; y < height; ++y) {
+        const int count = Read<std::uint16_t>(row, 0);
+        const auto* pixels = reinterpret_cast<const std::uint8_t*>(static_cast<std::uintptr_t>(Read<std::uint32_t>(row, 2)));
+        row += 6;
+        for (int i = 0; i < count; ++i, row += 4) {
+            const int x = Read<std::uint16_t>(row, 0), length = Read<std::uint16_t>(row, 2);
+            if (x + length > width) return {};
+            for (int k = 0; k < length; ++k) {
+                const std::size_t at = static_cast<std::size_t>(y) * width + x + k;
+                out.coverage[at] = 255;
+                out.colors[at] = overlay::Unpack(overlay::PixelFormat::Rgb565, Read<std::uint16_t>(pixels, 0));
+                pixels += 2;
+            }
         }
+        row += 2;
     }
-    flush();
-    return fonts;
+    return out;
 }
 
 std::string FontStem(std::string_view path) {
@@ -296,26 +350,18 @@ std::string FontStem(std::string_view path) {
     return stem;
 }
 
-bool GlyphTableConfigured() {
-    static const bool configured = !ParseFontList(config::GetString("Experimental", "GlyphTable", "")).empty();
-    return configured;
-}
-
 bool IsOwnGlyphFont(const void* font) {
     return std::find(g_ownFonts.begin(), g_ownFonts.end(), font) != g_ownFonts.end();
 }
 
 bool InstallGlyphTable() {
-    g_fonts = ParseFontList(config::GetString("Experimental", "GlyphTable", ""));
-    if (g_fonts.empty()) return true;
     if (game::Exe().edition == game::Edition::Russian) {
-        log::Info("Glyph table: not supported on the Russian edition");
+        log::Info("Glyph renderer: Russian edition - its Cyrillic bitmap fonts stay");
         return false;
     }
-    g_linePitchPercent = std::clamp(config::GetInt("Experimental", "GlyphTableLinePitch", 100), 50, 300);
     const std::uintptr_t target = game::Resolve({"LoadFontFile", kLoadFontFilePattern, 0, kLoadFontFileRva});
     if (!target) {
-        log::Warn("Glyph table: font file loader not found - fonts keep their glyphs");
+        log::Warn("Glyph renderer: font file loader not found - original bitmap fonts");
         return false;
     }
     if (!hooks::CreateRaw("LoadFontFile", reinterpret_cast<void*>(target), reinterpret_cast<void*>(&LoadFontFileDetour),
@@ -323,7 +369,7 @@ bool InstallGlyphTable() {
         !hooks::Enable("LoadFontFile")) {
         return false;
     }
-    log::Info("Glyph table (experimental): {} font(s), line pitch {}%", g_fonts.size(), g_linePitchPercent);
+    log::Info("Glyph renderer installed ([Fonts] Renderer=glyphs)");
     return true;
 }
 

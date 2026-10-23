@@ -32,6 +32,7 @@
 #include "fonts/fontchain.h"
 #include "fonts/fontcolors.h"
 #include "fonts/fonthook.h"
+#include "fonts/families.h"
 #include "fonts/fontmode.h"
 #include "fonts/glyphtable.h"
 #include "fonts/spacing.h"
@@ -382,15 +383,57 @@ void TestGlyphTable() {
     CHECK(u16(row + 16) == 0 && u16(row + 22) == 0);
     CHECK(u16(sprite + 36) == 0x1111 && u16(sprite + 38) == 0x2222);
 
-    CHECK(ShadePixel({255, 255, 255}, {0, 0, 0}, 255) == 0xFFFF);
-    CHECK(ShadePixel({255, 255, 255}, {0, 0, 0}, 0) == 1);  // black stays visible
-    CHECK(ShadePixel({0, 0, 0}, {0x9C, 0x8E, 0x5A}, 0) == ((0x9C >> 3) << 11 | (0x8E >> 2) << 5 | (0x5A >> 3)));
+    // Back from the game's layout (absolute row pointers, as after the game's loader).
+    const ddmod::overlay::Glyph decoded = DecodeGameGlyph(g);
+    CHECK(decoded.width == 3 && decoded.height == 2 && decoded.offsetX == 1 && decoded.offsetY == 4 && decoded.advance == 5);
+    CHECK(decoded.coverage == std::vector<std::uint8_t>({255, 0, 255, 0, 0, 0}));
+    CHECK(ddmod::overlay::Pack(ddmod::overlay::PixelFormat::Rgb565, decoded.colors[0]) == 0x1111 &&
+          ddmod::overlay::Pack(ddmod::overlay::PixelFormat::Rgb565, decoded.colors[2]) == 0x2222);
 
-    const auto fonts = ParseFontList(" fontn1, FontBlack1 ,,");
-    CHECK(fonts.size() == 2 && fonts[0] == "fontn1" && fonts[1] == "fontblack1");
-    CHECK(ParseFontList("").empty());
+    CHECK(ParseRenderer("glyphs") == Renderer::Glyphs && ParseRenderer("GDI") == Renderer::Gdi && !ParseRenderer("bitmap"));
     CHECK(FontStem("fonts\\FontN1.fnt") == "fontn1");
     CHECK(FontStem("dialog_white") == "dialog_white");
+}
+
+void TestFamilies() {
+    using namespace ddmod::fonts;
+    // Every game font belongs to its family; nothing else does.
+    int counts[std::size(kFamilies)] = {};
+    for (const FontColorEntry& entry : FontColorTable()) {
+        const auto family = FamilyOf(entry.file);
+        CHECK(family.has_value());
+        if (family) ++counts[static_cast<int>(*family)];
+    }
+    CHECK(counts[static_cast<int>(Family::Interface)] == 40 && counts[static_cast<int>(Family::Books)] == 8 &&
+          counts[static_cast<int>(Family::Menu)] == 6 && counts[static_cast<int>(Family::Dialog)] == 4 &&
+          counts[static_cast<int>(Family::DiaryTitle)] == 3);
+    CHECK(!FamilyOf("fontn6") && !FamilyOf("fontn") && !FamilyOf("arial") && !FamilyOf("fontbig48"));
+
+    CHECK(ParseLineHeight("auto")->automatic && ParseLineHeight("AUTO")->automatic);
+    CHECK(!ParseLineHeight("125")->automatic && ParseLineHeight("125")->percent == 125);
+    CHECK(!ParseLineHeight("49") && !ParseLineHeight("301") && !ParseLineHeight("12x") && !ParseLineHeight(""));
+
+    CHECK(DefaultSettings(Family::Books).lineHeight.automatic && DefaultSettings(Family::Books).weight == 400);
+    CHECK(DefaultSettings(Family::Menu).style == GlyphStyle::Shine && DefaultSettings(Family::Menu).texture);
+    CHECK(DefaultSettings(Family::DiaryTitle).style == GlyphStyle::Measured);
+    CHECK(DefaultSettings(Family::Interface).style == GlyphStyle::Ramp && !DefaultSettings(Family::Interface).lineHeight.automatic);
+
+    // The bundled faces: what the defaults name is in assets/fonts, GDI selects exactly that face,
+    // and it has every German and French character (no Cyrillic - the Russian edition keeps its
+    // bitmap fonts).
+    const std::filesystem::path assets = std::filesystem::path(DDMOD_SOURCE_DIR) / L"assets";
+    for (const Family family : {Family::Interface, Family::Books, Family::Menu, Family::DiaryTitle}) {
+        const auto chain = ParseChain(DefaultSettings(family).chain, assets);
+        CHECK(chain.size() == 1 && std::filesystem::exists(assets / L"fonts" / chain[0].file.filename()));
+        if (chain.size() != 1) continue;
+        const std::filesystem::path file = assets / L"fonts" / chain[0].file.filename();
+        CHECK(AddFontResourceExW(file.c_str(), FR_PRIVATE, nullptr) > 0);
+        const ddmod::text::GdiFace face(chain[0].face, 20, DefaultSettings(family).weight);
+        CHECK(face.ActualFace() == chain[0].face);
+        CHECK(face.Missing(L"ÄÖÜäöüß ÀÂÆÇÈÉÊËÎÏÔŒÙÛŸàâæçèéêëîïôœùûÿ«»").empty());
+        CHECK(face.Missing(L"Ж") == L"Ж");
+        RemoveFontResourceExW(file.c_str(), FR_PRIVATE, nullptr);
+    }
 }
 
 void TestFontColors() {
@@ -1035,6 +1078,7 @@ int main() {
     TestFontModeSignature();
     TestSpacing();
     TestGlyphTable();
+    TestFamilies();
     TestFontColors();
     TestEditionAndCharset();
     TestKeyCombo();
