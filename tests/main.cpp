@@ -415,6 +415,9 @@ void TestFamilies() {
 
     CHECK(DefaultSettings(Family::Books).lineHeight.automatic && DefaultSettings(Family::Books).weight == 400);
     CHECK(DefaultSettings(Family::Menu).style == GlyphStyle::Shine && DefaultSettings(Family::Menu).texture);
+    // The menu fonts' '[' and ']' are arrows; no other family has symbol glyphs.
+    CHECK(DefaultSettings(Family::Menu).keepOriginal == "[]");
+    CHECK(DefaultSettings(Family::Interface).keepOriginal.empty() && DefaultSettings(Family::Books).keepOriginal.empty());
     CHECK(DefaultSettings(Family::DiaryTitle).style == GlyphStyle::Measured);
     CHECK(DefaultSettings(Family::Interface).style == GlyphStyle::Ramp && !DefaultSettings(Family::Interface).lineHeight.automatic);
 

@@ -7,6 +7,8 @@
 //   --gdi <face> <height> <weight> <label>  installed font, like CreateFontA(height, weight): cell height
 //   --ttf <file> <face> <px> <weight> <label>  font file loaded for this process only, at px and 2*px
 //   --overview <dir> <scale>                one line per .fnt file in <dir> (for grouping families)
+//   --symbols <dir> <scale>                 one line per .fnt file in <dir>: every slot that is not a
+//                                           letter or digit (finds symbol glyphs such as menu arrows)
 //   --charsheet <file.fnt> <scale> <threshold%> <label>  A-Z, a-z, 0-9, umlauts, black on white, no smoothing
 //                                           (for font identification services; use --bg 255,255,255)
 //   --smooth <file.fnt> <label>             game glyphs at 2x and 4x: nearest neighbor, Scale2x,
@@ -201,6 +203,34 @@ int wmain(int argc, wchar_t** argv) {
                 const auto line = fontpreview::RenderLine(cache, L"Hamburgefonstiv ÄÖÜ äöüß 0123456789 ABCDEFG", text, 1);
                 blocks.push_back({name + L" – line " + std::to_wstring(cache.LineHeight()) + L" px",
                                   {FromImage(fontpreview::ScaleNearest(line, scale), bg)}});
+            }
+        } else if (arg == L"--symbols") {
+            need(2);
+            const std::wstring dir = argv[++i];
+            const int scale = _wtoi(argv[++i]);
+            // Every slot 0x21-0xFF that is not a letter or digit, as code page 1252.
+            std::wstring symbols;
+            for (int byte = 0x21; byte < 0x100; ++byte) {
+                const char ansi = static_cast<char>(byte);
+                wchar_t wide = 0;
+                if (MultiByteToWideChar(1252, MB_ERR_INVALID_CHARS, &ansi, 1, &wide, 1) != 1) continue;
+                if (!IsCharAlphaNumericW(wide)) symbols += wide;
+            }
+            WIN32_FIND_DATAW found{};
+            std::vector<std::wstring> names;
+            const HANDLE find = FindFirstFileW((dir + L"\\*.fnt").c_str(), &found);
+            if (find == INVALID_HANDLE_VALUE) return 1;
+            do names.push_back(found.cFileName); while (FindNextFileW(find, &found));
+            FindClose(find);
+            std::sort(names.begin(), names.end());
+            for (const auto& name : names) {
+                GlyphCache cache(CreateFntGlyphSource(dir + L"\\" + name));
+                if (cache.LineHeight() == 0) continue;
+                // Gaps between the glyphs keep neighbors apart.
+                std::wstring spaced;
+                for (const wchar_t ch : symbols) (spaced += ch) += L' ';
+                const auto line = fontpreview::RenderLine(cache, spaced, text, 1);
+                blocks.push_back({name, {FromImage(fontpreview::ScaleNearest(line, scale), bg)}});
             }
         } else if (arg == L"--charsheet") {
             need(4);

@@ -50,11 +50,13 @@ struct FamilySettings {
     GlyphStyle style = GlyphStyle::Ramp;
     float shineStrength = 1.0f;  // GlyphStyle::Shine
     bool texture = false;        // GlyphStyle::Shine
+    // Slots (code page 1252) whose original glyph is a symbol, not that character: they keep it.
+    std::string keepOriginal;
 };
 
 // The defaults (human's choice, PLAN.md Decisions): interface Marcellus SC 600, books Fondamento
 // 400 with a line height that keeps lines apart, menu Uncial Antiqua 600 with the measured shine
-// at twice its strength plus texture, dialog Tahoma Bold (else the bundled DejaVu Sans Condensed
+// at twice its strength plus texture (its '[' and ']' are the options pages' arrows), dialog Tahoma Bold (else the bundled DejaVu Sans Condensed
 // Bold), diary title Almendra SC 600 with the measured style.
 FamilySettings DefaultSettings(Family family);
 

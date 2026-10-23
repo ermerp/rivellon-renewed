@@ -177,6 +177,10 @@ void ReplaceGlyphs(void* font, const std::string& stem, Family family) {
     for (int byte = 0x21; byte < 0x100; ++byte) {
         if (!table[byte]) continue;
         const char ansi = static_cast<char>(byte);
+        if (settings.keepOriginal.find(ansi) != std::string::npos) {
+            ++kept;
+            continue;
+        }
         wchar_t wide = 0;
         text::GdiFace::Mask m;
         if (MultiByteToWideChar(1252, MB_ERR_INVALID_CHARS, &ansi, 1, &wide, 1) != 1 ||

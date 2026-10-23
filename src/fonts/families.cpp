@@ -71,6 +71,7 @@ FamilySettings DefaultSettings(Family family) {
             s.style = GlyphStyle::Shine;
             s.shineStrength = 2.0f;
             s.texture = true;
+            s.keepOriginal = "[]";  // right and left arrow beside the values on the options pages
             break;
         case Family::Dialog:
             s.chain = kDefaultChain;
