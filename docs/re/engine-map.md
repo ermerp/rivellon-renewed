@@ -141,18 +141,22 @@ About 1 030 functions (184 KB) of each `slash*.dll` have identical sizes in all 
 - **Clear seams:** each folder is one contiguous block, so a subsystem's code, its entry points (calls from other blocks) and its size can be listed before work starts. The renderer is already behind a DLL interface (15 exports), the story engine and dialogs too – the cheapest places to put our own implementation behind the original interface.
 - **Sizes of candidates:** font code about 21 KB (`font` + `0x494440` gap, plus the setup in `bmgui`) – a good REA trial size; sound about 50 KB; UI about 300 KB (many small windows, each replaceable on its own); gameplay about 730 KB – only targeted changes, no rebuild.
 - **The editor (218 KB) and multiplayer remains (16 KB) can be ignored** for every player-facing feature.
-- **Only about 40 % of the game code runs in a typical session** (runtime share below) – the part a replacement must reproduce is smaller than the static size, though every subsystem keeps rare paths (other spells, fights, traders) that a test session misses.
+- **About 55 % of the game code ran in 45 minutes of real play plus the scripted runs** (runtime share below) – the part a replacement must reproduce is smaller than the static size, though every subsystem keeps rare paths (spells, ranged combat, later chapters) that these sessions miss.
 
 ## Runtime share
 
-Measured with `ddmod_coverage.asi` (`tools/coverage/`, developer tool): a one-shot breakpoint on each of the 8 152 non-funclet function entries, the first hit recorded. Five runs in `dd-test` (DE, windowed 2560×1440, without `RivellonRenewed.asi`, i.e. the original bitmap-font path): (1) main menu → load `T-Brief-Buch-Inventar` → inventory, letter, book, diary, map, walk out of the house (an NPC speaks), save dialog; (2) load `T-Dialog-links` → NPC dialog with answers; (3) options pages; (4) credits; (5) new game → character selection. No fight, no trader, no spell.
+Measured with `ddmod_coverage.asi` (`tools/coverage/`, developer tool): a one-shot breakpoint on each of the 8 152 non-funclet function entries, the first hit recorded. Two sets of runs:
+
+- **Scripted runs** in `dd-test` (DE, windowed 2560×1440, without `RivellonRenewed.asi`, from process start): (1) main menu → load a save → inventory, letter, book, diary, map, walk out, save dialog; (2) NPC dialog with answers; (3) options pages; (4) credits; (5) new game → character selection.
+- **Play sessions** of the human in `dd-play` (TRE.1-W, `testing.md`; with the mod, `defer-window`, so start-up code before the game window is missed): new game, walking, NPCs, traders, chests, letters/books, cut-scene, cellar, melee fights with a skeleton and rats, intro and credits from the menu, picture settings – about 45 minutes in three starts. No ranged weapon, no spell, no level-up.
 
 | Measure | Value |
 |---|---|
 | Start to main menu | 1 583 functions |
-| All five runs together | 2 729 functions; game code **2 313 of 5 865 functions (39 %), 592 of 1 519 KB (39 %)** |
-| Only after loading a save | 997 functions, 291 KB |
+| Five scripted runs | game code 2 313 of 5 865 functions (39 %), 592 of 1 519 KB (39 %) |
+| Three play sessions | game code 3 091 functions (53 %), 853 KB (56 %) |
+| **All eight runs** | 3 653 functions; game code **3 220 of 5 865 functions (55 %), 877 of 1 519 KB (58 %)** |
 
-Share of bytes run, by folder: `sound` 83 %, `managers` 69 %, `itemstat` 67 %, `automap` 64 %, `diary` 62 %, `osiris` 59 %, `bmgui` 55 %, `game` 47 %, `misc` 45 %, `world` 42 %, `plate` 34 %, `agents` 31 %, `magic` 3 %, `weapon` 3 %, `script` 4 %, `stats` 12 % (the last four are combat and spells, not exercised). The editor ran 78 of its 1 563 functions (3 % of its bytes – set-up code), libpng/zlib 5 %.
+Share of bytes run (all eight), by folder: `itemstat` 92 %, `automap` 87 %, `diary` 86 %, `sound` 85 %, `managers` 79 %, `script` 77 %, `effect` 76 %, `osiris` 75 %, `stats` 65 %, `plate` 61 %, `game` 59 %, `agents` 58 %, `world` 58 %, `bmgui` 58 %, `misc` 57 %, `skills` 29 %, `magic` 21 %, `weapon` 15 % (the last three are spells and ranged combat, barely exercised). The editor ran 3 % of its bytes (set-up code), libpng/zlib 5 %.
 
-**Font code:** of the 90 functions in `0x493A30`–`0x499104` only 30 (4.7 of 21 KB) ran – the original path uses the bitmap fonts (`use8bitfont 1`); most of the rest is the GDI font path and the font list (`text-rendering.md`).
+**Font code:** of the 90 functions in `0x493A30`–`0x499104` only about 20–30 ran per run – the bitmap-font path (`use8bitfont 1`); most of the rest is the GDI font path and the font list (`text-rendering.md`).

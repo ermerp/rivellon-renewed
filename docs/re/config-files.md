@@ -23,7 +23,7 @@
 | `memory limit #` | `+0x68` | |
 | `ztunnel #` | `+0x88` | see-through effect: with `1` (default) the hero stays visible behind buildings as a faint silhouette drawn through the roof – the building itself does not become transparent; with `0` the hero disappears behind the house (T2.0-W B3 and B1 repeat, EN, tester screenshots). Removing the roof when the hero is inside a house is separate and works with both values. Idea for Phase 6/8: a stronger, configurable see-through |
 | `gamma $` / `contrast $` | `+0x94` / `+0x98` (float) | |
-| `no fog` | `+0xA4` = 1 | Steam `config.div` (DE and EN) already contains it → fog off by default. Removing it turns fog on: whitish ground mist patches in the starting area (T2.0-W B1 repeat, EN, screenshot at the same place as one with the line – none there). The black borders are the shroud, not fog |
+| `no fog` | `+0xA4` = 1 | Steam `config.div` (DE and EN) already contains it → fog off by default. Removing it turns fog on: whitish ground mist patches in the starting area (T2.0-W B1 repeat, EN, screenshot at the same place as one with the line – none there). The black borders are the shroud, not fog. The in-game picture settings switch it too ("Nebel"/fog, next to quality, transparency and "3D shadows" – the shadow key is not identified) |
 | `no warning` | `+0xA8` = 0 | |
 | `images compressed` | `+0xB8` = 1 | |
 | `flat files` | `+0xC0` = 1 | **required** – without it: "static\light.lib : file not found" |

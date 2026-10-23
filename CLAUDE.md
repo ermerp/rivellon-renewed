@@ -49,7 +49,7 @@
 | Original game (Steam, German, 1.0062A) | `C:\Program Files (x86)\Steam\steamapps\common\divine_divinity` – **read only, never modify** |
 | Working copy German (1.0062A + dgVoodoo2 2.87.5 + Rivellon Renewed) | `C:\dev\dd-test` – 2560×1440 (keep), originals of changed configs as `*.orig` |
 | Working copy English (same setup) | `C:\dev\dd-test-en` – 2560×1440, originals as `*.orig` |
-| **Play copy of the human** (same setup, `LogLevel=info`, `ddmod_coverage.asi` with `defer-window` always on) | `C:\dev\dd-play` – the human's **real saves**: never automated tests, never touch `savegames\`; mod updates only after asking, with a save backup first; collect `ddmod_coverage-*.out` from time to time |
+| **Play copy of the human** (same setup but 1920×1080 and fog on, `LogLevel=info`, `ddmod_coverage.asi` with `defer-window` always on; feedback goes to `docs/playtest-log.md`) | `C:\dev\dd-play` – the human's **real saves**: never automated tests, never touch `savegames\`; mod updates only after asking, with a save backup first; collect `ddmod_coverage-*.out` from time to time |
 | Working copies French / Russian (same setup, language check) | `C:\dev\dd-test-fr` (1.0062A), `C:\dev\dd-test-ru` (**own EXE 1.0061**) |
 | Reference copy 1.0034A (on hold, do not change) | `C:\dev\dd-test-134` |
 | Downloads (verified, outside repo) | `C:\dev\downloads` – `patch134_en\files`, `dgvoodoo2_87_5`, `dgvoodoo2_87_3`, `ultimate-asi-loader_9.7.4\dinput8.dll` |

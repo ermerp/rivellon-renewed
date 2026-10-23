@@ -15,6 +15,7 @@ Findings in our own words – **no decompiled code, no pseudocode** (CLAUDE.md r
 | [developer-mode.md](developer-mode.md) | Developer flag (settings `+0x28`) and the forum byte patch |
 | [input.md](input.md) | Message loop, game window (class `Divinity`), deferred start, `WH_GETMESSAGE` hotkeys, why subclassing fails in full screen, `[Keys]` syntax |
 | [key-events.md](key-events.md) | 40 key events, `divinityevent.dat`, `keylist.txt` IDs and format |
+| [visibility.md](visibility.md) | Hero's sight range: why persons vanish on large screens, agent table and positions, distance and line-of-sight tests, the three visibility functions (hero → agent presentation, agent → agent AI), the unused `line of sight` switch, fix options |
 | [graphics-assets.md](graphics-assets.md) | 2D sprites (heroes, image lists), animation layout, 16-bit color |
 | [file-formats.md](file-formats.md) | Byte layouts: fonts (`ML_FONT_01`), hero sprites, image lists; external reference Divinity_Graphics_Extender |
 | [patch-134.md](patch-134.md) | Patch 1.34A contents, `dd-test-134` copy, 1.0034A test results (on hold) |
