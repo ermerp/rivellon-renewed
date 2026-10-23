@@ -93,6 +93,7 @@ Pitfalls:
 - The game treats a kill as a crash (run markers); **never answer "Yes"** to the reset dialog.
 - After repeated crashes the game may reset `config.div` and delete `slashed-d3d6.cfg` → restore from backup. Back up any config file before changing it in a test.
 - The game rewrites `config.div` on exit. Resolution lives in `config.div` **and** `slashed-d3d6.cfg` (offsets 0x0C/0x10).
+- Before a run check that no `div.exe` is left (`Get-Process div`): a second instance exits at once. A `div.exe` hung on exit ignores `Stop-Process`/`taskkill /F` – ask the human to end it in Task Manager, then check `config.div`, `dgVoodoo.conf` and the run markers of that copy.
 - `-FullScreen` runs give no screenshots (`PrintWindow` returns black, the script skips them) – judge full-screen runs from the log, look at the picture windowed.
 - `config.lcl` needs `flat files` and `quickstart` – without them the game does not start.
 - Windowed test runs: the window (2562×1474) is taller than the screen and the taskbar covers its bottom – no `click` in the bottom part (it hit the Start menu); use the game's keys from `keylist.txt` (Q diary, I inventory, M map). An aborted `Start-GameTest.ps1` leaves `dgVoodoo.conf` windowed and `startup logo` in `config.div` – restore both.
