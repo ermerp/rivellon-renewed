@@ -425,7 +425,7 @@ void TestFamilies() {
           DefaultSettings(Family::DiaryTitle).capitals == ddmod::text::CapReference::Median);
     CHECK(ParseTopFit("lower") == TopFit::Lower && ParseTopFit("Squeeze") == TopFit::Squeeze &&
           ParseTopFit("NONE") == TopFit::None && ParseTopFit("Fit") == TopFit::Fit && !ParseTopFit("shrink"));
-    CHECK(DefaultSettings(Family::Menu).topFit == TopFit::Lower && DefaultSettings(Family::DiaryTitle).topFit == TopFit::Fit &&
+    CHECK(DefaultSettings(Family::Menu).topFit == TopFit::Lower && DefaultSettings(Family::DiaryTitle).topFit == TopFit::Lower &&
           DefaultSettings(Family::Books).topFit == TopFit::None && DefaultSettings(Family::Interface).topFit == TopFit::None);
     CHECK(DefaultSettings(Family::Interface).capitals == ddmod::text::CapReference::H &&
           DefaultSettings(Family::Books).capitals == ddmod::text::CapReference::H);

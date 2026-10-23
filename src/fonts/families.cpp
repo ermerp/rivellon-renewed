@@ -99,7 +99,7 @@ FamilySettings DefaultSettings(Family family) {
             s.weight = 600;
             s.style = GlyphStyle::Measured;
             s.capitals = text::CapReference::Median;  // its H reaches 5 px above the other capitals
-            s.topFit = TopFit::Fit;  // lowering would put it 6 px below the original (its circumflexes)
+            s.topFit = TopFit::Lower;
             break;
     }
     return s;
