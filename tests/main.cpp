@@ -29,6 +29,8 @@
 #include "core/scanner.h"
 #include "core/sha256.h"
 #include "features/dgvoodoo.h"
+#include "features/fog.h"
+#include "features/shortlabels.h"
 #include "fonts/fontchain.h"
 #include "fonts/fontcolors.h"
 #include "fonts/fonthook.h"
@@ -44,6 +46,7 @@
 #include "overlay/surface.h"
 #include "text/gdiface.h"
 #include "text/style.h"
+#include "text/symbols.h"
 
 namespace {
 
@@ -246,6 +249,126 @@ void TestFontModeHook() {
     CHECK(fontInit(&g_seenUse8BitFont) == 61 && g_seenUse8BitFont == 1);
 }
 
+// Stand-ins for the game's config file reader (__thiscall, one stack argument: stores what the
+// "file" says into the "no fog" dword) and writer (__thiscall, no arguments).
+__declspec(noinline) int __fastcall FakeConfigReader(void* settings, void* /*edx*/, const char* file) {
+    const std::uint32_t noFog = file && std::strcmp(file, "no fog") == 0;
+    std::memcpy(static_cast<std::uint8_t*>(settings) + ddmod::features::kNoFogField, &noFog, 4);
+    return 1;
+}
+int g_writerCalls = 0;
+__declspec(noinline) int __fastcall FakeConfigWriter(void* /*settings*/, void* /*edx*/) {
+    ++g_writerCalls;
+    return 7;
+}
+int g_fogReported = -1;
+void OnFogWrite(bool fogOn) { g_fogReported = fogOn; }
+
+void TestFogHook() {
+    using namespace ddmod;
+    using ConfigReaderFn = int(__thiscall*)(void*, const char*);
+    using ConfigWriterFn = int(__thiscall*)(void*);
+    ConfigReaderFn volatile reader = reinterpret_cast<ConfigReaderFn>(&FakeConfigReader);
+    ConfigWriterFn volatile writer = reinterpret_cast<ConfigWriterFn>(&FakeConfigWriter);
+    std::uint8_t settings[0x174] = {};
+    const auto noFog = [&] {
+        std::uint32_t v = 0;
+        std::memcpy(&v, settings + features::kNoFogField, 4);
+        return v;
+    };
+    CHECK(reader(settings, "no fog") == 1 && noFog() == 1);
+
+    bool valid = false;
+    CHECK(features::ParseFog("1", valid) == std::optional<bool>(true) && valid);
+    CHECK(features::ParseFog("Off", valid) == std::optional<bool>(false) && valid);
+    CHECK(!features::ParseFog("keep", valid).has_value() && valid);
+    CHECK(features::ParseFog("maybe", valid) == std::optional<bool>(true) && !valid);
+
+    // Fog=1: "no fog" in the file is cleared after the call, the neighbors stay untouched.
+    CHECK(hooks::Init());
+    CHECK(features::InstallFogAt(reinterpret_cast<void*>(&FakeConfigReader), reinterpret_cast<void*>(&FakeConfigWriter),
+                                 true, &OnFogWrite));
+    settings[features::kNoFogField - 1] = 0x55;
+    settings[features::kNoFogField + 4] = 0x66;
+    CHECK(reader(settings, "no fog") == 1 && noFog() == 0);
+    CHECK(settings[features::kNoFogField - 1] == 0x55 && settings[features::kNoFogField + 4] == 0x66);
+    CHECK(reader(settings, "other") == 1 && noFog() == 0);
+    // The writer reports the state before the game writes (picture settings: fog switched off).
+    settings[features::kNoFogField] = 1;
+    CHECK(writer(settings) == 7 && g_writerCalls == 1 && g_fogReported == 0);
+    hooks::Shutdown();
+
+    // Fog=0: set even if the file has no "no fog" line.
+    CHECK(hooks::Init());
+    CHECK(features::InstallFogAt(reinterpret_cast<void*>(&FakeConfigReader), nullptr, false, nullptr));
+    CHECK(reader(settings, "other") == 1 && noFog() == 1);
+    hooks::Shutdown();
+    CHECK(reader(settings, "other") == 1 && noFog() == 0);
+}
+
+void TestShortLabels() {
+    using namespace ddmod::features;
+    // A text table like the game's: two sections, entries with text, resolved text and length.
+    struct FakeEntry {
+        char* text;
+        std::uint32_t pad1;
+        char* resolved;
+        std::uint32_t pad2, id, length, pad3;
+    };
+    static_assert(offsetof(FakeEntry, text) == kEntryText && offsetof(FakeEntry, resolved) == kEntryResolved &&
+                  offsetof(FakeEntry, length) == kEntryLength);
+    char long1[] = "HINTERGRUNDGER\xC4USCHE", long2[] = "HINTERGRUNDGER\xC4USCHE", other[] = "EFFEKTE";
+    char similar[] = "HINTERGRUNDGER\xC4USCHE X";
+    FakeEntry e1{long1, 0, nullptr, 0, 335, 20, 0}, e2{long2, 0, nullptr, 0, 374, 20, 0}, e3{other, 0, nullptr, 0, 336, 7, 0};
+    FakeEntry e4{similar, 0, nullptr, 0, 1, 22, 0};
+    FakeEntry* entries1[] = {&e1, &e3, nullptr};
+    FakeEntry* entries2[] = {&e2, &e4};
+    struct FakeSection {
+        std::uint32_t type;
+        FakeEntry** entries;
+        int count;
+    } s1{10000, entries1, 3}, s2{10001, entries2, 2};
+    static_assert(offsetof(FakeSection, entries) == kSectionEntries && offsetof(FakeSection, count) == kSectionEntryCount);
+    FakeSection* sections[] = {&s1, &s2};
+    struct FakeTable {
+        FakeSection** sections;
+        int count;
+    } table{sections, 2};
+    CHECK(ShortenLabels(&table, kShortLabels) == 2);
+    CHECK(std::string(long1) == "HINTERGRUND" && e1.length == 11 && std::string(long2) == "HINTERGRUND" && e2.length == 11);
+    CHECK(std::string(other) == "EFFEKTE" && e3.length == 7 && std::string(similar) == "HINTERGRUNDGER\xC4USCHE X");
+    CHECK(ShortenLabels(&table, kShortLabels) == 0);  // already short
+    FakeTable empty{nullptr, 0};
+    CHECK(ShortenLabels(&empty, kShortLabels) == 0 && ShortenLabels(nullptr, kShortLabels) == 0);
+}
+
+void TestArrowMask() {
+    using namespace ddmod::text;
+    // Triangle pointing right: full at the back's middle, empty at the corners beside the tip.
+    const Image right = ArrowMask(ArrowShape::Triangle, true, 12, 16);
+    CHECK(right.width == 12 && right.height == 16);
+    CHECK(right.A(0, 8) > 0.9f && right.A(11, 0) == 0.0f && right.A(11, 15) == 0.0f);
+    CHECK(right.A(11, 7) > 0.0f || right.A(11, 8) > 0.0f);  // the tip reaches the right edge
+    // Left is the mirror image.
+    const Image left = ArrowMask(ArrowShape::Triangle, false, 12, 16);
+    bool mirrored = true;
+    for (int y = 0; y < 16; ++y) {
+        for (int x = 0; x < 12; ++x) mirrored &= std::fabs(left.A(x, y) - right.A(11 - x, y)) < 1e-6f;
+    }
+    CHECK(mirrored);
+    // The notch leaves the back's middle empty; bowed sides cover more or less than straight ones.
+    CHECK(ArrowMask(ArrowShape::Notched, true, 12, 16).A(0, 8) == 0.0f);
+    const auto sum = [](const Image& m) {
+        float s = 0;
+        for (const float a : m.alpha) s += a;
+        return s;
+    };
+    CHECK(std::fabs(sum(right) - 12 * 16 / 2.0f) < 2.0f);
+    CHECK(sum(ArrowMask(ArrowShape::Convex, true, 12, 16)) > sum(right) + 5.0f);
+    CHECK(sum(ArrowMask(ArrowShape::Concave, true, 12, 16)) < sum(right) - 5.0f);
+    CHECK(ArrowMask(ArrowShape::Triangle, true, 0, 5).alpha.empty());
+}
+
 void TestEditionAndCharset() {
     using namespace ddmod;
     using game::Edition;
@@ -351,6 +474,28 @@ void TestFontModeSignature() {
     const auto loaderMatches = pattern::FindAll(file, *loader);
     CHECK(loaderMatches.size() == 1);
     if (loaderMatches.size() == 1) CHECK(FileOffsetToRva(file, loaderMatches[0]) == fonts::kLoadFontFileRva);
+
+    // Config file reader (features/fog.h): unique and at the documented RVA.
+    const auto reader = pattern::Parse(features::kConfigReaderPattern);
+    CHECK(reader.has_value());
+    if (!reader) return;
+    const auto readerMatches = pattern::FindAll(file, *reader);
+    CHECK(readerMatches.size() == 1);
+    if (readerMatches.size() == 1) CHECK(FileOffsetToRva(file, readerMatches[0]) == features::kConfigReaderRva);
+    const auto writer = pattern::Parse(features::kConfigWriterPattern);
+    CHECK(writer.has_value());
+    if (!writer) return;
+    const auto writerMatches = pattern::FindAll(file, *writer);
+    CHECK(writerMatches.size() == 1);
+    if (writerMatches.size() == 1) CHECK(FileOffsetToRva(file, writerMatches[0]) == features::kConfigWriterRva);
+
+    // Text file loader (features/shortlabels.h): unique and at the documented RVA.
+    const auto textLoader = pattern::Parse(features::kTextLoaderPattern);
+    CHECK(textLoader.has_value());
+    if (!textLoader) return;
+    const auto textMatches = pattern::FindAll(file, *textLoader);
+    CHECK(textMatches.size() == 1);
+    if (textMatches.size() == 1) CHECK(FileOffsetToRva(file, textMatches[0]) == features::kTextLoaderRva);
 }
 
 void TestGlyphTable() {
@@ -416,9 +561,11 @@ void TestFamilies() {
 
     CHECK(DefaultSettings(Family::Books).lineHeight.automatic && DefaultSettings(Family::Books).weight == 400);
     CHECK(DefaultSettings(Family::Menu).style == GlyphStyle::Shine && DefaultSettings(Family::Menu).texture);
-    // The menu fonts' '[' and ']' are arrows; no other family has symbol glyphs.
-    CHECK(DefaultSettings(Family::Menu).keepOriginal == "[]");
+    // The menu fonts' '[' and ']' are arrows (right, left), drawn as own arrows; no other family
+    // has symbol glyphs.
+    CHECK(DefaultSettings(Family::Menu).arrows == "[]" && DefaultSettings(Family::Menu).keepOriginal.empty());
     CHECK(DefaultSettings(Family::Interface).keepOriginal.empty() && DefaultSettings(Family::Books).keepOriginal.empty());
+    CHECK(DefaultSettings(Family::Interface).arrows.empty() && DefaultSettings(Family::DiaryTitle).arrows.empty());
     CHECK(DefaultSettings(Family::DiaryTitle).style == GlyphStyle::Measured);
     // Uncial Antiqua's and Almendra SC's H reach above their other capitals.
     CHECK(DefaultSettings(Family::Menu).capitals == ddmod::text::CapReference::Median &&
@@ -1193,7 +1340,10 @@ int main() {
     TestScanner();
     TestHooks();
     TestFontModeHook();
+    TestFogHook();
     TestFontModeSignature();
+    TestArrowMask();
+    TestShortLabels();
     TestSpacing();
     TestGlyphTable();
     TestFamilies();

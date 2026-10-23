@@ -113,7 +113,7 @@ bool BannerReady(State& st) {
     if (!st.bannerTried) {
         st.bannerTried = true;
         st.banner = RenderBanner(paths::ExePath().parent_path() / L"fonts",
-                                 DefaultBanner(Widen(DDMOD_NAME), Widen(DDMOD_VERSION), L"active"));
+                                 DefaultBanner(Widen(DDMOD_NAME), L"v" + Widen(DDMOD_VERSION), L"active"));
         const text::Image& img = st.banner.image;
         st.bannerMask.resize(img.alpha.size());
         for (std::size_t i = 0; i < img.alpha.size(); ++i) {
@@ -233,7 +233,7 @@ bool Install() {
     State& st = g_state;
     st.settings = ReadSettings();
     g_showFps.store(config::GetBool("Overlay", "ShowFps", false));
-    st.status = Widen(std::format("{} {} active", DDMOD_NAME, DDMOD_VERSION));
+    st.status = Widen(std::format("{} v{} active", DDMOD_NAME, DDMOD_VERSION));
     QueryPerformanceFrequency(&st.frequency);
 
     std::wstring name;

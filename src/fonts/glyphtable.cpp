@@ -109,6 +109,7 @@ Layout LayOut(void** table, const FamilySettings& settings, const std::wstring& 
             ++l.kept;
             continue;
         }
+        if (settings.arrows.find(ansi) != std::string::npos) continue;  // own arrows (ReplaceGlyphs)
         wchar_t wide = 0;
         Pending p{byte, {}};
         if (MultiByteToWideChar(1252, MB_ERR_INVALID_CHARS, &ansi, 1, &wide, 1) != 1 ||
@@ -192,6 +193,29 @@ void ReplaceGlyphs(void* font, const std::string& stem, Family family) {
         table[byte] = g_glyphMemory.back().get();
         ++replaced;
     }
+    // Own arrows in the original arrows' place, moved with the letters (TopFit=lower).
+    int arrows = 0;
+    for (std::size_t i = 0; i < settings.arrows.size(); ++i) {
+        const int byte = static_cast<unsigned char>(settings.arrows[i]);
+        if (!table[byte]) continue;
+        const overlay::Glyph original = DecodeGameGlyph(table[byte]);
+        const OwnSymbol arrow = PaintArrow(original, text::ArrowShape::Triangle, i == 0, textColor, edge);
+        if (arrow.image.alpha.empty()) {
+            ++kept;
+            continue;
+        }
+        PixelGlyph out;
+        out.width = arrow.image.width;
+        out.height = arrow.image.height;
+        out.originX = arrow.left;
+        out.originY = -(arrow.top + lowered);
+        out.advance = original.advance;
+        out.character = static_cast<std::uint16_t>(byte);
+        out.pixels = text::ToGamePixels(arrow.image, edge);
+        g_glyphMemory.push_back(BuildGameGlyph(out));
+        table[byte] = g_glyphMemory.back().get();
+        ++arrows;
+    }
     text::GdiFace::Mask space;
     if (face.GlyphMask(L' ', 0, space) && space.advance > 0) {
         Field<std::int16_t>(font, kSpaceWidth) = static_cast<std::int16_t>(space.advance);
@@ -207,10 +231,10 @@ void ReplaceGlyphs(void* font, const std::string& stem, Family family) {
     ++g_fontsReplaced;
     g_glyphsReplaced += replaced;
     g_milliseconds += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-    log::Debug("Glyph renderer: {} - {} glyphs replaced, {} kept (GDI height {}, capital height {}, color "
-               "#{:02X}{:02X}{:02X} on #{:02X}{:02X}{:02X}, line height {} -> {})",
-               stem, replaced, kept, height, cap.height, textColor.r, textColor.g, textColor.b, edge.r, edge.g, edge.b,
-               originalLine, lineHeight);
+    log::Debug("Glyph renderer: {} - {} glyphs replaced, {} own arrows, {} kept (GDI height {}, capital height {}, "
+               "color #{:02X}{:02X}{:02X} on #{:02X}{:02X}{:02X}, line height {} -> {})",
+               stem, replaced, arrows, kept, height, cap.height, textColor.r, textColor.g, textColor.b, edge.r, edge.g,
+               edge.b, originalLine, lineHeight);
     if (layout.accents + layout.shrunk + layout.squeezed + lowered > 0) {
         log::Debug("Glyph renderer: {} - kept below the line top: {} accents lowered, {} accents smaller, {} glyphs "
                    "squeezed, font {} px lower",

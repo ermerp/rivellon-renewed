@@ -5,6 +5,7 @@
 #include "fonts/families.h"
 #include "fonts/fontcolors.h"
 #include "text/style.h"
+#include "text/symbols.h"
 
 namespace ddmod::fonts {
 
@@ -34,5 +35,18 @@ private:
     text::Shine shine_;
     text::StyleParams params_;
 };
+
+// An own arrow in place of an original arrow glyph (FamilySettings::arrows): `shape` filling the
+// original's inked box (`widthFactor` < 1 narrower, centered), painted in the style measured from
+// the original arrow itself - color profile and edge shading, no shine or texture (the original
+// arrows are smooth). `left` and `top` place the image relative to the pen position and the top
+// of the line, like the original's ink. An empty image if the original has no ink.
+struct OwnSymbol {
+    text::Image image;
+    int left = 0;
+    int top = 0;
+};
+OwnSymbol PaintArrow(const overlay::Glyph& original, text::ArrowShape shape, bool pointsRight, text::Rgb textColor,
+                     text::Rgb edge, float widthFactor = 1.0f);
 
 }  // namespace ddmod::fonts

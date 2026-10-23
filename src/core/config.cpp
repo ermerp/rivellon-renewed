@@ -72,4 +72,9 @@ bool GetBool(const char* section, const char* key, bool fallback) {
     return fallback;
 }
 
+bool SetString(const char* section, const char* key, const char* value) {
+    if (!g_exists) return false;
+    return WritePrivateProfileStringA(section, key, value, g_file.string().c_str()) != FALSE;
+}
+
 }  // namespace ddmod::config

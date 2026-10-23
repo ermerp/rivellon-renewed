@@ -62,6 +62,8 @@ struct FamilySettings {
     bool texture = false;        // GlyphStyle::Shine
     // Slots (code page 1252) whose original glyph is a symbol, not that character: they keep it.
     std::string keepOriginal;
+    // Slots of a right and a left arrow (in this order), drawn as own arrows (PaintArrow).
+    std::string arrows;
     // Which capitals of the original and the face are matched in height and position.
     text::CapReference capitals = text::CapReference::H;
     TopFit topFit = TopFit::None;
@@ -69,13 +71,15 @@ struct FamilySettings {
 
 // The defaults (human's choice, PLAN.md Decisions): interface Marcellus SC 600, books Fondamento
 // 400 with a line height that keeps lines apart, menu Uncial Antiqua 600 with the measured shine
-// at twice its strength plus texture (its '[' and ']' are the options pages' arrows), dialog
+// at twice its strength plus texture (its '[' and ']' are the options pages' arrows, drawn as own
+// triangles), dialog
 // Tahoma Bold (else the bundled DejaVu Sans Condensed Bold), diary title Almendra SC 600 with the
 // measured style. Menu and diary title are matched on all their capitals (their faces' H is taller).
 FamilySettings DefaultSettings(Family family);
 
 // The defaults overridden by [Family.<name>] Enabled, Face, Weight, LineHeight and TopFit (invalid values
-// are logged and keep the default). Effects=0 paints a Shine or Measured family with the ramp.
+// are logged and keep the default). Effects=0 paints a Shine or Measured family with the ramp;
+// Arrows=original keeps the original arrow glyphs.
 FamilySettings ConfiguredSettings(Family family);
 
 // A family's configured settings and its face, resolved and logged on first use (the face's file

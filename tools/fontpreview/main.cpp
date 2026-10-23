@@ -15,6 +15,11 @@
 //                                           distance field
 //   --scene <spec.txt>                      real game lines on a crop of a game screenshot, once per
 //                                           candidate font, drawn like the font mode (scene.cpp)
+//   --arrows <fntdir> <facedir> <png> <x> <y> <w> <h>  the options pages' arrows: original and own
+//                                           variants on a crop of a game screenshot (arrows.cpp)
+//   --labels <text.cmp> <fntdir> <facedir> <code page>  every capitalized text with its width in
+//                                           fontbig36 and in the menu face (labels.cpp; prints game
+//                                           text - redirect into the scratchpad)
 
 #include <algorithm>
 #include <cstdio>
@@ -33,6 +38,8 @@ using std::min;
 #include "overlay/fnt.h"
 #include "overlay/glyphs.h"
 #include "overlay/surface.h"
+#include "arrows.h"
+#include "labels.h"
 #include "scale.h"
 #include "scene.h"
 
@@ -287,6 +294,29 @@ int wmain(int argc, wchar_t** argv) {
                 if (!r.pixels.empty()) block.lines.push_back({r.width, r.height, std::move(r.pixels)});
                 blocks.push_back(std::move(block));
             }
+        } else if (arg == L"--arrows") {
+            need(7);
+            const std::wstring fntDir = argv[++i], faceDir = argv[++i], png = argv[++i];
+            const int x = _wtoi(argv[++i]), y = _wtoi(argv[++i]), w = _wtoi(argv[++i]), h = _wtoi(argv[++i]);
+            std::vector<fontpreview::SceneRow> rows;
+            std::wstring error;
+            if (!fontpreview::RenderArrows(fntDir, faceDir, png, x, y, w, h, rows, error)) {
+                std::fwprintf(stderr, L"%ls\n", error.c_str());
+                return 1;
+            }
+            for (auto& r : rows) {
+                Block block{r.caption, {}, r.warn};
+                if (!r.pixels.empty()) block.lines.push_back({r.width, r.height, std::move(r.pixels)});
+                blocks.push_back(std::move(block));
+            }
+        } else if (arg == L"--labels") {
+            // --labels <text.cmp> <fntdir> <facedir> <code page>: widths only, no sheet.
+            need(4);
+            const std::wstring textCmp = argv[++i], fntDir = argv[++i], faceDir = argv[++i];
+            const unsigned codePage = static_cast<unsigned>(_wtoi(argv[++i]));
+            const bool ok = fontpreview::PrintLabelWidths(textCmp, fntDir, faceDir, codePage);
+            Gdiplus::GdiplusShutdown(token);
+            return ok ? 0 : 1;
         } else if (arg == L"--pixel") {
             // --pixel <file.fnt | face | font file> <face or -> <px> <weight> <label>: first two
             // sample lines at the given size, then 4x nearest neighbor - for pixel-level

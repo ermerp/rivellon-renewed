@@ -63,7 +63,10 @@ add_library(ddmod_core STATIC
     src/fonts/spacing.cpp
     src/text/style.cpp
     src/text/gdiface.cpp
+    src/text/symbols.cpp
     src/features/dgvoodoo.cpp
+    src/features/fog.cpp
+    src/features/shortlabels.cpp
     src/overlay/surface.cpp
     src/overlay/glyphs.cpp
     src/overlay/fnt.cpp
@@ -103,7 +106,8 @@ add_test(NAME ddmod_tests COMMAND ddmod_tests)
 
 # --- Developer tools (not shipped) ---
 # Font comparison sheet for design decisions: build/Release/ddmod_fontpreview.exe
-add_executable(ddmod_fontpreview tools/fontpreview/main.cpp tools/fontpreview/scale.cpp tools/fontpreview/scene.cpp)
+add_executable(ddmod_fontpreview tools/fontpreview/main.cpp tools/fontpreview/scale.cpp tools/fontpreview/scene.cpp
+               tools/fontpreview/arrows.cpp tools/fontpreview/labels.cpp)
 target_link_libraries(ddmod_fontpreview PRIVATE ddmod_core gdiplus)
 # Function coverage of div.exe at runtime (docs/re/engine-map.md): build/Release/ddmod_coverage.asi
 add_library(ddmod_coverage SHARED tools/coverage/coverage.cpp)

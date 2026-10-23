@@ -33,6 +33,14 @@ Prefix and record together are exactly the game's in-memory glyph followed by it
 - Pixels outside spans are transparent. The colors are pre-shaded (anti-aliased edges darkened towards black), so the glyphs are made for dark backgrounds.
 - There is no space glyph (entry 0) and no space width in the header – the game then uses a built-in space of **6 px** for every bitmap font. There is no kerning table; the game spaces each pair by sliding the glyphs together (`text-rendering.md`, pair spacing).
 
+## Localized texts (`localizations\<language>\text.cmp`)
+
+Loaded at startup by the text loader (`text-rendering.md`, Text table); `dat\global.cmp` has the same strings too (not traced). All integers little-endian.
+
+- u32 section count (6 in DE/EN/FR), then per section: u32 section type (menu and interface texts: 10000), i32 entry count (negative = the section's strings are 16-bit characters).
+- Per entry: u32 id, then two strings, each u32 length *n* followed by *n* + 1 characters including the terminating NUL (nothing at all for *n* = 0). The second string is empty for the menu texts.
+- Code page of the 8-bit strings: 1252 (DE/EN/FR). Menu labels are in capitals (e.g. DE id 335 and 374 "HINTERGRUNDGERÄUSCHE", 377 "3D SCHATTEN", 378 "NEBEL"); `ddmod_fontpreview --labels` lists them with their widths.
+
 ## Hero sprites (`static/heroes/<class><gender><sheet>.bic|.idc`, `<class><gender>.key`)
 
 Status: index structure understood, image data not decoded yet (2026-10-18).

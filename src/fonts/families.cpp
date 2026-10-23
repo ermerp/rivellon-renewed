@@ -86,7 +86,7 @@ FamilySettings DefaultSettings(Family family) {
             s.style = GlyphStyle::Shine;
             s.shineStrength = 2.0f;
             s.texture = true;
-            s.keepOriginal = "[]";  // right and left arrow beside the values on the options pages
+            s.arrows = "[]";  // right and left arrow beside the values on the options pages
             s.capitals = text::CapReference::Median;  // its H reaches 6 px above the other capitals
             s.topFit = TopFit::Lower;
             break;
@@ -123,6 +123,16 @@ FamilySettings ConfiguredSettings(Family family) {
         log::Warn("[{}] LineHeight=\"{}\" is not auto or 50-300 - using the default", section, lineText);
     }
     if (!config::GetBool(section.c_str(), "Effects", true)) s.style = GlyphStyle::Ramp;
+    if (!s.arrows.empty()) {
+        std::string arrows = config::GetString(section.c_str(), "Arrows", "own");
+        std::transform(arrows.begin(), arrows.end(), arrows.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (arrows == "original") {
+            s.keepOriginal += s.arrows;
+            s.arrows.clear();
+        } else if (arrows != "own") {
+            log::Warn("[{}] Arrows=\"{}\" is not own or original - using own", section, arrows);
+        }
+    }
     static constexpr const char* kTopFits[] = {"none", "lower", "squeeze", "fit"};
     const std::string fitText = config::GetString(section.c_str(), "TopFit", kTopFits[static_cast<int>(s.topFit)]);
     if (const auto fit = ParseTopFit(fitText)) {

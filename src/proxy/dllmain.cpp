@@ -13,6 +13,9 @@
 #include "core/scanner.h"
 #include "game/exe.h"
 #include "features/dgvoodoo.h"
+#include "features/fog.h"
+#include "features/shortlabels.h"
+#include "fonts/families.h"
 #include "fonts/fontcolors.h"
 #include "fonts/fonthook.h"
 #include "fonts/fontmode.h"
@@ -106,8 +109,16 @@ void Startup(HMODULE self) {
     if ((fontHook || debug) && hooks::Init()) {
         fonts::Install(fontHook);
         if (fontHook && fonts::ConfiguredRenderer() == fonts::Renderer::Glyphs) {
-            fonts::InstallGlyphTable();
+            const bool glyphs = fonts::InstallGlyphTable();
             fonts::InstallSpacing();
+            // Labels too wide for the menu face (a workaround until the menus get an own layout).
+            if (glyphs && fonts::ConfiguredSettings(fonts::Family::Menu).enabled) {
+                if (config::GetBool("Fonts", "ShortLabels", true)) {
+                    features::InstallShortLabels();
+                } else {
+                    log::Info("Short labels off ([Fonts] ShortLabels=0) - original menu texts");
+                }
+            }
         } else if (fontHook) {
             // Switches the game to its GDI text path in memory (config.lcl stays untouched).
             fonts::InstallFontMode();
@@ -116,6 +127,8 @@ void Startup(HMODULE self) {
         }
         if (debug) game::InstallFontLog();
     }
+    // The game reads config.lcl and config.div right after start, too.
+    if (hooks::Init()) features::InstallFog();
     if (game::WatchForMainWindow(&OnGameWindow)) log::Info("Waiting for the game window");
 }
 

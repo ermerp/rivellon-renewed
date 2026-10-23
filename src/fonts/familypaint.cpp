@@ -47,4 +47,30 @@ text::Image FamilyPaint::Paint(const text::Image& mask, int capTop, int capHeigh
     return style_ == GlyphStyle::Ramp ? text::PaintRamp(mask, text_, edge_) : text::PaintStyled(mask, capTop, capHeight, params_);
 }
 
+OwnSymbol PaintArrow(const overlay::Glyph& original, text::ArrowShape shape, bool pointsRight, text::Rgb textColor,
+                     text::Rgb edge, float widthFactor) {
+    int x0 = original.width, y0 = original.height, x1 = -1, y1 = -1;
+    for (int y = 0; y < original.height; ++y) {
+        for (int x = 0; x < original.width; ++x) {
+            if (!original.coverage[static_cast<std::size_t>(y) * original.width + x]) continue;
+            x0 = std::min(x0, x), x1 = std::max(x1, x), y0 = std::min(y0, y), y1 = std::max(y1, y);
+        }
+    }
+    if (x1 < 0) return {};
+    const int boxW = x1 - x0 + 1, boxH = y1 - y0 + 1;
+    const int w = std::max(1, static_cast<int>(boxW * widthFactor + 0.5f));
+    // The original arrow is the only "capital" its style is measured from.
+    FamilySettings settings;
+    settings.style = GlyphStyle::Measured;
+    settings.capitals = text::CapReference::Median;
+    text::Capitals measured(26);
+    measured[0] = original;
+    const FamilyPaint paint(settings, measured, textColor, edge);
+    OwnSymbol out;
+    out.image = paint.Paint(text::ArrowMask(shape, pointsRight, w, boxH), 0, boxH);
+    out.left = original.offsetX + x0 + (boxW - w) / 2;
+    out.top = original.offsetY + y0;
+    return out;
+}
+
 }  // namespace ddmod::fonts
