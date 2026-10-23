@@ -13,8 +13,8 @@
 #include "core/hooks.h"
 #include "core/log.h"
 #include "core/paths.h"
+#include "fonts/familypaint.h"
 #include "fonts/families.h"
-#include "fonts/fontchain.h"
 #include "fonts/fontcolors.h"
 #include "game/exe.h"
 #include "text/gdiface.h"
@@ -53,14 +53,8 @@ int g_fontsReplaced = 0;
 int g_glyphsReplaced = 0;
 double g_milliseconds = 0.0;
 
-// A family's settings and face, resolved when its first font is loaded.
-struct FamilyState {
-    bool resolved = false;
-    FamilySettings settings;
-    std::optional<FontEntry> face;
-    std::map<int, int> heightForCap;  // capital height -> GDI height
-};
-std::array<FamilyState, std::size(kFamilies)> g_families;
+// GDI height per family and capital height (the search costs a few milliseconds).
+std::array<std::map<int, int>, std::size(kFamilies)> g_heightForCap;
 
 template <typename T>
 T& Field(void* object, std::size_t offset) {
@@ -79,123 +73,118 @@ void Write(std::uint8_t* at, T value) {
     std::memcpy(at, &value, sizeof(T));
 }
 
-FamilyState& StateOf(Family family) {
-    FamilyState& state = g_families[static_cast<std::size_t>(family)];
-    if (state.resolved) return state;
-    state.resolved = true;
-    state.settings = ConfiguredSettings(family);
-    const char* name = FamilyName(family);
-    if (!state.settings.enabled) {
-        log::Info("Glyph renderer: family {} off ([Family.{}] Enabled=0) - original glyphs", name, name);
-        return state;
-    }
-    state.face = Resolve(ParseChain(state.settings.chain, paths::ModDir()), state.settings.weight >= FW_SEMIBOLD);
-    if (!state.face) {
-        log::Warn("Glyph renderer: family {} has no available face - original glyphs", name);
-        return state;
-    }
-    const LineHeight& line = state.settings.lineHeight;
-    log::Info("Glyph renderer: family {} - \"{}\" weight {}, line height {}", name, paths::ToUtf8(state.face->face),
-              state.settings.weight, line.automatic ? std::string("auto") : std::to_string(line.percent) + "%");
-    return state;
-}
+// The family's own glyphs for one font at one GDI height, placed with the face's capitals where
+// the original's are, before painting.
+struct Pending {
+    int byte = 0;
+    text::GdiFace::Mask m;
+};
+struct Layout {
+    std::unique_ptr<text::GdiFace> face;  // null if GDI cannot create it
+    int height = 0;
+    text::CapMetrics faceCap;
+    int shift = 0;    // from the face's line to the game's: the capitals' tops meet
+    int lowered = 0;  // TopFit=lower: the whole font this much lower
+    int above = 0;    // rows that still reach above the line top (cut off by the game)
+    int kept = 0, accents = 0, shrunk = 0, squeezed = 0;
+    std::vector<Pending> pending;
+};
 
-// The original's text and edge color: the measured table (fontcolors.cpp), or for a name it does
-// not know the most frequent capital color and the family's usual edge tone.
-text::Rgb ToRgb(Rgb8 c) { return {c.r, c.g, c.b}; }
-
-FontColors ColorsOf(const std::string& stem, Family family, const text::Capitals& caps) {
-    for (const FontColorEntry& entry : FontColorTable()) {
-        if (entry.file == stem) return entry.original;
+Layout LayOut(void** table, const FamilySettings& settings, const std::wstring& faceName, int height,
+              const text::CapMetrics& cap) {
+    Layout l;
+    l.height = height;
+    l.face = std::make_unique<text::GdiFace>(faceName, height, settings.weight);
+    if (!l.face->Valid()) {
+        l.face.reset();
+        return l;
     }
-    std::map<std::uint32_t, int> counts;
-    for (const overlay::Glyph& g : caps) {
-        for (std::size_t i = 0; i < g.colors.size(); ++i) {
-            if (g.coverage[i]) ++counts[static_cast<std::uint32_t>(g.colors[i].r) << 16 | g.colors[i].g << 8 | g.colors[i].b];
+    const text::GdiFace& face = *l.face;
+    l.faceCap = face.Capitals(settings.capitals);
+    l.shift = cap.top - l.faceCap.top;
+    for (int byte = 0x21; byte < 0x100; ++byte) {
+        if (!table[byte]) continue;
+        const char ansi = static_cast<char>(byte);
+        if (settings.keepOriginal.find(ansi) != std::string::npos) {
+            ++l.kept;
+            continue;
+        }
+        wchar_t wide = 0;
+        Pending p{byte, {}};
+        if (MultiByteToWideChar(1252, MB_ERR_INVALID_CHARS, &ansi, 1, &wide, 1) != 1 ||
+            !face.Missing(std::wstring(1, wide)).empty() || !face.GlyphMask(wide, 0, p.m) || p.m.mask.alpha.empty()) {
+            ++l.kept;
+            continue;
+        }
+        l.pending.push_back(std::move(p));
+    }
+    // Ink above the line top (row 0) is not drawn in pre-rendered texts (TopFit).
+    if (settings.topFit == TopFit::None) return l;
+    for (Pending& p : l.pending) {
+        const int above = -(p.m.top + l.shift + text::InkTop(p.m.mask));
+        if (above <= 0) continue;
+        const int capTop = l.faceCap.top - p.m.top;
+        if (text::LowerAccent(p.m.mask, capTop, above) > 0) ++l.accents;
+        const int left = -(p.m.top + l.shift + text::InkTop(p.m.mask));
+        if (left <= 0) continue;
+        if (settings.topFit == TopFit::Fit && text::ShrinkAccent(p.m.mask, capTop, -(p.m.top + l.shift))) {
+            ++l.shrunk;
+        } else if (settings.topFit == TopFit::Squeeze || settings.topFit == TopFit::Fit) {
+            text::SqueezeTop(p.m.mask, capTop, left);
+            ++l.squeezed;
+        } else {
+            l.above = std::max(l.above, left);
         }
     }
-    FontColors colors{{0xE7, 0xE7, 0xE7}, {0, 0, 0}};
-    const auto most = std::max_element(counts.begin(), counts.end(),
-                                       [](const auto& a, const auto& b) { return a.second < b.second; });
-    if (most != counts.end()) {
-        colors.text = {static_cast<std::uint8_t>(most->first >> 16), static_cast<std::uint8_t>(most->first >> 8),
-                       static_cast<std::uint8_t>(most->first)};
-    }
-    if (family == Family::Books) colors.edge = {0x9C, 0x8E, 0x5A};
-    if (family == Family::DiaryTitle) colors.edge = {0x94, 0x7D, 0x4A};
-    return colors;
+    if (settings.topFit == TopFit::Lower) l.lowered = l.above;
+    return l;
 }
 
 // Replaces every glyph the original font has (except the space and control characters, and
 // characters the family's face lacks) with one of the family's face at the original's capital
 // height, painted in the family's style.
 void ReplaceGlyphs(void* font, const std::string& stem, Family family) {
-    FamilyState& state = StateOf(family);
+    const ResolvedFamily& state = Resolved(family);
     if (!state.settings.enabled || !state.face) return;
     const auto start = std::chrono::steady_clock::now();
     void** table = Field<void**>(font, kGlyphTable);
     text::Capitals caps;
     for (int ch = 'A'; ch <= 'Z'; ++ch) caps.push_back(table[ch] ? DecodeGameGlyph(table[ch]) : overlay::Glyph{});
-    const text::CapMetrics cap = text::MeasureCap(caps);
-    if (cap.height <= 0) {
-        log::Warn("Glyph renderer: {} has no capital H to measure - original glyphs", stem);
-        return;
-    }
     const FamilySettings& settings = state.settings;
-    const std::wstring& faceName = state.face->face;
-    auto [known, inserted] = state.heightForCap.try_emplace(cap.height, 0);
-    if (inserted) known->second = text::HeightForCap(faceName, settings.weight, cap.height);
-    const int height = known->second;
-    const text::GdiFace face(faceName, height, settings.weight);
-    if (!face.Valid()) {
-        log::Warn("Glyph renderer: {} - GDI cannot create \"{}\" {} - original glyphs", stem, paths::ToUtf8(faceName), height);
+    const text::CapMetrics cap = text::MeasureCap(caps, settings.capitals);
+    if (cap.height <= 0) {
+        log::Warn("Glyph renderer: {} has no capitals to measure - original glyphs", stem);
         return;
     }
-    // The face's capital H where the original's is.
-    const int shift = cap.top - face.CapTop();
+    const std::wstring& faceName = state.face->face;
+    auto [known, inserted] = g_heightForCap[static_cast<std::size_t>(family)].try_emplace(cap.height, 0);
+    if (inserted) known->second = text::HeightForCap(faceName, settings.weight, cap.height, settings.capitals);
+    Layout layout = LayOut(table, settings, faceName, known->second, cap);
+    if (!layout.face) {
+        log::Warn("Glyph renderer: {} - GDI cannot create \"{}\" {} - original glyphs", stem, paths::ToUtf8(faceName),
+                  known->second);
+        return;
+    }
+    const text::GdiFace& face = *layout.face;
+    const int height = layout.height;
+    const text::CapMetrics faceCap = layout.faceCap;
+    const int shift = layout.shift;
+    const int lowered = layout.lowered;
+    int replaced = 0, kept = layout.kept;
+    std::vector<Pending>& pending = layout.pending;
     const FontColors colors = ColorsOf(stem, family, caps);
     const text::Rgb textColor = ToRgb(colors.text), edge = ToRgb(colors.edge);
+    const FamilyPaint paint(settings, caps, textColor, edge);
 
-    text::Bevel bevel;
-    text::Shine shine;
-    text::StyleParams style;
-    if (settings.style != GlyphStyle::Ramp) {
-        style.profile = text::MeasureProfile(caps);
-        style.contour = edge;
-        if (settings.style == GlyphStyle::Measured) {
-            bevel = text::MeasureBevel(caps, style.profile);
-            style.bevel = &bevel;
-        } else {
-            shine = text::MeasureShine(caps);
-            style.shine = &shine;
-            style.shineStrength = settings.shineStrength;
-            style.texture = settings.texture;
-        }
-    }
-
-    int replaced = 0, kept = 0;
-    for (int byte = 0x21; byte < 0x100; ++byte) {
-        if (!table[byte]) continue;
-        const char ansi = static_cast<char>(byte);
-        if (settings.keepOriginal.find(ansi) != std::string::npos) {
-            ++kept;
-            continue;
-        }
-        wchar_t wide = 0;
-        text::GdiFace::Mask m;
-        if (MultiByteToWideChar(1252, MB_ERR_INVALID_CHARS, &ansi, 1, &wide, 1) != 1 ||
-            !face.Missing(std::wstring(1, wide)).empty() || !face.GlyphMask(wide, 0, m) || m.mask.alpha.empty()) {
-            ++kept;
-            continue;
-        }
-        const text::Image painted = settings.style == GlyphStyle::Ramp
-                                        ? text::PaintRamp(m.mask, textColor, edge)
-                                        : text::PaintStyled(m.mask, face.CapTop() - m.top, face.CapHeight(), style);
+    for (Pending& p : pending) {
+        const text::GdiFace::Mask& m = p.m;
+        const int byte = p.byte;
+        const text::Image painted = paint.Paint(m.mask, faceCap.top - m.top, faceCap.height);
         PixelGlyph out;
         out.width = m.mask.width;
         out.height = m.mask.height;
         out.originX = m.left;
-        out.originY = -(m.top + shift);
+        out.originY = -(m.top + shift + lowered);
         out.advance = m.advance;
         out.character = static_cast<std::uint16_t>(byte);
         out.pixels = text::ToGamePixels(painted, edge);
@@ -222,6 +211,11 @@ void ReplaceGlyphs(void* font, const std::string& stem, Family family) {
                "#{:02X}{:02X}{:02X} on #{:02X}{:02X}{:02X}, line height {} -> {})",
                stem, replaced, kept, height, cap.height, textColor.r, textColor.g, textColor.b, edge.r, edge.g, edge.b,
                originalLine, lineHeight);
+    if (layout.accents + layout.shrunk + layout.squeezed + lowered > 0) {
+        log::Debug("Glyph renderer: {} - kept below the line top: {} accents lowered, {} accents smaller, {} glyphs "
+                   "squeezed, font {} px lower",
+                   stem, layout.accents, layout.shrunk, layout.squeezed, lowered);
+    }
 }
 
 // See FontInitDetour (fontmode.cpp) for the __fastcall stand-in of __thiscall.

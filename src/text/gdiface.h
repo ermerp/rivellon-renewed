@@ -31,6 +31,8 @@ public:
     // Distance from the top of the line to the top of the capital H, and its height.
     int CapTop() const;
     int CapHeight() const;
+    // The same for the capitals by `ref` (MeasureCap); CapReference::H gives CapTop/CapHeight.
+    CapMetrics Capitals(CapReference ref) const;
     // Height of the lowercase x.
     int XHeight() const;
     // Highest and lowest inked row over all characters of `text`, relative to the baseline (top
@@ -59,8 +61,13 @@ private:
     TEXTMETRICW tm_{};
 };
 
-// Smallest GDI height whose capital H is at least `target` pixels high.
-int HeightForCap(const std::wstring& face, int weight, int target);
+// One line of `text` as a coverage mask with `pad` empty pixels on every side: the pen starts at
+// x = pad, the top of the face's line at y = pad; every character moves the pen by the face's own
+// advance (like [Fonts] Spacing=font). Characters the face has no glyph for are left out.
+Image LineMask(const GdiFace& face, const std::wstring& text, int pad);
+
+// Smallest GDI height whose capitals (`ref`) are at least `target` pixels high.
+int HeightForCap(const std::wstring& face, int weight, int target, CapReference ref = CapReference::H);
 // Smallest GDI height whose lowercase x is at least `target` pixels high.
 int HeightForX(const std::wstring& face, int weight, int target);
 

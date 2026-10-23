@@ -1,11 +1,16 @@
 #include "fonts/families.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <charconv>
+#include <mutex>
+
+#include <windows.h>
 
 #include "core/config.h"
 #include "core/log.h"
+#include "core/paths.h"
 
 namespace ddmod::fonts {
 namespace {
@@ -53,6 +58,16 @@ std::optional<LineHeight> ParseLineHeight(std::string_view text) {
     return LineHeight{false, percent};
 }
 
+std::optional<TopFit> ParseTopFit(std::string_view text) {
+    std::string value(text);
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (value == "none") return TopFit::None;
+    if (value == "lower") return TopFit::Lower;
+    if (value == "squeeze") return TopFit::Squeeze;
+    if (value == "fit") return TopFit::Fit;
+    return std::nullopt;
+}
+
 FamilySettings DefaultSettings(Family family) {
     FamilySettings s;
     switch (family) {
@@ -72,6 +87,8 @@ FamilySettings DefaultSettings(Family family) {
             s.shineStrength = 2.0f;
             s.texture = true;
             s.keepOriginal = "[]";  // right and left arrow beside the values on the options pages
+            s.capitals = text::CapReference::Median;  // its H reaches 6 px above the other capitals
+            s.topFit = TopFit::Lower;
             break;
         case Family::Dialog:
             s.chain = kDefaultChain;
@@ -81,6 +98,8 @@ FamilySettings DefaultSettings(Family family) {
             s.chain = "Almendra SC @ " DDMOD_FONT_DIR "AlmendraSC-Regular.ttf";
             s.weight = 600;
             s.style = GlyphStyle::Measured;
+            s.capitals = text::CapReference::Median;  // its H reaches 5 px above the other capitals
+            s.topFit = TopFit::Fit;  // lowering would put it 6 px below the original (its circumflexes)
             break;
     }
     return s;
@@ -104,7 +123,38 @@ FamilySettings ConfiguredSettings(Family family) {
         log::Warn("[{}] LineHeight=\"{}\" is not auto or 50-300 - using the default", section, lineText);
     }
     if (!config::GetBool(section.c_str(), "Effects", true)) s.style = GlyphStyle::Ramp;
+    static constexpr const char* kTopFits[] = {"none", "lower", "squeeze", "fit"};
+    const std::string fitText = config::GetString(section.c_str(), "TopFit", kTopFits[static_cast<int>(s.topFit)]);
+    if (const auto fit = ParseTopFit(fitText)) {
+        s.topFit = *fit;
+    } else {
+        log::Warn("[{}] TopFit=\"{}\" is not none, lower, squeeze or fit - using the default", section, fitText);
+    }
     return s;
+}
+
+const ResolvedFamily& Resolved(Family family) {
+    static std::mutex mutex;
+    static std::array<std::optional<ResolvedFamily>, std::size(kFamilies)> resolved;
+    const std::lock_guard lock(mutex);
+    std::optional<ResolvedFamily>& slot = resolved[static_cast<std::size_t>(family)];
+    if (slot) return *slot;
+    slot.emplace();
+    slot->settings = ConfiguredSettings(family);
+    const char* name = FamilyName(family);
+    if (!slot->settings.enabled) {
+        log::Info("Fonts: family {} off ([Family.{}] Enabled=0) - original glyphs", name, name);
+        return *slot;
+    }
+    slot->face = Resolve(ParseChain(slot->settings.chain, paths::ModDir()), slot->settings.weight >= FW_SEMIBOLD);
+    if (!slot->face) {
+        log::Warn("Fonts: family {} has no available face - original glyphs", name);
+        return *slot;
+    }
+    const LineHeight& line = slot->settings.lineHeight;
+    log::Info("Fonts: family {} - \"{}\" weight {}, line height {}", name, paths::ToUtf8(slot->face->face),
+              slot->settings.weight, line.automatic ? std::string("auto") : std::to_string(line.percent) + "%");
+    return *slot;
 }
 
 }  // namespace ddmod::fonts

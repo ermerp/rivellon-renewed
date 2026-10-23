@@ -58,6 +58,7 @@ add_library(ddmod_core STATIC
     src/fonts/fontcolors.cpp
     src/fonts/fontmode.cpp
     src/fonts/families.cpp
+    src/fonts/familypaint.cpp
     src/fonts/glyphtable.cpp
     src/fonts/spacing.cpp
     src/text/style.cpp
@@ -67,6 +68,7 @@ add_library(ddmod_core STATIC
     src/overlay/glyphs.cpp
     src/overlay/fnt.cpp
     src/overlay/d3d6.cpp
+    src/overlay/banner.cpp
     src/overlay/overlay.cpp
 )
 target_include_directories(ddmod_core PUBLIC src)

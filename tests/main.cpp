@@ -37,6 +37,7 @@
 #include "fonts/glyphtable.h"
 #include "fonts/spacing.h"
 #include "input/keys.h"
+#include "overlay/banner.h"
 #include "overlay/fnt.h"
 #include "overlay/glyphs.h"
 #include "overlay/overlay.h"
@@ -419,6 +420,15 @@ void TestFamilies() {
     CHECK(DefaultSettings(Family::Menu).keepOriginal == "[]");
     CHECK(DefaultSettings(Family::Interface).keepOriginal.empty() && DefaultSettings(Family::Books).keepOriginal.empty());
     CHECK(DefaultSettings(Family::DiaryTitle).style == GlyphStyle::Measured);
+    // Uncial Antiqua's and Almendra SC's H reach above their other capitals.
+    CHECK(DefaultSettings(Family::Menu).capitals == ddmod::text::CapReference::Median &&
+          DefaultSettings(Family::DiaryTitle).capitals == ddmod::text::CapReference::Median);
+    CHECK(ParseTopFit("lower") == TopFit::Lower && ParseTopFit("Squeeze") == TopFit::Squeeze &&
+          ParseTopFit("NONE") == TopFit::None && ParseTopFit("Fit") == TopFit::Fit && !ParseTopFit("shrink"));
+    CHECK(DefaultSettings(Family::Menu).topFit == TopFit::Lower && DefaultSettings(Family::DiaryTitle).topFit == TopFit::Fit &&
+          DefaultSettings(Family::Books).topFit == TopFit::None && DefaultSettings(Family::Interface).topFit == TopFit::None);
+    CHECK(DefaultSettings(Family::Interface).capitals == ddmod::text::CapReference::H &&
+          DefaultSettings(Family::Books).capitals == ddmod::text::CapReference::H);
     CHECK(DefaultSettings(Family::Interface).style == GlyphStyle::Ramp && !DefaultSettings(Family::Interface).lineHeight.automatic);
 
     // The bundled faces: what the defaults name is in assets/fonts, GDI selects exactly that face,
@@ -842,6 +852,13 @@ ddmod::text::Capitals TestCapitals(ddmod::overlay::Rgb top, ddmod::overlay::Rgb 
     return caps;
 }
 
+// A plain stem from the top to the bottom (no accent).
+ddmod::text::Image stem0() {
+    ddmod::text::Image img = ddmod::text::MakeImage(2, 10);
+    for (int y = 0; y < 10; ++y) img.A(0, y) = 1.0f;
+    return img;
+}
+
 void TestTextStyle() {
     using namespace ddmod::text;
     CHECK(To565({255, 255, 255}).r == 255 && To565({255, 255, 255}).g == 255);
@@ -859,6 +876,19 @@ void TestTextStyle() {
     const Shine still = MeasureShine(flat);
     CHECK(std::abs(still.across[0][0] - 1.0f) < 0.01f && still.texture < 0.001f);
     CHECK(MeasureCap(Capitals{}).height == 0);  // no letters: nothing measured, no crash
+    CHECK(MeasureCap(Capitals{}, CapReference::Median).height == 0);
+
+    // Median capitals: an H taller than the others moves the H measure, not the median one.
+    Capitals tallH = flat;
+    ddmod::overlay::Glyph& h = tallH['H' - 'A'];
+    h.offsetY = -3;
+    h.height = 13;
+    h.coverage.assign(6 * 13, 255);
+    h.colors.assign(6 * 13, {200, 100, 50});
+    CHECK(MeasureCap(tallH).top == -3 && MeasureCap(tallH).height == 13);
+    CHECK(MeasureCap(tallH, CapReference::Median).top == 2 && MeasureCap(tallH, CapReference::Median).height == 8);
+    CHECK(MedianCap({1, 5, 3}, {9, 11, 10}).top == 3 && MedianCap({1, 5, 3}, {9, 11, 10}).height == 8);
+    CHECK(MedianCap({1}, {}).height == 0);  // mismatched lists: nothing
 
     // A gradient from top to bottom and darker left/right ends.
     const Capitals shaded = TestCapitals({240, 240, 240}, {80, 80, 80}, 0.5f);
@@ -904,6 +934,47 @@ void TestTextStyle() {
     CHECK(PaintStyled(mask, 1, 6, glossy).C(1, 3).r == painted.C(1, 3).r);  // strength 0 = no shine
     CHECK(PaintStyled(mask, 1, 6, StyleParams{}).A(3, 3) == 0.0f);         // no profile: nothing drawn
 
+    // Keeping ink below the line top: a dot two rows above a body that starts at row 6, with three
+    // empty rows between them, moves down by at most two rows (one empty row stays).
+    Image umlaut = MakeImage(4, 10);
+    umlaut.A(1, 1) = umlaut.A(1, 2) = 1.0f;
+    for (int y = 6; y < 10; ++y) umlaut.A(0, y) = 1.0f;
+    CHECK(InkTop(umlaut) == 1 && InkTop(MakeImage(2, 2)) == 2);
+    CHECK(LowerAccent(umlaut, 6, 5) == 2 && InkTop(umlaut) == 3 && umlaut.A(1, 4) == 1.0f && umlaut.A(1, 5) == 0.0f);
+    CHECK(LowerAccent(umlaut, 6, 5) == 0);  // no gap left to use
+    // Dots between the raised arms of a U (no empty row between them and the letter): they still
+    // come down, but stay above the capitals' top.
+    Image u = MakeImage(8, 10);
+    for (int y = 0; y < 10; ++y) u.A(0, y) = u.A(7, y) = 1.0f;
+    for (int x = 0; x < 8; ++x) u.A(x, 9) = 1.0f;
+    u.A(3, 0) = u.A(4, 0) = 1.0f;
+    CHECK(LowerAccent(u, 5, 9) == 3 && u.A(3, 3) == 1.0f && u.A(3, 0) == 0.0f && u.A(0, 0) == 1.0f);
+    // A lone accent (the whole mask above the capitals' top, no body): left alone, nothing is
+    // written outside the mask.
+    Image lone = MakeImage(3, 3);
+    lone.A(1, 0) = lone.A(1, 1) = 1.0f;
+    CHECK(LowerAccent(lone, 20, 10) == 0 && lone.A(1, 0) == 1.0f);
+    // A tall accent scaled into the rows above its letter: 4 rows high, now from row 2 (2 rows).
+    Image hat = MakeImage(8, 12);
+    for (int y = 0; y < 4; ++y) {
+        for (int x = 2; x < 6; ++x) hat.A(x, y) = 1.0f;
+    }
+    for (int y = 6; y < 12; ++y) {
+        for (int x = 0; x < 8; ++x) hat.A(x, y) = 1.0f;
+    }
+    CHECK(ShrinkAccent(hat, 6, 2) && InkTop(hat) == 2 && hat.A(3, 3) > 0.9f && hat.A(2, 0) == 0.0f);
+    CHECK(hat.A(2, 3) < 0.1f && hat.A(4, 3) > 0.9f);  // half as wide, centered on the old middle
+    Image plainStem = stem0();
+    CHECK(!ShrinkAccent(plainStem, 6, 2));  // no accent: false
+    Image stem = MakeImage(2, 10);
+    for (int y = 0; y < 10; ++y) stem.A(0, y) = 1.0f;
+    CHECK(LowerAccent(stem, 6, 3) == 0);  // a tall stem is no accent
+    SqueezeTop(stem, 6, 3);
+    CHECK(InkTop(stem) == 3 && stem.A(0, 6) == 1.0f && stem.A(0, 9) == 1.0f);  // the part above row 6 now fills 3..5
+    float covered = 0.0f;
+    for (int y = 3; y < 6; ++y) covered += stem.A(0, y);
+    CHECK(covered > 2.9f);  // compressed, not thinned out
+
     // Game pixels: transparent stays 0, black stays visible, partial pixels blend into the background.
     Image px = MakeImage(3, 1);
     px.A(1, 0) = 1.0f;
@@ -913,6 +984,11 @@ void TestTextStyle() {
     const auto game = ToGamePixels(px, {0x9C, 0x8E, 0x5A});
     CHECK(game.size() == 3 && game[0] == 0 && game[1] == 1);
     CHECK(game[2] != 0 && (game[2] >> 11) > (0x9C >> 3) && (game[2] >> 11) < 31);
+}
+
+int h0Advance(const ddmod::text::GdiFace& font) {
+    ddmod::text::GdiFace::Mask m;
+    return font.GlyphMask(L'H', 0, m) ? m.advance : 0;
 }
 
 void TestGdiFace() {
@@ -927,6 +1003,20 @@ void TestGdiFace() {
     CHECK(font.Missing(L"ÄéЖ").empty());  // German, French and Cyrillic
     const int height = HeightForCap(face, 700, 12);
     CHECK(GdiFace(face, height, 700).CapHeight() >= 12 && GdiFace(face, height - 1, 700).CapHeight() < 12);
+    // CapReference::H is the capital H; the median of a plain sans is within a pixel of it.
+    CHECK(font.Capitals(CapReference::H).top == font.CapTop() && font.Capitals(CapReference::H).height == font.CapHeight());
+    const CapMetrics median = font.Capitals(CapReference::Median);
+    CHECK(std::abs(median.top - font.CapTop()) <= 1 && std::abs(median.height - font.CapHeight()) <= 1);
+    const int medianHeight = HeightForCap(face, 700, 12, CapReference::Median);
+    CHECK(GdiFace(face, medianHeight, 700).Capitals(CapReference::Median).height >= 12);
+
+    // A line: pen from the pad, advances add up, the H's ink sits where its mask says.
+    const Image line = LineMask(font, L"HH", 3);
+    CHECK(line.width >= 3 + 2 * h0Advance(font) && line.height == font.CellHeight() + 6);
+    CHECK(LineMask(font, L"", 3).width == 6);
+    float ink = 0.0f;
+    for (int y = 0; y < line.height; ++y) ink = std::max(ink, line.A(3 + 2, y));
+    CHECK(ink > 0.5f);  // the H's left stem near the pen start
 
     GdiFace::Mask h;
     CHECK(font.GlyphMask(L'H', 2, h));
@@ -1081,6 +1171,17 @@ void TestOverlayStatus() {
     CHECK(!StatusShown(StatusMode::Banner, 5.0, 5));
     CHECK(StatusShown(StatusMode::Always, 1e6, 5));
     CHECK(!StatusShown(StatusMode::Off, 0.0, 5));
+    bool gameLook = false;
+    CHECK(ParseBannerLook("Game", gameLook) && gameLook);
+    CHECK(ParseBannerLook("plain", gameLook) && !gameLook);
+    CHECK(!ParseBannerLook("fancy", gameLook) && !gameLook);
+
+    // The banner: three parts in the menu and interface families; a folder without the game's
+    // fonts gives no image (the overlay falls back to the plain line).
+    const auto parts = DefaultBanner(L"Rivellon Renewed", L"0.01", L"active");
+    CHECK(parts.size() == 3 && parts[0].font == "fontbig24" && parts[0].text == L"RIVELLON RENEWED" && parts[0].family == ddmod::fonts::Family::Menu);
+    CHECK(parts[1].font == "fontn2" && parts[2].font == "fontgr1" && parts[2].text == L"active");
+    CHECK(RenderBanner(std::filesystem::temp_directory_path() / L"ddmod-no-game-fonts", parts).image.width == 0);
 }
 
 }  // namespace

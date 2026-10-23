@@ -41,23 +41,29 @@ Rgb Shade(Rgb c, Rgb to, float k);
 // an empty glyph.
 using Capitals = std::vector<overlay::Glyph>;  // 26 entries, A first
 
-// Top row (from the top of the line) and height of the inked rows of the capital H.
+// Top row (from the top of the line) and height of the capitals: the inked rows of the capital H,
+// or the median top and median bottom row over A-Z - for faces whose H is not like the other
+// capitals (Almendra SC's and Uncial Antiqua's H reach well above them).
+enum class CapReference { H, Median };
 struct CapMetrics {
     int top = 0;
     int height = 0;
 };
-CapMetrics MeasureCap(const Capitals& caps);
+CapMetrics MeasureCap(const Capitals& caps, CapReference ref = CapReference::H);
+
+// The median capital of per-letter top and bottom rows (bottom inclusive); {} for no letters.
+CapMetrics MedianCap(std::vector<int> tops, std::vector<int> bottoms);
 
 // Mean color of the inner pixels (all four neighbors drawn, so not the shaded edge) per step from
-// the top to the bottom of the capital H, over A-Z.
-std::vector<Rgb> MeasureProfile(const Capitals& caps);
+// the top to the bottom of the capitals (`ref`), over A-Z.
+std::vector<Rgb> MeasureProfile(const Capitals& caps, CapReference ref = CapReference::H);
 
 // Brightness of the stroke edges relative to the color profile: factor per distance (1-3 pixels)
 // from the top, bottom, left and right end of a stroke.
 struct Bevel {
     float side[4][3] = {{1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}};  // top, bottom, left, right
 };
-Bevel MeasureBevel(const Capitals& caps, const std::vector<Rgb>& profile);
+Bevel MeasureBevel(const Capitals& caps, const std::vector<Rgb>& profile, CapReference ref = CapReference::H);
 
 // Brightness across the strokes: for every horizontal and vertical run of drawn pixels (4 or more
 // long), the brightness relative to the run's mean in kShineBins steps from one end to the other;
@@ -69,6 +75,23 @@ struct Shine {
 };
 Shine MeasureShine(const Capitals& caps);
 
+// The game draws nothing of a glyph above the top of its line in pre-rendered texts (menu entries,
+// diary title; docs/re/text-rendering.md). These keep a face's ink below it.
+// LowerAccent: the ink above the letter's body and the empty rows under it (an accent or the dots
+// of an umlaut) moves down by up to `rows` rows, keeping one empty row above the body (which
+// starts at mask row `capTop` or at the first inked row above it that joins it). Returns the rows
+// moved; 0 if the letter has no separate part above it (a tall stem, an ascender).
+int LowerAccent(Image& mask, int capTop, int rows);
+// ShrinkAccent: the accent (as LowerAccent finds it) scaled down in both directions about its
+// bottom row and middle so that it starts at mask row `topRow`; true if it fits there now (or did
+// already), false if the glyph has no separate accent.
+bool ShrinkAccent(Image& mask, int capTop, int topRow);
+// SqueezeTop: the rows from the first inked row down to `capTop` are compressed by `rows` rows
+// (box filter), so the part above the capitals ends `rows` lower.
+void SqueezeTop(Image& mask, int capTop, int rows);
+// First inked row of a mask (alpha at least 1/64), or mask.height if none.
+int InkTop(const Image& mask);
+
 // Deterministic value noise in -1..1 with cells of `cell` pixels (our own texture, not the game's).
 float ValueNoise(int x, int y, int cell);
 
@@ -76,7 +99,7 @@ float ValueNoise(int x, int y, int cell);
 // to the text color.
 Image PaintRamp(const Image& mask, Rgb text, Rgb edge);
 
-// Color from `profile` between the top (`capTop`, in mask rows) and the bottom of the capital H.
+// Color from `profile` between the top (`capTop`, in mask rows) and the bottom of the capitals.
 // `outline` lays a one-pixel contour in `contour` under the glyph; `gloss` lightens the upper and
 // darkens the lower stroke edge by fixed amounts; `bevel` scales the stroke edges by measured
 // factors and shades partly covered pixels towards `contour`. `shine` scales every stroke pixel by

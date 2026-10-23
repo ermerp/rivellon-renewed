@@ -22,6 +22,9 @@ enum class StatusMode { Banner, Always, Off };
 // Case-insensitive; false for unknown text.
 bool ParseStatusMode(std::string_view text, StatusMode& mode);
 
+// [Overlay] BannerLook: game = the banner in the game's fonts and colors (banner.h), plain = the
+// status line in the font chain's face. Case-insensitive; false for unknown text.
+bool ParseBannerLook(std::string_view text, bool& gameLook);
 // Whether the status line is shown `elapsedSeconds` after the overlay's first frame.
 bool StatusShown(StatusMode mode, double elapsedSeconds, int bannerSeconds);
 

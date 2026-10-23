@@ -509,7 +509,10 @@ finally {
     $status = 'not started'
     if ($proc) {
         if ($proc.HasExited) {
-            $status = "EXITED EARLY after $([int]($proc.ExitTime - $proc.StartTime).TotalSeconds)s, exit code $($proc.ExitCode) (0x{0:X8})" -f $proc.ExitCode
+            # ExitTime can be unset for a process that ended right away (e.g. a second instance).
+            $seconds = try { [int][math]::Max(0, ($proc.ExitTime - $proc.StartTime).TotalSeconds) } catch { -1 }
+            $code = try { $proc.ExitCode } catch { 0 }
+            $status = "EXITED EARLY after ${seconds}s, exit code $code (0x{0:X8})" -f $code
         } else {
             $status = 'running until closed by script'
             $null = $proc.CloseMainWindow()

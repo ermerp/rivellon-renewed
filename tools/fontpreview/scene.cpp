@@ -11,7 +11,7 @@
 //                                                 the game's height and the mod's colors
 //   original|<label>                              the bitmap fonts as the game draws them
 //   smooth|<label>                                bitmap fonts; the 2x copy smoothed (distance field)
-//   font|<label>|<face>|<font file or empty>|<weight>[|option...]  options: match, ramp|gradient|
+//   font|<label>|<face>|<font file or empty>|<weight>[|option...]  options: match, capitals, ramp|gradient|
 //                                                 gloss|measured, lower, bold<n>|thin<n>, track<n>,
 //                                                 fit<n> (largest height whose ink - the lines plus
 //                                                 accented capitals and all extenders - fits in n px),
@@ -27,7 +27,9 @@
 //                                                 edge to the text color, RGB565, the font's own
 //                                                 advance ([Fonts] Spacing=font). `match`: height
 //                                                 so the capital H is as high as in the line's
-//                                                 bitmap font. `gradient`: color profile measured
+//                                                 bitmap font, and at the same place (`capitals`:
+//                                                 the median capital over A-Z instead of the H,
+//                                                 also for the color profile). `gradient`: color profile measured
 //                                                 from the bitmap font plus a contour in the edge
 //                                                 color; `gloss`: also light upper and dark lower
 //                                                 stroke edges; `measured`: profile plus the edge
@@ -36,6 +38,16 @@
 //                                                 faces). `bold<n>`/`thin<n>`: stroke weight +/- n
 //                                                 quarter pixels. `track<n>`: n extra pixels per
 //                                                 character
+//   banner|<label>|<x>|<baseline y>[|center]      a mixed line on the whole background crop: the
+//                                                 following parts, until `endbanner`, each in its
+//                                                 own font, capitals standing on the baseline;
+//                                                 `center` centers each line on x; a 2x copy of the
+//                                                 banner's surroundings goes to the right
+//   part|<gap>|<newline>|<file.fnt>|<text RRGGBB>|<edge RRGGBB>|<face>|<font file>|<weight>|<options>|<text>
+//                                                 one part: `gap` pixels after the previous part,
+//                                                 `newline` > 0 starts a new line that many pixels
+//                                                 lower; options as for `font`, space-separated
+//   endbanner
 //   charset|<file.fnt>|<scale>|<text RRGGBB>|<edge RRGGBB>|<bg RRGGBB>
 //                                                 instead of background/line: the whole character
 //                                                 set, the bitmap font scaled by <scale> and every
@@ -259,7 +271,8 @@ struct Candidate {
     Kind kind;
     std::wstring label, face, file;
     int weight = 600;
-    bool matchHeight = false;  // capital H as high as in the bitmap font instead of the game's height
+    bool matchHeight = false;  // capitals as high as in the bitmap font instead of the game's height
+    text::CapReference capitals = text::CapReference::H;  // which capitals `match` compares
     Style style = Style::Ramp;
     bool lower = false;  // draw the text in lowercase (unicase faces keep their uncial forms there)
     int morph = 0;       // stroke weight in quarter pixels: > 0 bolder, < 0 thinner
@@ -282,11 +295,16 @@ text::Capitals Caps(GlyphCache& cache) {
     return caps;
 }
 
-// Distance from the top of the line to the first row of the capital H in a bitmap font.
-int FntCapTop(GlyphCache& cache) { return text::MeasureCap(Caps(cache)).top; }
+// Distance from the top of the line to the first row of the capitals (the H by default) in a
+// bitmap font.
+int FntCapTop(GlyphCache& cache, text::CapReference ref = text::CapReference::H) {
+    return text::MeasureCap(Caps(cache), ref).top;
+}
 
-// Rows with any pixel of the capital H in a bitmap font.
-int FntCapHeight(GlyphCache& cache) { return text::MeasureCap(Caps(cache)).height; }
+// Rows with any pixel of the capitals (the H by default) in a bitmap font.
+int FntCapHeight(GlyphCache& cache, text::CapReference ref = text::CapReference::H) {
+    return text::MeasureCap(Caps(cache), ref).height;
+}
 // Coverage of a line (alpha 0-1) with the same layout as RampLine. Characters listed in
 // `from` are taken from `alt` (character `to[i]`), standing on the same baseline.
 Image Coverage(const GdiFace& font, const std::wstring& text, int tracking, const GdiFace* alt = nullptr,
@@ -490,6 +508,69 @@ SceneRow RenderCharset(const Spec& spec, const Candidate& c) {
     return ToRow(std::move(row), p);
 }
 
+// One spec line in a font candidate: the painted image (kPad on every side), the GDI height and
+// the vertical shift that puts its capitals where the original's are (matched candidates).
+struct LineImage {
+    Image image;
+    int height = 0;
+    int shift = 0;
+};
+LineImage FontLine(const Spec& spec, const Candidate& c, const Line& line, int fitHeight, bool printMeasures) {
+    GlyphCache original(ddmod::overlay::CreateFntGlyphSource(std::filesystem::path(spec.fntDir) / line.fnt));
+    LineImage out;
+    out.height = c.fit > 0          ? std::max(4, fitHeight)
+                 : c.matchX      ? text::HeightForX(c.face, c.weight, FntInkHeight(original, L'x'))
+                 : c.matchHeight ? text::HeightForCap(c.face, c.weight, FntCapHeight(original, c.capitals), c.capitals)
+                                 : line.height;
+    const int height = out.height;
+    const GdiFace font(c.face, height, c.weight);
+    if (c.matchX) {
+        // Same baseline as the original (the row under its capital H).
+        out.shift = FntCapTop(original) + FntCapHeight(original) - font.Ascent();
+    } else if (c.matchHeight || c.fit > 0) {
+        out.shift = FntCapTop(original, c.capitals) - font.Capitals(c.capitals).top;
+    }
+    std::wstring str = line.str;
+    if (c.lower) CharLowerBuffW(str.data(), static_cast<DWORD>(str.size()));
+    if (c.style == Style::Ramp) {
+        const bool plain = c.morph == 0 && c.squeeze == 0 && c.altFace.empty();
+        out.image = plain ? RampLine(font, str, line.text, line.edge, c.tracking)
+                          : text::PaintRamp(CandidateMask(c, height, str), line.text, line.edge);
+        return out;
+    }
+    const std::vector<Rgb> profile = text::MeasureProfile(Caps(original), c.capitals);
+    const text::Bevel bevel = text::MeasureBevel(Caps(original), profile, c.capitals);
+    if (c.style == Style::Measured && printMeasures) {
+        std::fwprintf(stdout, L"  %ls: profile", line.fnt.c_str());
+        for (const Rgb p : profile) std::fwprintf(stdout, L" %02X%02X%02X", p.r, p.g, p.b);
+        std::fwprintf(stdout, L"\n  edge factors (top, bottom, left, right; 1-3 px):");
+        for (const auto& s : bevel.side) std::fwprintf(stdout, L"  %.2f %.2f %.2f", s[0], s[1], s[2]);
+        std::fwprintf(stdout, L"\n");
+    }
+    const text::Shine shine = text::MeasureShine(Caps(original));
+    if (c.style == Style::Shine && printMeasures) {
+        std::fwprintf(stdout, L"  %ls: across strokes (horizontal | vertical):", line.fnt.c_str());
+        for (const auto& d : shine.across) {
+            for (const float v : d) std::fwprintf(stdout, L" %.2f", v);
+            std::fwprintf(stdout, L" |");
+        }
+        std::fwprintf(stdout, L" texture %.3f\n", shine.texture);
+    }
+    const bool own = c.style == Style::Measured || c.style == Style::Shine;
+    text::StyleParams style;
+    style.profile = profile;
+    style.contour = line.edge;
+    style.outline = !own;
+    style.gloss = c.style == Style::Gloss;
+    style.bevel = c.style == Style::Measured ? &bevel : nullptr;
+    style.shine = c.style == Style::Shine ? &shine : nullptr;
+    style.shineStrength = c.shineStrength;
+    style.texture = c.texture;
+    const text::CapMetrics faceCap = font.Capitals(c.capitals);
+    out.image = text::PaintStyled(CandidateMask(c, height, str), kPad + faceCap.top, faceCap.height, style);
+    return out;
+}
+
 // Lays the lines out on the background and returns the row (1x left, 2x right).
 SceneRow RenderCandidate(const Spec& spec, const Picture& crop, const Candidate& c) {
     SceneRow row;
@@ -508,62 +589,16 @@ SceneRow RenderCandidate(const Spec& spec, const Picture& crop, const Candidate&
             for (int h = 4; h < 200 && GdiFace(c.face, h, c.weight).InkExtent(all) <= c.fit; ++h) fitHeight = h;
         }
         for (const Line& line : spec.lines) {
-            GlyphCache original(ddmod::overlay::CreateFntGlyphSource(std::filesystem::path(spec.fntDir) / line.fnt));
-            const int height = c.fit > 0          ? std::max(4, fitHeight)
-                               : c.matchX      ? text::HeightForX(c.face, c.weight, FntInkHeight(original, L'x'))
-                               : c.matchHeight ? text::HeightForCap(c.face, c.weight, FntCapHeight(original))
-                                               : line.height;
-            const GdiFace font(c.face, height, c.weight);
+            const LineImage li = FontLine(spec, c, line, fitHeight, images.empty());
             if (!faceChecked) {
                 faceChecked = true;
-                AddCoverage(font, c.face, row);
+                AddCoverage(GdiFace(c.face, li.height, c.weight), c.face, row);
             }
-            if (heights.find(L" " + std::to_wstring(height) + L" ") == std::wstring::npos) {
-                heights += L" " + std::to_wstring(height) + L" ";
+            if (heights.find(L" " + std::to_wstring(li.height) + L" ") == std::wstring::npos) {
+                heights += L" " + std::to_wstring(li.height) + L" ";
             }
-            if (c.matchX) {
-                // Same baseline as the original (the row under its capital H).
-                shifts[images.size()] = FntCapTop(original) + FntCapHeight(original) - font.Ascent();
-            } else if (c.matchHeight || c.fit > 0) {
-                shifts[images.size()] = FntCapTop(original) - font.CapTop();
-            }
-            std::wstring str = line.str;
-            if (c.lower) CharLowerBuffW(str.data(), static_cast<DWORD>(str.size()));
-            if (c.style == Style::Ramp) {
-                const bool plain = c.morph == 0 && c.squeeze == 0 && c.altFace.empty();
-                images.push_back(plain ? RampLine(font, str, line.text, line.edge, c.tracking)
-                                       : text::PaintRamp(CandidateMask(c, height, str), line.text, line.edge));
-            } else {
-                const std::vector<Rgb> profile = text::MeasureProfile(Caps(original));
-                const text::Bevel bevel = text::MeasureBevel(Caps(original), profile);
-                if (c.style == Style::Measured && images.empty()) {
-                    std::fwprintf(stdout, L"  %ls: profile", line.fnt.c_str());
-                    for (const Rgb p : profile) std::fwprintf(stdout, L" %02X%02X%02X", p.r, p.g, p.b);
-                    std::fwprintf(stdout, L"\n  edge factors (top, bottom, left, right; 1-3 px):");
-                    for (const auto& s : bevel.side) std::fwprintf(stdout, L"  %.2f %.2f %.2f", s[0], s[1], s[2]);
-                    std::fwprintf(stdout, L"\n");
-                }
-                const text::Shine shine = text::MeasureShine(Caps(original));
-                if (c.style == Style::Shine && images.empty()) {
-                    std::fwprintf(stdout, L"  %ls: across strokes (horizontal | vertical):", line.fnt.c_str());
-                    for (const auto& d : shine.across) {
-                        for (const float v : d) std::fwprintf(stdout, L" %.2f", v);
-                        std::fwprintf(stdout, L" |");
-                    }
-                    std::fwprintf(stdout, L" texture %.3f\n", shine.texture);
-                }
-                const bool own = c.style == Style::Measured || c.style == Style::Shine;
-                text::StyleParams style;
-                style.profile = profile;
-                style.contour = line.edge;
-                style.outline = !own;
-                style.gloss = c.style == Style::Gloss;
-                style.bevel = c.style == Style::Measured ? &bevel : nullptr;
-                style.shine = c.style == Style::Shine ? &shine : nullptr;
-                style.shineStrength = c.shineStrength;
-                style.texture = c.texture;
-                images.push_back(text::PaintStyled(CandidateMask(c, height, str), kPad + font.CapTop(), font.CapHeight(), style));
-            }
+            shifts[images.size()] = li.shift;
+            images.push_back(li.image);
         }
         if (c.fit > 0) {
             row.caption += L"   (GDI height" + heights + L"= largest without touching lines " + std::to_wstring(c.fit) +
@@ -572,7 +607,9 @@ SceneRow RenderCandidate(const Spec& spec, const Picture& crop, const Candidate&
             row.caption += L"   (GDI height" + heights + L"= lowercase x as in the original" +
                            (c.squeeze > 0 ? L", extenders squeezed into " + std::to_wstring(c.squeeze) + L" px)" : L")");
         } else if (c.matchHeight) {
-            row.caption += L"   (GDI height" + heights + L"= capital H as in the original)";
+            row.caption += L"   (GDI height" + heights +
+                           (c.capitals == text::CapReference::H ? L"= capital H as in the original)"
+                                                                : L"= capitals (median) as in the original)");
         }
     } else {
         for (const Line& line : spec.lines) {
@@ -610,6 +647,112 @@ SceneRow RenderCandidate(const Spec& spec, const Picture& crop, const Candidate&
     return row;
 }
 
+// A banner: parts in different fonts on common baselines over the background (the whole crop at
+// 1x), plus a 2x copy of the area around it.
+struct BannerPart {
+    Candidate c;
+    Line line;
+    int gap = 0;      // pixels after the previous part
+    int newline = 0;  // > 0: starts a new line this many pixels below the previous baseline
+};
+struct Banner {
+    std::wstring label;
+    int x = 0, baseline = 0;
+    bool center = false;  // lines centered on x instead of starting there
+    std::vector<BannerPart> parts;
+};
+
+SceneRow RenderBanner(const Spec& spec, const Picture& crop, const Banner& b) {
+    SceneRow row;
+    row.caption = b.label;
+    struct Placed {
+        LineImage li;
+        int x = 0, top = 0;  // line top of the part's font
+    };
+    std::vector<std::vector<Placed>> lines;
+    std::vector<int> baselines;
+    int baseline = b.baseline;
+    for (const BannerPart& part : b.parts) {
+        if (lines.empty() || part.newline > 0) {
+            if (!lines.empty()) baseline += part.newline;
+            lines.emplace_back();
+            baselines.push_back(baseline);
+        }
+        if (!part.c.file.empty()) AddFontResourceExW(part.c.file.c_str(), FR_PRIVATE, nullptr);
+        GlyphCache original(ddmod::overlay::CreateFntGlyphSource(std::filesystem::path(spec.fntDir) / part.line.fnt));
+        Placed p;
+        p.li = FontLine(spec, part.c, part.line, 0, false);
+        // The capitals' bottom row on the baseline.
+        p.top = baseline - FntCapTop(original, part.c.capitals) - FntCapHeight(original, part.c.capitals) + 1;
+        auto& line = lines.back();
+        p.x = line.empty() ? 0 : line.back().x + line.back().li.image.width - 2 * kPad + part.gap;
+        line.push_back(std::move(p));
+    }
+    Picture one = crop;
+    int left = INT_MAX, top = INT_MAX, right = INT_MIN, bottom = INT_MIN;
+    for (auto& line : lines) {
+        const int width = line.empty() ? 0 : line.back().x + line.back().li.image.width - 2 * kPad;
+        const int x0 = b.center ? b.x - width / 2 : b.x;
+        for (const Placed& p : line) {
+            const int x = x0 + p.x - kPad, y = p.top - kPad + p.li.shift;
+            Blend(one, p.li.image, x, y);
+            left = std::min(left, x);
+            top = std::min(top, y);
+            right = std::max(right, x + p.li.image.width);
+            bottom = std::max(bottom, y + p.li.image.height);
+        }
+    }
+    // 2x copy of the banner's surroundings.
+    constexpr int kAround = 24;
+    left = std::max(0, left - kAround);
+    top = std::max(0, top - kAround);
+    right = std::min(one.width, right + kAround);
+    bottom = std::min(one.height, bottom + kAround);
+    Picture area{std::max(1, right - left), std::max(1, bottom - top), {}};
+    area.px.resize(static_cast<std::size_t>(area.width) * area.height);
+    for (int y = 0; y < area.height; ++y) {
+        for (int x = 0; x < area.width; ++x) area.At(x, y) = one.At(left + x, top + y);
+    }
+    const Picture two = Nearest(area, 2);
+
+    constexpr int kGap = 24;
+    row.width = one.width + kGap + two.width;
+    row.height = std::max(one.height, two.height);
+    row.pixels.assign(static_cast<std::size_t>(row.width) * row.height, 0x00101010);
+    const auto put = [&](const Picture& p, int x0) {
+        for (int y = 0; y < p.height; ++y) {
+            for (int x = 0; x < p.width; ++x) {
+                row.pixels[static_cast<std::size_t>(y) * row.width + x0 + x] =
+                    ddmod::overlay::Pack(ddmod::overlay::PixelFormat::Xrgb8888, p.px[static_cast<std::size_t>(y) * p.width + x]);
+            }
+        }
+    };
+    put(one, 0);
+    put(two, one.width + kGap);
+    return row;
+}
+
+// One candidate option (`font` entries, space-separated in banner parts).
+void ParseOption(Candidate& c, const std::wstring& t) {
+    if (t == L"match") c.matchHeight = true;
+    else if (t == L"capitals") c.capitals = text::CapReference::Median;
+    else if (t == L"gradient") c.style = Style::Gradient;
+    else if (t == L"gloss") c.style = Style::Gloss;
+    else if (t == L"measured") c.style = Style::Measured;
+    else if (t == L"lower") c.lower = true;
+    else if (t.starts_with(L"bold")) c.morph = _wtoi(t.c_str() + 4);
+    else if (t.starts_with(L"thin")) c.morph = -_wtoi(t.c_str() + 4);
+    else if (t.starts_with(L"track")) c.tracking = _wtoi(t.c_str() + 5);
+    else if (t.starts_with(L"fit")) c.fit = _wtoi(t.c_str() + 3);
+    else if (t == L"matchx") c.matchX = true;
+    else if (t == L"tex") c.texture = true;
+    else if (t.starts_with(L"shine")) {
+        c.style = Style::Shine;
+        if (t.size() > 5) c.shineStrength = static_cast<float>(_wtoi(t.c_str() + 5)) / 100.0f;
+    }
+    else if (t.starts_with(L"squeeze")) c.squeeze = _wtoi(t.c_str() + 7);
+}
+
 }  // namespace
 
 bool RenderScene(const std::filesystem::path& specFile, std::vector<SceneRow>& rows, std::wstring& error) {
@@ -625,6 +768,8 @@ bool RenderScene(const std::filesystem::path& specFile, std::vector<SceneRow>& r
 
     Spec spec;
     Picture crop;
+    Banner banner;
+    bool inBanner = false;
     std::wistringstream lines(text);
     std::wstring raw;
     while (std::getline(lines, raw)) {
@@ -684,25 +829,7 @@ bool RenderScene(const std::filesystem::path& specFile, std::vector<SceneRow>& r
                 c.face = f[2];
                 c.file = f[3];
                 c.weight = _wtoi(f[4].c_str());
-                for (std::size_t k = 5; k < f.size(); ++k) {
-                    const std::wstring& t = f[k];
-                    if (t == L"match") c.matchHeight = true;
-                    else if (t == L"gradient") c.style = Style::Gradient;
-                    else if (t == L"gloss") c.style = Style::Gloss;
-                    else if (t == L"measured") c.style = Style::Measured;
-                    else if (t == L"lower") c.lower = true;
-                    else if (t.starts_with(L"bold")) c.morph = _wtoi(t.c_str() + 4);
-                    else if (t.starts_with(L"thin")) c.morph = -_wtoi(t.c_str() + 4);
-                    else if (t.starts_with(L"track")) c.tracking = _wtoi(t.c_str() + 5);
-                    else if (t.starts_with(L"fit")) c.fit = _wtoi(t.c_str() + 3);
-                    else if (t == L"matchx") c.matchX = true;
-                    else if (t == L"tex") c.texture = true;
-                    else if (t.starts_with(L"shine")) {
-                        c.style = Style::Shine;
-                        if (t.size() > 5) c.shineStrength = static_cast<float>(_wtoi(t.c_str() + 5)) / 100.0f;
-                    }
-                    else if (t.starts_with(L"squeeze")) c.squeeze = _wtoi(t.c_str() + 7);
-                }
+                for (std::size_t k = 5; k < f.size(); ++k) ParseOption(c, f[k]);
                 c.altFace = spec.altFace;
                 c.altFile = spec.altFile;
                 c.altWeight = spec.altWeight;
@@ -710,6 +837,34 @@ bool RenderScene(const std::filesystem::path& specFile, std::vector<SceneRow>& r
                 c.altTo = spec.altTo;
             }
             rows.push_back(charset ? RenderCharset(spec, c) : RenderCandidate(spec, crop, c));
+        } else if (key == L"banner" && need(3)) {
+            if (crop.px.empty()) {
+                error = L"background must come before banner";
+                return false;
+            }
+            banner = Banner{f[1], _wtoi(f[2].c_str()), _wtoi(f[3].c_str()), f.size() > 4 && f[4] == L"center", {}};
+            inBanner = true;
+        } else if (key == L"part" && need(10)) {
+            if (!inBanner) {
+                error = L"part outside banner: " + raw;
+                return false;
+            }
+            BannerPart part;
+            part.gap = _wtoi(f[1].c_str());
+            part.newline = _wtoi(f[2].c_str());
+            part.line = {f[3], 0, ParseHex(f[4]), ParseHex(f[5]), f[10]};
+            part.c = Candidate{Kind::Font, {}, f[6], f[7]};
+            part.c.weight = _wtoi(f[8].c_str());
+            std::wistringstream options(f[9]);
+            for (std::wstring t; options >> t;) ParseOption(part.c, t);
+            banner.parts.push_back(std::move(part));
+        } else if (key == L"endbanner") {
+            if (!inBanner || banner.parts.empty()) {
+                error = L"endbanner without banner parts";
+                return false;
+            }
+            rows.push_back(RenderBanner(spec, crop, banner));
+            inBanner = false;
         } else if (error.empty()) {
             error = L"unknown entry: " + raw;
         }

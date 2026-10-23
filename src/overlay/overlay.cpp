@@ -5,6 +5,7 @@
 #include <format>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <windows.h>
 
@@ -14,6 +15,7 @@
 #include "core/paths.h"
 #include "fonts/fontchain.h"
 #include "overlay/backend.h"
+#include "overlay/banner.h"
 #include "overlay/glyphs.h"
 
 namespace ddmod::overlay {
@@ -21,9 +23,15 @@ namespace {
 
 using EndFrameFn = int(__cdecl*)();
 
+// Where the banner's first pen position and its baseline lie (top left, beside the game's 4:3
+// picture on a 16:9 screen; the game draws its fonts at fixed pixel sizes, so does the banner).
+constexpr int kBannerX = 18;
+constexpr int kBannerBaseline = 38;
+
 struct Settings {
     StatusMode status = StatusMode::Banner;
     int bannerSeconds = 5;
+    bool gameLook = true;  // [Overlay] BannerLook=game (else plain)
     std::wstring fontFace;  // from the font chain ([Fonts] Chain)
     int fontSize = 0;  // 0 = from the frame height
 };
@@ -34,6 +42,11 @@ struct State {
     std::unique_ptr<GlyphCache> glyphs;
     int glyphsForHeight = 0;
     std::wstring status;
+    // The banner in the game's look, rendered on first use (empty if that failed).
+    bool bannerTried = false;
+    BannerImage banner;
+    std::vector<std::uint8_t> bannerMask;
+    std::vector<Rgb> bannerColors;
     LARGE_INTEGER frequency{};
     LARGE_INTEGER firstFrame{};  // the banner time counts from here
     // FPS, measured over half-second windows.
@@ -62,6 +75,11 @@ Settings ReadSettings() {
         log::Warn("[Overlay] Status=\"{}\" is not banner, always or off - using banner", status);
     }
     s.bannerSeconds = std::clamp(config::GetInt("Overlay", "BannerSeconds", 5), 1, 60);
+    const std::string look = config::GetString("Overlay", "BannerLook", "game");
+    if (!ParseBannerLook(look, s.gameLook)) {
+        log::Warn("[Overlay] BannerLook=\"{}\" is not game or plain - using game", look);
+        s.gameLook = true;
+    }
     const auto& font = fonts::Configured();
     s.fontFace = font ? font->face : L"Tahoma";  // nothing available: let GDI substitute
     s.fontSize = std::clamp(config::GetInt("Overlay", "FontSize", 0), 0, 96);
@@ -89,7 +107,39 @@ GlyphCache* GlyphsFor(State& st, int frameHeight) {
     return st.glyphs->LineHeight() > 0 ? st.glyphs.get() : nullptr;
 }
 
+// The banner in the game's look; false if it cannot be drawn (the plain line is used then).
+bool BannerReady(State& st) {
+    if (!st.settings.gameLook) return false;
+    if (!st.bannerTried) {
+        st.bannerTried = true;
+        st.banner = RenderBanner(paths::ExePath().parent_path() / L"fonts",
+                                 DefaultBanner(Widen(DDMOD_NAME), Widen(DDMOD_VERSION), L"active"));
+        const text::Image& img = st.banner.image;
+        st.bannerMask.resize(img.alpha.size());
+        for (std::size_t i = 0; i < img.alpha.size(); ++i) {
+            st.bannerMask[i] = static_cast<std::uint8_t>(std::clamp(img.alpha[i], 0.0f, 1.0f) * 255.0f + 0.5f);
+        }
+        st.bannerColors = img.color;
+        if (img.width > 0) {
+            log::Info("Overlay: banner in the game's look ({}x{} px)", img.width, img.height);
+        } else {
+            log::Warn("Overlay: banner in the game's look not available - plain status line");
+        }
+    }
+    return st.banner.image.width > 0;
+}
+
 void Draw(State& st, const SurfaceView& view, bool showStatus, bool showFps) {
+    int top = 0;  // the plain panel starts below the banner
+    if (showStatus && BannerReady(st)) {
+        const text::Image& img = st.banner.image;
+        const int y = kBannerBaseline - st.banner.baseline;
+        DrawColorMask(view, kBannerX - st.banner.left, y, st.bannerMask.data(), st.bannerColors.data(), img.width,
+                      img.height, img.width, 255);
+        top = y + img.height;
+        showStatus = false;
+    }
+    if (!showStatus && !showFps) return;
     GlyphCache* glyphs = GlyphsFor(st, view.height);
     if (!glyphs) return;
     const std::wstring status = showStatus ? st.status : std::wstring();
@@ -99,8 +149,8 @@ void Draw(State& st, const SurfaceView& view, bool showStatus, bool showFps) {
     const int margin = pad * 2;
     const int lines = (showStatus ? 1 : 0) + (showFps ? 1 : 0);
     const int width = std::max(MeasureString(*glyphs, status), MeasureString(*glyphs, fps)) + 2 * pad;
-    FillRect(view, margin, margin, width, lines * line + 2 * pad, Rgb{0, 0, 0}, 140);
-    int y = margin + pad;
+    FillRect(view, margin, top + margin, width, lines * line + 2 * pad, Rgb{0, 0, 0}, 140);
+    int y = top + margin + pad;
     if (showStatus) {
         DrawString(view, *glyphs, margin + pad, y, status, Rgb{255, 255, 255}, true);
         y += line;
@@ -160,6 +210,16 @@ bool ParseStatusMode(std::string_view text, StatusMode& mode) {
     return true;
 }
 
+bool ParseBannerLook(std::string_view text, bool& gameLook) {
+    const auto is = [text](std::string_view word) {
+        return std::ranges::equal(text, word, [](char a, char b) { return (a | 0x20) == b; });
+    };
+    if (is("game")) gameLook = true;
+    else if (is("plain")) gameLook = false;
+    else return false;
+    return true;
+}
+
 bool StatusShown(StatusMode mode, double elapsedSeconds, int bannerSeconds) {
     switch (mode) {
         case StatusMode::Always: return true;
@@ -199,9 +259,9 @@ bool Install() {
     if (!hooks::Enable("DllSlashedEndFrame")) return false;
     log::Info("Overlay: backend {}", st.backend->Name());
     static constexpr const char* kModes[] = {"banner", "always", "off"};
-    log::Info("Overlay: status {}{}, FPS {}", kModes[static_cast<int>(st.settings.status)],
+    log::Info("Overlay: status {}{} ({} look), FPS {}", kModes[static_cast<int>(st.settings.status)],
               st.settings.status == StatusMode::Banner ? std::format(" ({} s)", st.settings.bannerSeconds) : "",
-              g_showFps.load() ? "on" : "off");
+              st.settings.gameLook ? "game" : "plain", g_showFps.load() ? "on" : "off");
     return true;
 }
 

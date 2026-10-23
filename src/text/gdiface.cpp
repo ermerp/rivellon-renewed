@@ -54,6 +54,22 @@ int GdiFace::CapHeight() const {
     return static_cast<int>(gm.gmBlackBoxY);
 }
 
+CapMetrics GdiFace::Capitals(CapReference ref) const {
+    if (ref == CapReference::H) return {CapTop(), CapHeight()};
+    std::vector<int> tops, bottoms;
+    for (wchar_t ch = L'A'; ch <= L'Z'; ++ch) {
+        GLYPHMETRICS gm{};
+        if (!Missing(std::wstring(1, ch)).empty() ||
+            GetGlyphOutlineW(dc_, ch, GGO_METRICS, &gm, 0, nullptr, &kIdentity) == GDI_ERROR || gm.gmBlackBoxY == 0) {
+            continue;
+        }
+        const int top = tm_.tmAscent - gm.gmptGlyphOrigin.y;
+        tops.push_back(top);
+        bottoms.push_back(top + static_cast<int>(gm.gmBlackBoxY) - 1);
+    }
+    return MedianCap(std::move(tops), std::move(bottoms));
+}
+
 int GdiFace::XHeight() const {
     GLYPHMETRICS gm{};
     if (GetGlyphOutlineW(dc_, L'x', GGO_METRICS, &gm, 0, nullptr, &kIdentity) == GDI_ERROR) return 0;
@@ -106,9 +122,39 @@ bool GdiFace::GlyphMask(wchar_t ch, int pad, Mask& out) const {
     return true;
 }
 
-int HeightForCap(const std::wstring& face, int weight, int target) {
+Image LineMask(const GdiFace& face, const std::wstring& text, int pad) {
+    struct Placed {
+        GdiFace::Mask m;
+        int pen = 0;
+    };
+    std::vector<Placed> placed;
+    int pen = 0, right = 0, bottom = face.CellHeight();
+    for (const wchar_t ch : text) {
+        Placed p;
+        if (!face.Missing(std::wstring(1, ch)).empty() || !face.GlyphMask(ch, 0, p.m)) continue;
+        p.pen = pen;
+        pen += p.m.advance;
+        right = std::max({right, pen, p.pen + p.m.left + p.m.mask.width});
+        bottom = std::max(bottom, p.m.top + p.m.mask.height);
+        placed.push_back(std::move(p));
+    }
+    // Ink left of the pen start or above the line top falls into the pad (or is cut beyond it).
+    Image line = MakeImage(right + 2 * pad, bottom + 2 * pad);
+    for (const Placed& p : placed) {
+        for (int y = 0; y < p.m.mask.height; ++y) {
+            for (int x = 0; x < p.m.mask.width; ++x) {
+                const int lx = pad + p.pen + p.m.left + x, ly = pad + p.m.top + y;
+                if (lx < 0 || ly < 0 || lx >= line.width || ly >= line.height) continue;
+                line.A(lx, ly) = std::max(line.A(lx, ly), p.m.mask.A(x, y));
+            }
+        }
+    }
+    return line;
+}
+
+int HeightForCap(const std::wstring& face, int weight, int target, CapReference ref) {
     int height = 4;
-    while (height < 600 && GdiFace(face, height, weight).CapHeight() < target) ++height;
+    while (height < 600 && GdiFace(face, height, weight).Capitals(ref).height < target) ++height;
     return height;
 }
 
