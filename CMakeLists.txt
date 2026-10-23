@@ -1,11 +1,13 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ddmod VERSION 0.1.0 LANGUAGES C CXX)
+project(ddmod LANGUAGES C CXX)
 
 # Public name of the mod and the stem of every file it puts into the game folder:
 # <stem>.asi, <stem>.ini, <stem>.log and the folder <stem>\ (fonts, logs of older starts).
 set(MOD_NAME "Rivellon Renewed")
 set(MOD_FILE_STEM "RivellonRenewed")
+# Release version as players see it (log, overlay banner, release zip RivellonRenewed-<version>.zip).
+set(MOD_VERSION "0.01")
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR "Divine Divinity is a 32-bit game - configure with -A Win32 (or an x86 toolchain).")
@@ -57,6 +59,8 @@ add_library(ddmod_core STATIC
     src/fonts/fontmode.cpp
     src/fonts/glyphtable.cpp
     src/fonts/spacing.cpp
+    src/text/style.cpp
+    src/text/gdiface.cpp
     src/features/dgvoodoo.cpp
     src/overlay/surface.cpp
     src/overlay/glyphs.cpp
@@ -70,7 +74,7 @@ target_compile_definitions(ddmod_core PUBLIC
     NOMINMAX
     UNICODE
     _UNICODE
-    DDMOD_VERSION="${PROJECT_VERSION}"
+    DDMOD_VERSION="${MOD_VERSION}"
     DDMOD_NAME="${MOD_NAME}"
     DDMOD_FILE_STEM="${MOD_FILE_STEM}"
 )

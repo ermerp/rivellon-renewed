@@ -5,23 +5,15 @@
 
 #include "overlay/glyphs.h"
 #include "overlay/surface.h"
+#include "text/style.h"
 
 namespace fontpreview {
 
 using ddmod::overlay::Rgb;
 
-// A rendered line with straight (not premultiplied) alpha, 0-1.
-struct Image {
-    int width = 0, height = 0;
-    std::vector<float> alpha;
-    std::vector<Rgb> color;
-    float& A(int x, int y) { return alpha[static_cast<std::size_t>(y) * width + x]; }
-    float A(int x, int y) const { return alpha[static_cast<std::size_t>(y) * width + x]; }
-    Rgb& C(int x, int y) { return color[static_cast<std::size_t>(y) * width + x]; }
-    Rgb C(int x, int y) const { return color[static_cast<std::size_t>(y) * width + x]; }
-};
-
-Image MakeImage(int width, int height);
+// A rendered line with straight (not premultiplied) alpha, 0-1 (the mod's text image).
+using ddmod::text::Image;
+using ddmod::text::MakeImage;
 
 // Renders `text` with `cache`. Pre-shaded bitmap glyphs (Glyph::colors) are darkened towards
 // black at their edges; their brightness relative to the brightest pixel of the line becomes the

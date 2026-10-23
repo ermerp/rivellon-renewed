@@ -39,7 +39,7 @@ using namespace ddmod::overlay;
 namespace {
 
 const std::vector<std::wstring> kSamples = {
-    L"Rivellon Renewed 0.1.0 – 42 FPS",
+    L"Rivellon Renewed 0.01 – 42 FPS",
     L"Ärger über Größe – Übung macht den Meister",
     L"Élève à côté, œuvre & façade",
     L"Съешь же ещё этих "

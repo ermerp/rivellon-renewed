@@ -1,10 +1,12 @@
 // Unit tests for the parts of the mod that do not need the game: SHA-256, pattern parsing and
 // matching, PE section scanning, the MinHook wrapper, the hotkey parser, log rotation and the
-// overlay's pixel, blend and glyph code
+// overlay's pixel, blend and glyph code, the text styles and their measurements (src/text)
 // (including the ML_FONT_01 bitmap font reader), the font chain and the font mode hook (its
 // signature is also checked against a working copy's div.exe if one is present).
 // Exit code 0 = all passed.
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -38,6 +40,8 @@
 #include "overlay/glyphs.h"
 #include "overlay/overlay.h"
 #include "overlay/surface.h"
+#include "text/gdiface.h"
+#include "text/style.h"
 
 namespace {
 
@@ -588,7 +592,7 @@ void TestLogArchive() {
     namespace fs = std::filesystem;
     using namespace ddmod;
     CHECK(log::ArchiveName(L"RivellonRenewed",
-                           "2026-10-20 17:11:06.504 [INFO ] [20900] Rivellon Renewed 0.1.0 loaded") ==
+                           "2026-10-20 17:11:06.504 [INFO ] [20900] Rivellon Renewed 0.01 loaded") ==
           L"RivellonRenewed-20261020-171106.log");
     CHECK(log::ArchiveName(L"RivellonRenewed", "2026-10-20 17:11:06") == L"RivellonRenewed-20261020-171106.log");
     CHECK(log::ArchiveName(L"RivellonRenewed", "2026-10-20 17:11").empty());
@@ -768,6 +772,130 @@ void TestGdiGlyphs() {
     CHECK(CreateGdiGlyphSource(missing) != nullptr);  // falls back to the installed face
 }
 
+// Capitals built by the test (no game data): every letter is a 6x8 block whose rows run from
+// `top` to `bottom` in color, and the outermost column is darker by `edge`.
+ddmod::text::Capitals TestCapitals(ddmod::overlay::Rgb top, ddmod::overlay::Rgb bottom, float edge) {
+    ddmod::text::Capitals caps(26);
+    for (auto& g : caps) {
+        g.width = 6;
+        g.height = 8;
+        g.offsetY = 2;
+        g.advance = 7;
+        g.coverage.assign(48, 255);
+        g.colors.resize(48);
+        for (int y = 0; y < 8; ++y) {
+            const ddmod::overlay::Rgb row = ddmod::text::Shade(top, bottom, y / 7.0f);
+            for (int x = 0; x < 6; ++x) {
+                const float k = x == 0 || x == 5 ? edge : 1.0f;
+                g.colors[static_cast<std::size_t>(y) * 6 + x] = {static_cast<std::uint8_t>(row.r * k),
+                                                                 static_cast<std::uint8_t>(row.g * k),
+                                                                 static_cast<std::uint8_t>(row.b * k)};
+            }
+        }
+    }
+    return caps;
+}
+
+void TestTextStyle() {
+    using namespace ddmod::text;
+    CHECK(To565({255, 255, 255}).r == 255 && To565({255, 255, 255}).g == 255);
+    CHECK(To565({0x9C, 0x8E, 0x5A}).r == 0x9C && To565({0x9C, 0x8E, 0x5A}).g == 0x8E);
+    CHECK(To565({0x9F, 0x8F, 0x5F}).r == 0x9C);  // the low bits are lost, as in the back buffer
+
+    // Measurements: flat color, no edge shading.
+    const Capitals flat = TestCapitals({200, 100, 50}, {200, 100, 50}, 1.0f);
+    const CapMetrics cap = MeasureCap(flat);
+    CHECK(cap.top == 2 && cap.height == 8);
+    const auto profile = MeasureProfile(flat);
+    CHECK(profile.size() == 16 && profile.front().r == 200 && profile.back().b == 50);
+    const Bevel even = MeasureBevel(flat, profile);
+    CHECK(std::abs(even.side[2][0] - 1.0f) < 0.01f && std::abs(even.side[0][0] - 1.0f) < 0.01f);
+    const Shine still = MeasureShine(flat);
+    CHECK(std::abs(still.across[0][0] - 1.0f) < 0.01f && still.texture < 0.001f);
+    CHECK(MeasureCap(Capitals{}).height == 0);  // no letters: nothing measured, no crash
+
+    // A gradient from top to bottom and darker left/right ends.
+    const Capitals shaded = TestCapitals({240, 240, 240}, {80, 80, 80}, 0.5f);
+    const auto gradient = MeasureProfile(shaded);
+    CHECK(gradient.front().r > gradient.back().r);
+    const Bevel sides = MeasureBevel(shaded, gradient);
+    CHECK(sides.side[2][0] < 0.7f && sides.side[3][0] < 0.7f);  // outermost column darker
+    const Shine across = MeasureShine(shaded);
+    CHECK(across.across[0][0] < across.across[0][2]);  // horizontal runs: ends darker than the middle
+
+    // Noise: deterministic, in range.
+    CHECK(ValueNoise(5, 7, 2) == ValueNoise(5, 7, 2));
+    bool inRange = true;
+    for (int i = 0; i < 200; ++i) inRange &= std::abs(ValueNoise(i * 3, i * 7, 2)) <= 1.0f;
+    CHECK(inRange);
+
+    // Painting.
+    Image mask = MakeImage(8, 8);
+    for (int y = 1; y < 7; ++y) {
+        for (int x = 1; x < 7; ++x) mask.A(x, y) = 1.0f;
+    }
+    mask.A(0, 3) = 0.5f;
+    const Image ramp = PaintRamp(mask, {255, 255, 255}, {0, 0, 0});
+    CHECK(ramp.A(3, 3) == 1.0f && ramp.C(3, 3).r == 255);
+    CHECK(ramp.A(0, 3) == 1.0f && ramp.C(0, 3).r > 100 && ramp.C(0, 3).r < 160);  // half coverage: middle of the ramp
+    CHECK(ramp.A(0, 0) == 0.0f);
+
+    StyleParams plain;
+    plain.profile = std::vector<Rgb>(16, Rgb{200, 100, 48});
+    plain.contour = {0, 0, 0};
+    const Image painted = PaintStyled(mask, 1, 6, plain);
+    CHECK(painted.A(3, 3) == 1.0f && painted.C(3, 3).r == 206 && painted.C(3, 3).b == 49);  // 565 of the profile
+    CHECK(painted.A(0, 0) == 0.0f);
+
+    Shine shine;
+    shine.across[0][0] = shine.across[0][4] = 0.8f;
+    shine.across[0][2] = 1.2f;
+    StyleParams glossy = plain;
+    glossy.shine = &shine;
+    const Image shiny = PaintStyled(mask, 1, 6, glossy);
+    CHECK(shiny.C(1, 3).r < shiny.C(3, 3).r);  // stroke end darker than its middle
+    glossy.shineStrength = 0.0f;
+    CHECK(PaintStyled(mask, 1, 6, glossy).C(1, 3).r == painted.C(1, 3).r);  // strength 0 = no shine
+    CHECK(PaintStyled(mask, 1, 6, StyleParams{}).A(3, 3) == 0.0f);         // no profile: nothing drawn
+
+    // Game pixels: transparent stays 0, black stays visible, partial pixels blend into the background.
+    Image px = MakeImage(3, 1);
+    px.A(1, 0) = 1.0f;
+    px.C(1, 0) = {0, 0, 0};
+    px.A(2, 0) = 0.5f;
+    px.C(2, 0) = {255, 255, 255};
+    const auto game = ToGamePixels(px, {0x9C, 0x8E, 0x5A});
+    CHECK(game.size() == 3 && game[0] == 0 && game[1] == 1);
+    CHECK(game[2] != 0 && (game[2] >> 11) > (0x9C >> 3) && (game[2] >> 11) < 31);
+}
+
+void TestGdiFace() {
+    using namespace ddmod::text;
+    const std::filesystem::path file =
+        std::filesystem::path(DDMOD_SOURCE_DIR) / L"assets" / L"fonts" / L"DejaVuSansCondensed-Bold.ttf";
+    CHECK(AddFontResourceExW(file.c_str(), FR_PRIVATE, nullptr) > 0);
+    const std::wstring face = L"DejaVu Sans Condensed";
+    const GdiFace font(face, 20, 700);
+    CHECK(font.Valid() && font.ActualFace() == face);
+    CHECK(font.CapHeight() > 8 && font.CapTop() > 0 && font.XHeight() < font.CapHeight());
+    CHECK(font.Missing(L"ÄéЖ").empty());  // German, French and Cyrillic
+    const int height = HeightForCap(face, 700, 12);
+    CHECK(GdiFace(face, height, 700).CapHeight() >= 12 && GdiFace(face, height - 1, 700).CapHeight() < 12);
+
+    GdiFace::Mask h;
+    CHECK(font.GlyphMask(L'H', 2, h));
+    CHECK(h.mask.width == static_cast<int>(h.mask.alpha.size()) / h.mask.height && h.advance > 0);
+    // The mask's top row is the top of the H, minus the pad (the gray bitmap's box may be one row
+    // larger than the metrics' box).
+    CHECK(std::abs(h.top + 2 - font.CapTop()) <= 1);
+    float full = 0.0f;
+    for (const float a : h.mask.alpha) full = std::max(full, a);
+    CHECK(full == 1.0f && h.mask.A(0, 0) == 0.0f);
+    GdiFace::Mask space;
+    CHECK(font.GlyphMask(L' ', 0, space) && space.mask.alpha.empty() && space.advance > 0);
+    RemoveFontResourceExW(file.c_str(), FR_PRIVATE, nullptr);
+}
+
 // A minimal ML_FONT_01 file built by the test (no game data): 'A' is a 2x2 glyph, 'B' an alias of 'A'.
 void TestFntFont() {
     using namespace ddmod::overlay;
@@ -917,6 +1045,8 @@ int main() {
     TestFillAndMask();
     TestGlyphCache();
     TestGdiGlyphs();
+    TestTextStyle();
+    TestGdiFace();
     TestFntFont();
     TestFontChain();
     TestDgVoodooWatermark();

@@ -31,15 +31,6 @@ Rgb NearestColor(const Image& img, int x, int y) {
 
 }  // namespace
 
-Image MakeImage(int width, int height) {
-    Image img;
-    img.width = width;
-    img.height = height;
-    img.alpha.assign(static_cast<std::size_t>(width) * height, 0.0f);
-    img.color.assign(static_cast<std::size_t>(width) * height, Rgb{});
-    return img;
-}
-
 Image RenderLine(ddmod::overlay::GlyphCache& cache, std::wstring_view text, Rgb color, int pad) {
     Image img = MakeImage(std::max(1, ddmod::overlay::MeasureString(cache, text) + 2 * pad),
                           cache.LineHeight() + 2 * pad);
