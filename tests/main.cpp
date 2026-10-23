@@ -1048,6 +1048,20 @@ void TestFontChain() {
     picked = Resolve(ParseChain("No Such Face 4711, DejaVu Sans Condensed @ fonts\\DejaVuSansCondensed-Bold.ttf", assets), true);
     CHECK(picked && picked->face == L"DejaVu Sans Condensed");
     CHECK(!Resolve(ParseChain("No Such Face 4711, Y @ missing.ttf", assets), true));
+
+    // Registry font list: type suffix dropped, collections split at '&', whole names only.
+    CHECK(FontListNameMatches(L"Tahoma Bold (TrueType)", L"Tahoma Bold"));
+    CHECK(FontListNameMatches(L"tahoma bold (TrueType)", L"Tahoma Bold"));
+    CHECK(!FontListNameMatches(L"Tahoma Bold (TrueType)", L"Tahoma"));
+    CHECK(FontListNameMatches(L"Cambria & Cambria Math (TrueType)", L"Cambria Math"));
+    CHECK(FontListNameMatches(L"Cambria & Cambria Math (TrueType)", L"Cambria"));
+    CHECK(FontListNameMatches(L"Some Font", L"Some Font"));
+    CHECK(!FontListNameMatches(L"Some Font", L""));
+    // Tahoma Bold is a font of its own on Windows (tahomabd.ttf); the English full name also on a
+    // German Windows, whose GDI calls it "Tahoma Fett".
+    const InstalledFont tahoma = FindInstalledFont(L"Tahoma", true);
+    CHECK(tahoma.fullName == L"Tahoma Bold");
+    CHECK(_wcsicmp(tahoma.file.filename().c_str(), L"tahomabd.ttf") == 0 && std::filesystem::exists(tahoma.file));
 }
 
 void TestOverlayStatus() {
