@@ -1,2 +1,4 @@
 # Fonts are binary; never touch line endings.
 *.ttf binary
+# Shell scripts run on the Steam Deck (sent through ssh); CRLF breaks them.
+*.sh text eol=lf
