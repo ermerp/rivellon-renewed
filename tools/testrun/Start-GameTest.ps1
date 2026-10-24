@@ -20,6 +20,7 @@
                               a small move - the menus take arrow keys only after a mouse move
         click <fx> <fy>       left click at that point of the window (fractions of the client area);
                               rclick = right click, dclick = double click
+        press <fx> <fy> <ms>  hold the left button at that point for ms milliseconds
         key <name> [<n>]      press a key n times (default 1); names: Up Down Left Right Enter Esc
                               Back Tab Space Home End Del F1-F12, a letter or digit, or 0xNN
         hold <name> <ms>      hold a key, with key-down repeats like a held real key
@@ -224,6 +225,18 @@ public static class DdCapture {
         return ok;
     }
 
+    // Holds the left button at (fx, fy) of the client area for `ms` milliseconds as real input.
+    public static bool Press(IntPtr h, double fx, double fy, int ms) {
+        if (!MoveMouse(h, fx, fy)) return false;
+        System.Threading.Thread.Sleep(100);
+        var inputs = new INPUT[1];
+        inputs[0].u.mi.flags = 2u /* LEFTDOWN */;
+        bool ok = SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT))) == 1;
+        System.Threading.Thread.Sleep(ms);
+        inputs[0].u.mi.flags = 4u /* LEFTUP */;
+        return SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT))) == 1 && ok;
+    }
+
     // Answers a standard message box with the given button id (e.g. 7 = IDNO).
     public static void AnswerMessageBox(IntPtr h, int buttonId) {
         SendMessage(h, 0x0111 /* WM_COMMAND */, new IntPtr(buttonId), IntPtr.Zero);
@@ -414,6 +427,11 @@ function Invoke-Step([string] $step) {
             $f = @($arg -split '\s+' | Where-Object { $_ } | ForEach-Object { [double]::Parse($_, [Globalization.CultureInfo]::InvariantCulture) })
             if ($f.Count -ne 2) { throw "$verb needs <fx> <fy>: '$step'" }
             $ok = [DdCapture]::Click($h, $f[0], $f[1], $verb -eq 'rclick', $(if ($verb -eq 'dclick') { 2 } else { 1 }))
+        }
+        'press' {
+            $f = @($arg -split '\s+' | Where-Object { $_ } | ForEach-Object { [double]::Parse($_, [Globalization.CultureInfo]::InvariantCulture) })
+            if ($f.Count -ne 3) { throw "press needs <fx> <fy> <ms>: '$step'" }
+            $ok = [DdCapture]::Press($h, $f[0], $f[1], [int]$f[2])
         }
         'key' {
             $a = @($arg -split '\s+')

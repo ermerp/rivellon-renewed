@@ -14,6 +14,7 @@
 #include "game/exe.h"
 #include "features/dgvoodoo.h"
 #include "features/fog.h"
+#include "features/movement.h"
 #include "features/shortlabels.h"
 #include "fonts/families.h"
 #include "fonts/fontcolors.h"
@@ -59,6 +60,7 @@ void OnGameWindow(HWND window) {
     if (config::GetBool("Features", "InputHook", true)) {
         input::RegisterHotkey("TestHotkey", "Ctrl+Shift+F3", &OnTestHotkey);
         if (overlay) input::RegisterHotkey("ToggleFps", "Ctrl+Shift+F2", &overlay::ToggleFps);
+        input::RegisterHotkey("CycleWalkRadius", "Ctrl+Shift+F4", &features::CycleWalkRadius);
         input::Install(window);
     } else {
         log::Info("Input hook disabled ([Features] InputHook=0)");
@@ -129,6 +131,12 @@ void Startup(HMODULE self) {
     }
     // The game reads config.lcl and config.div right after start, too.
     if (hooks::Init()) features::InstallFog();
+    // Code changes in memory are safest while only the loading thread runs.
+    if (hooks::Init()) {
+        features::InstallWalkRadius();
+        features::InstallDoubleClickRun();
+        if (debug) features::InstallRunLog();
+    }
     if (game::WatchForMainWindow(&OnGameWindow)) log::Info("Waiting for the game window");
 }
 

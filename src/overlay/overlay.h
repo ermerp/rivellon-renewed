@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <string_view>
 
 namespace ddmod::overlay {
@@ -14,6 +15,10 @@ bool Install();
 // Switches the FPS line on or off (hotkey [Keys] ToggleFps). Safe to call from any thread, also
 // before Install.
 void ToggleFps();
+
+// Shows `text` as an extra line for `seconds` (e.g. the value a test hotkey just set); a new
+// notice replaces the old one. Safe to call from any thread.
+void ShowNotice(std::wstring text, int seconds);
 
 // [Overlay] Status: banner = the status line for the first BannerSeconds after the first frame,
 // always = all the time, off = never.

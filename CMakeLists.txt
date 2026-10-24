@@ -48,6 +48,7 @@ add_library(ddmod_core STATIC
     src/core/pattern.cpp
     src/core/scanner.cpp
     src/core/hooks.cpp
+    src/core/patch.cpp
     src/game/exe.cpp
     src/game/window.cpp
     src/game/fontlog.cpp
@@ -66,6 +67,7 @@ add_library(ddmod_core STATIC
     src/text/symbols.cpp
     src/features/dgvoodoo.cpp
     src/features/fog.cpp
+    src/features/movement.cpp
     src/features/shortlabels.cpp
     src/overlay/surface.cpp
     src/overlay/glyphs.cpp

@@ -4,6 +4,7 @@
 #include <atomic>
 #include <format>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -59,6 +60,16 @@ State g_state;
 EndFrameFn g_originalEndFrame = nullptr;
 // Written by the hotkey handler, read at the end of each frame.
 std::atomic<bool> g_showFps{false};
+// ShowNotice: text and the tick count when it disappears.
+std::mutex g_noticeMutex;
+std::wstring g_notice;
+ULONGLONG g_noticeUntil = 0;
+
+std::wstring CurrentNotice() {
+    std::lock_guard lock(g_noticeMutex);
+    if (g_notice.empty() || GetTickCount64() >= g_noticeUntil) return {};
+    return g_notice;
+}
 
 std::wstring Widen(const std::string& text) {
     if (text.empty()) return {};
@@ -129,7 +140,7 @@ bool BannerReady(State& st) {
     return st.banner.image.width > 0;
 }
 
-void Draw(State& st, const SurfaceView& view, bool showStatus, bool showFps) {
+void Draw(State& st, const SurfaceView& view, bool showStatus, bool showFps, const std::wstring& notice) {
     int top = 0;  // the plain panel starts below the banner
     if (showStatus && BannerReady(st)) {
         const text::Image& img = st.banner.image;
@@ -139,7 +150,8 @@ void Draw(State& st, const SurfaceView& view, bool showStatus, bool showFps) {
         top = y + img.height;
         showStatus = false;
     }
-    if (!showStatus && !showFps) return;
+    const bool showNotice = !notice.empty();
+    if (!showStatus && !showFps && !showNotice) return;
     GlyphCache* glyphs = GlyphsFor(st, view.height);
     if (!glyphs) return;
     const std::wstring status = showStatus ? st.status : std::wstring();
@@ -147,15 +159,20 @@ void Draw(State& st, const SurfaceView& view, bool showStatus, bool showFps) {
     const int line = glyphs->LineHeight();
     const int pad = std::max(2, line / 4);
     const int margin = pad * 2;
-    const int lines = (showStatus ? 1 : 0) + (showFps ? 1 : 0);
-    const int width = std::max(MeasureString(*glyphs, status), MeasureString(*glyphs, fps)) + 2 * pad;
+    const int lines = (showStatus ? 1 : 0) + (showFps ? 1 : 0) + (showNotice ? 1 : 0);
+    const int width = std::max({MeasureString(*glyphs, status), MeasureString(*glyphs, fps), MeasureString(*glyphs, notice)}) +
+                      2 * pad;
     FillRect(view, margin, top + margin, width, lines * line + 2 * pad, Rgb{0, 0, 0}, 140);
     int y = top + margin + pad;
     if (showStatus) {
         DrawString(view, *glyphs, margin + pad, y, status, Rgb{255, 255, 255}, true);
         y += line;
     }
-    if (showFps) DrawString(view, *glyphs, margin + pad, y, fps, Rgb{255, 214, 96}, true);
+    if (showFps) {
+        DrawString(view, *glyphs, margin + pad, y, fps, Rgb{255, 214, 96}, true);
+        y += line;
+    }
+    if (showNotice) DrawString(view, *glyphs, margin + pad, y, notice, Rgb{255, 255, 255}, true);
 }
 
 int __cdecl EndFrameDetour() {
@@ -170,10 +187,11 @@ int __cdecl EndFrameDetour() {
     const double elapsed = static_cast<double>(now.QuadPart - st.firstFrame.QuadPart) / st.frequency.QuadPart;
     const bool showStatus = StatusShown(st.settings.status, elapsed, st.settings.bannerSeconds);
     const bool showFps = g_showFps.load(std::memory_order_relaxed);
+    const std::wstring notice = CurrentNotice();
     // Nothing to show: the frame is not even locked.
     SurfaceView view;
-    if ((showStatus || showFps) && st.backend->BeginFrame(view)) {
-        Draw(st, view, showStatus, showFps);
+    if ((showStatus || showFps || !notice.empty()) && st.backend->BeginFrame(view)) {
+        Draw(st, view, showStatus, showFps, notice);
         st.backend->EndFrame();
     }
     return g_originalEndFrame();
@@ -197,6 +215,12 @@ void ToggleFps() {
     const bool on = !g_showFps.load();
     g_showFps.store(on);
     log::Info("Overlay: FPS display {}", on ? "on" : "off");
+}
+
+void ShowNotice(std::wstring text, int seconds) {
+    std::lock_guard lock(g_noticeMutex);
+    g_notice = std::move(text);
+    g_noticeUntil = GetTickCount64() + static_cast<ULONGLONG>(std::max(seconds, 0)) * 1000;
 }
 
 bool ParseStatusMode(std::string_view text, StatusMode& mode) {

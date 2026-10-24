@@ -30,6 +30,7 @@
 #include "core/sha256.h"
 #include "features/dgvoodoo.h"
 #include "features/fog.h"
+#include "features/movement.h"
 #include "features/shortlabels.h"
 #include "fonts/fontchain.h"
 #include "fonts/fontcolors.h"
@@ -496,6 +497,109 @@ void TestFontModeSignature() {
     const auto textMatches = pattern::FindAll(file, *textLoader);
     CHECK(textMatches.size() == 1);
     if (textMatches.size() == 1) CHECK(FileOffsetToRva(file, textMatches[0]) == features::kTextLoaderRva);
+
+    // Walk circle check and always-run getter (features/movement.h): unique, at the documented
+    // RVAs, with the radius computation where the patch expects it.
+    const auto circle = pattern::Parse(features::kWalkCirclePattern);
+    CHECK(circle.has_value());
+    if (!circle) return;
+    const auto circleMatches = pattern::FindAll(file, *circle);
+    CHECK(circleMatches.size() == 1);
+    if (circleMatches.size() == 1) {
+        CHECK(FileOffsetToRva(file, circleMatches[0]) == features::kWalkCircleRva);
+        CHECK(std::memcmp(file.data() + circleMatches[0] + features::kRadiusCodeOffset,
+                          features::kOriginalRadiusCode.data(), features::kOriginalRadiusCode.size()) == 0);
+    }
+    const auto getter = pattern::Parse(features::kAlwaysRunGetterPattern);
+    CHECK(getter.has_value());
+    if (!getter) return;
+    const auto getterMatches = pattern::FindAll(file, *getter);
+    CHECK(getterMatches.size() == 1);
+    if (getterMatches.size() == 1) CHECK(FileOffsetToRva(file, getterMatches[0]) == features::kAlwaysRunGetterRva);
+    const auto setter = pattern::Parse(features::kHeldRunSetterPattern);
+    CHECK(setter.has_value());
+    if (!setter) return;
+    const auto setterMatches = pattern::FindAll(file, *setter);
+    CHECK(setterMatches.size() == 1);
+    if (setterMatches.size() == 1) CHECK(FileOffsetToRva(file, setterMatches[0]) == features::kHeldRunSetterRva);
+}
+
+__declspec(noinline) int __fastcall FakeAlwaysRunGetter(void* player, void* /*edx*/) {
+    int value = 0;
+    std::memcpy(&value, static_cast<std::uint8_t*>(player) + 0x480, sizeof(value));
+    return value;
+}
+
+void TestMovement() {
+    using namespace ddmod;
+    using features::ParseWalkRadius;
+    bool valid = false;
+    CHECK(ParseWalkRadius("225", valid) == std::optional<int>(225) && valid);
+    CHECK(!ParseWalkRadius("Original", valid).has_value() && valid);
+    CHECK(ParseWalkRadius("99999", valid) == std::optional<int>(features::kMaxWalkRadius) && valid);
+    CHECK(ParseWalkRadius("-5", valid) == std::optional<int>(0) && valid);
+    CHECK(ParseWalkRadius("12px", valid) == std::optional<int>(features::kDefaultWalkRadius) && !valid);
+    CHECK(ParseWalkRadius("", valid) == std::optional<int>(features::kDefaultWalkRadius) && !valid);
+    CHECK(features::WalkRadiusText(std::nullopt) == "original" && features::WalkRadiusText(175) == "175");
+    CHECK(features::NextWalkRadius(std::nullopt) == std::optional<int>(125));
+    CHECK(features::NextWalkRadius(225) == std::optional<int>(250) && features::NextWalkRadius(250) == std::optional<int>(275));
+    CHECK(features::NextWalkRadius(200) == std::optional<int>(225));
+    CHECK(!features::NextWalkRadius(325).has_value() && !features::NextWalkRadius(1000).has_value());
+    CHECK(features::RadiusCode(std::nullopt) == features::kOriginalRadiusCode);
+
+    // The radius code runs in a stand-in of the game's code: ebx = screen height, then the nine
+    // bytes, then the game's sar eax,3 - eax is the radius.
+    auto* fn = static_cast<std::uint8_t*>(VirtualAlloc(nullptr, 4096, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+    CHECK(fn != nullptr);
+    if (!fn) return;
+    std::memset(fn, 0xCC, 64);
+    const std::uint8_t head[] = {0x53, 0xBB, 0, 0, 0, 0, 0xEB, 0x1F};  // push ebx; mov ebx,h; jmp +39
+    std::memcpy(fn, head, sizeof(head));
+    std::memcpy(fn + features::kRadiusCodeOffset, features::kOriginalRadiusCode.data(), features::kOriginalRadiusCode.size());
+    const std::uint8_t tail[] = {0xC1, 0xF8, 0x03, 0x5B, 0xC3};  // sar eax,3; pop ebx; ret
+    std::memcpy(fn + features::kRadiusCodeOffset + 9, tail, sizeof(tail));
+    const auto run = [&](int height) {
+        std::memcpy(fn + 2, &height, sizeof(height));
+        FlushInstructionCache(GetCurrentProcess(), fn, 64);
+        return reinterpret_cast<int(__cdecl*)()>(fn)();
+    };
+    CHECK(run(1080) == 405 && run(600) == 225 && run(1440) == 540);
+    CHECK(features::InstallWalkRadiusAt(reinterpret_cast<std::uintptr_t>(fn), 175));
+    CHECK(run(1080) == 175 && run(1440) == 175);
+    CHECK(features::SetWalkRadius(0) && run(1080) == 0);
+    CHECK(features::SetWalkRadius(features::kMaxWalkRadius) && run(600) == features::kMaxWalkRadius);
+    CHECK(features::SetWalkRadius(std::nullopt) && run(1080) == 405);
+    // Already patched code is not taken for the original.
+    CHECK(features::SetWalkRadius(300));
+    CHECK(!features::InstallWalkRadiusAt(reinterpret_cast<std::uintptr_t>(fn), 175));
+    VirtualFree(fn, 0, MEM_RELEASE);
+
+    // Double clicks: within the time and the box, a third press starts over.
+    features::DoubleClickTracker clicks;
+    clicks.Configure(500, 4, 4);
+    CHECK(!clicks.Press(1000, 100, 100) && clicks.Press(1300, 101, 99) && clicks.LastWasDouble());
+    CHECK(!clicks.Press(1400, 101, 99) && !clicks.LastWasDouble());
+    CHECK(clicks.Press(1800, 102, 100));
+    CHECK(!clicks.Press(2000, 100, 100) && !clicks.Press(2600, 100, 100));  // 600 ms apart
+    CHECK(!clicks.Press(2700, 110, 100));                                   // too far
+    CHECK(!clicks.Press(0xFFFFFF00u, 5, 5) && clicks.Press(0x00000050u, 5, 5));  // tick count wraps
+
+    // The getter answers "run" for the move of a double click, the always-run field still counts.
+    using GetterFn = int(__thiscall*)(void*);
+    GetterFn volatile getter = reinterpret_cast<GetterFn>(&FakeAlwaysRunGetter);
+    std::uint8_t player[0x500] = {};
+    CHECK(hooks::Init());
+    CHECK(features::InstallDoubleClickRunAt(reinterpret_cast<void*>(&FakeAlwaysRunGetter)));
+    CHECK(getter(player) == 0);
+    features::OnLeftButtonDown(5000, 50, 50);
+    CHECK(getter(player) == 0);
+    features::OnLeftButtonDown(5100, 50, 50);
+    CHECK(getter(player) == 1);
+    features::OnLeftButtonDown(9000, 50, 50);
+    CHECK(getter(player) == 0);
+    player[0x480] = 1;
+    CHECK(getter(player) == 1);
+    hooks::Shutdown();
 }
 
 void TestGlyphTable() {
@@ -1342,6 +1446,7 @@ int main() {
     TestFontModeHook();
     TestFogHook();
     TestFontModeSignature();
+    TestMovement();
     TestArrowMask();
     TestShortLabels();
     TestSpacing();

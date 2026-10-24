@@ -19,6 +19,12 @@ using HotkeyHandler = void (*)();
 // leaves it unbound. Call before Install.
 void RegisterHotkey(const char* iniKey, const char* fallback, HotkeyHandler handler);
 
+// Called on the game thread for every press of the left mouse button (WM_LBUTTONDOWN and
+// WM_LBUTTONDBLCLK) with the message time (ms) and the cursor in screen coordinates; the message
+// itself reaches the game unchanged. One observer; nullptr removes it.
+using LeftButtonObserver = void (*)(unsigned timeMs, int x, int y);
+void SetLeftButtonObserver(LeftButtonObserver observer);
+
 // Hooks the message retrieval of the thread that owns `window`. Windows removes the hook when the
 // thread that called Install exits, so that thread must stay alive. Returns false on failure.
 bool Install(HWND window);

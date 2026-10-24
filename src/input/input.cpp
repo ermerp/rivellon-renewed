@@ -21,6 +21,7 @@ struct Hotkey {
 std::vector<Hotkey> g_hotkeys;
 
 std::atomic<HHOOK> g_hook{nullptr};
+std::atomic<LeftButtonObserver> g_leftButtonObserver{nullptr};
 
 // Game-thread state: the key whose messages we are currently swallowing.
 std::uint8_t g_swallowVk = 0;
@@ -79,6 +80,11 @@ LRESULT CALLBACK GetMessageHook(int code, WPARAM removal, LPARAM lParam) {
     // comes back later with PM_REMOVE.
     if (code == HC_ACTION && removal == PM_REMOVE) {
         auto& msg = *reinterpret_cast<MSG*>(lParam);
+        if (msg.message == WM_LBUTTONDOWN || msg.message == WM_LBUTTONDBLCLK) {
+            if (const LeftButtonObserver observer = g_leftButtonObserver.load()) {
+                observer(static_cast<unsigned>(msg.time), msg.pt.x, msg.pt.y);
+            }
+        }
         if (HandleKey(msg)) msg.message = WM_NULL;
     }
     return CallNextHookEx(nullptr, code, removal, lParam);
@@ -106,6 +112,8 @@ void RegisterHotkey(const char* iniKey, const char* fallback, HotkeyHandler hand
     g_hotkeys.push_back({iniKey, *combo, handler});
     log::Info("Hotkey {}: {}", iniKey, ToString(*combo));
 }
+
+void SetLeftButtonObserver(LeftButtonObserver observer) { g_leftButtonObserver.store(observer); }
 
 bool Install(HWND window) {
     if (g_hook) return true;
