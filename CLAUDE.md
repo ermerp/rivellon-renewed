@@ -106,7 +106,7 @@ Pitfalls:
 ## Steam Deck access (SSH)
 
 - **The Deck is usually off.** Never assume it is reachable: announce beforehand when a task needs it, and wait until the human has switched it on and enabled SSH. No connection attempts without that announcement.
-- `ssh deck@<deck-ip>` (key auth, `~/.ssh/id_ed25519`); always `-o BatchMode=yes -o ConnectTimeout=15`. Unreachable → off or asleep, ask the human.
+- `ssh deck@<deck-ip>` (the real IP is in Claude's local memory, not in the repo – else ask the human; key auth, `~/.ssh/id_ed25519`); always `-o BatchMode=yes -o ConnectTimeout=15`. Unreachable → off or asleep, ask the human.
 - Run remote scripts from the **Bash tool** with a heredoc: `ssh -o BatchMode=yes deck@<deck-ip> 'bash -s' <<'EOF' … EOF`. Not from PowerShell 5.1 (strips inner quotes); no files with CRLF/BOM.
 - `pgrep -f div.exe` matches itself – use `pgrep -x div.exe`.
 - Game folder: `~/.local/share/Steam/steamapps/common/divine_divinity` (German, same `div.exe`; own `config.div` 1280×720, `rgb 565`). Savegames in `savegames/`.
