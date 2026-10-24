@@ -19,6 +19,8 @@ Verified against the generated `keylist.txt` (−8, −16, −20, −30 … −3
 
 388 bytes, plain text, identical in DE/EN: the 20 names of events 0–19, one per line in quotes. (The forum calls it "divineevent.dat".)
 
+**Zoom events −18/−19:** DE "Hineinzoomen"/"Herauszoomen", EN "Scale Automap up"/"Scale Automap down" – the automap's scale, no world zoom. No default key. The tester bound them in the key configuration (DE `keylist.txt` then shows `-18⇥-⇥-⇥o` and `-19⇥-⇥-⇥p`: the key lands in a field after the usual `-`, unlike every other binding); neither the world nor the map (M) changed. Open: whether the binding format is the reason, whether they act only on the minimap/automap window, or whether they are dead (`open-questions.md`); automap code with zoom buttons at `0x449FF0`–`0x44BFDB` (`engine-map.md`).
+
 ## `keylist.txt` format
 
 Written by `0x48A330` on exit ("File automatically generated"); only events with a binding are written. **Export only – the game does not read it back:** five bindings added by hand (F5–F9, T2.0-W) had no effect and were gone after the next exit (file rewritten byte-identical to before). The EXE also has the strings "Export Keylist" and "Generate keylist". Where the bindings are really stored is open (`persist.dat` is rewritten on exit too – candidate; `open-questions.md`).
