@@ -25,7 +25,7 @@ public:
     FamilyPaint& operator=(const FamilyPaint&) = delete;
 
     // `mask` painted in the family's style; `capTop` is the row of the face's capitals in the
-    // mask and `capHeight` their height (GdiFace::Capitals with the family's reference).
+    // mask and `capHeight` their height (Face::Capitals with the family's reference).
     text::Image Paint(const text::Image& mask, int capTop, int capHeight) const;
 
 private:

@@ -46,6 +46,7 @@
 #include "overlay/overlay.h"
 #include "overlay/surface.h"
 #include "text/gdiface.h"
+#include "text/ttface.h"
 #include "text/style.h"
 #include "text/symbols.h"
 
@@ -1312,6 +1313,127 @@ void TestGdiFace() {
     RemoveFontResourceExW(file.c_str(), FR_PRIVATE, nullptr);
 }
 
+// Our own rasterizer against GDI for the bundled faces at the heights the glyph renderer uses
+// (docs/re/text-rendering.md, GDI rasterizing): same sizes and advances, overstrike bold, shapes
+// within a few percent.
+void TestTtFace() {
+    using namespace ddmod::text;
+    const std::filesystem::path dir = std::filesystem::path(DDMOD_SOURCE_DIR) / L"assets" / L"fonts";
+    struct Case {
+        const wchar_t* face;
+        const wchar_t* file;
+        int weight;
+        CapReference ref;
+        std::vector<int> caps;  // capital heights of the game's fonts in this family
+    };
+    const Case cases[] = {
+        {L"Marcellus SC", L"MarcellusSC-Regular.ttf", 600, CapReference::H, {6, 7, 8, 9, 10}},
+        {L"Fondamento", L"Fondamento-Regular.ttf", 400, CapReference::H, {11, 15}},
+        {L"Uncial Antiqua", L"UncialAntiqua-Regular.ttf", 600, CapReference::Median, {18, 26}},
+        {L"Almendra SC", L"AlmendraSC-Regular.ttf", 600, CapReference::Median, {19, 24, 29}},
+    };
+    // Every character of code page 1252 the glyph renderer replaces (0x21-0xFF).
+    std::wstring chars;
+    for (int byte = 0x21; byte < 0x100; ++byte) {
+        const char ansi = static_cast<char>(byte);
+        wchar_t wide = 0;
+        if (MultiByteToWideChar(1252, MB_ERR_INVALID_CHARS, &ansi, 1, &wide, 1) == 1) chars += wide;
+    }
+    for (const Case& c : cases) {
+        const std::filesystem::path file = dir / c.file;
+        CHECK(AddFontResourceExW(file.c_str(), FR_PRIVATE, nullptr) > 0);
+        CHECK(CanRasterize(file));
+        const FaceSource own{c.face, file, Raster::Own}, gdi{c.face, file, Raster::Gdi};
+        for (const int cap : c.caps) {
+            const int height = HeightForCap(own, c.weight, cap, c.ref);
+            CHECK(height == HeightForCap(gdi, c.weight, cap, c.ref));
+            const TtFace tt(file, height, c.weight);
+            const GdiFace g(c.face, height, c.weight);
+            CHECK(tt.Valid() && g.Valid() && tt.Emboldened() == (c.weight >= 600));
+            CHECK(tt.Ascent() == g.Ascent() && tt.CellHeight() == g.CellHeight());
+            const CapMetrics ct = tt.Capitals(c.ref), cg = g.Capitals(c.ref);
+            CHECK(ct.top == cg.top && ct.height == cg.height);
+            // The books' automatic line height measures these (glyphtable.cpp, kExtenders).
+            CHECK(tt.InkExtent(L"bdfhklgjpqyß") == g.InkExtent(L"bdfhklgjpqyß"));
+            int advances = 0;
+            double diff = 0.0, ink = 0.0;
+            for (const wchar_t ch : chars) {
+                if (!g.Missing(std::wstring(1, ch)).empty()) continue;
+                Face::Mask a, b;
+                CHECK(tt.GlyphMask(ch, 0, a) && g.GlyphMask(ch, 0, b));
+                if (a.advance != b.advance) ++advances;
+                // Coverage difference in the union of both boxes, relative to GDI's ink.
+                const int l = std::min(a.left, b.left), t = std::min(a.top, b.top);
+                const int r = std::max(a.left + a.mask.width, b.left + b.mask.width);
+                const int bt = std::max(a.top + a.mask.height, b.top + b.mask.height);
+                const auto at = [](const Face::Mask& m, int x, int y) {
+                    x -= m.left;
+                    y -= m.top;
+                    return x < 0 || y < 0 || x >= m.mask.width || y >= m.mask.height ? 0.0f : m.mask.A(x, y);
+                };
+                double glyphDiff = 0.0, glyphInk = 0.0;
+                for (int y = t; y < bt; ++y) {
+                    for (int x = l; x < r; ++x) {
+                        glyphDiff += std::fabs(at(a, x, y) - at(b, x, y));
+                        glyphInk += at(b, x, y);
+                    }
+                }
+                // GDI moves some accented capitals of Marcellus SC one pixel down and cuts off their
+                // bottom row (À's feet, È's bottom bar); we draw them whole. ASCII and German
+                // letters must match.
+                if (glyphInk > 0.0 && glyphDiff / glyphInk > 0.25) {
+                    CHECK(ch > 0x7F && std::wstring(L"ÄÖÜäöüß").find(ch) == std::wstring::npos);
+                    continue;
+                }
+                diff += glyphDiff;
+                ink += glyphInk;
+            }
+            CHECK(advances == 0);
+            CHECK(ink > 0.0 && diff / ink < 0.03);
+        }
+        // Bold is the regular glyph plus itself one pixel to the right, one pixel more advance.
+        if (c.weight >= 600) {
+            const TtFace bold(file, 30, 600), regular(file, 30, 400);
+            CHECK(!regular.Emboldened());
+            Face::Mask b, r;
+            CHECK(bold.GlyphMask(L'R', 0, b) && regular.GlyphMask(L'R', 0, r));
+            CHECK(b.advance == r.advance + 1 && b.left == r.left && b.top == r.top);
+            CHECK(b.mask.width == r.mask.width + 1 && b.mask.height == r.mask.height);
+            bool same = true;
+            for (int y = 0; y < b.mask.height; ++y) {
+                for (int x = 0; x < b.mask.width; ++x) {
+                    const float here = x < r.mask.width ? r.mask.A(x, y) : 0.0f;
+                    const float left = x > 0 ? r.mask.A(x - 1, y) : 0.0f;
+                    same = same && std::fabs(b.mask.A(x, y) - std::min(1.0f, here + left)) < 1e-6f;
+                }
+            }
+            CHECK(same);
+        }
+        RemoveFontResourceExW(file.c_str(), FR_PRIVATE, nullptr);
+    }
+
+    const std::filesystem::path marcellus = dir / L"MarcellusSC-Regular.ttf";
+    const TtFace face(marcellus, 17, 600);
+    CHECK(face.Missing(L"Äé").empty() && face.Missing(L"AЖ") == L"Ж");  // no Cyrillic in the OFL faces
+    Face::Mask space;
+    CHECK(face.GlyphMask(L' ', 0, space) && space.mask.alpha.empty() && space.advance > 0);
+    Face::Mask h;
+    CHECK(face.GlyphMask(L'H', 2, h) && h.mask.A(0, 0) == 0.0f && std::abs(h.top + 2 - face.CapTop()) == 0);
+    // The factory: own rasterizer only with a file; a broken file is not readable.
+    CHECK(dynamic_cast<TtFace*>(OpenFace({L"Marcellus SC", marcellus, Raster::Own}, 17, 600).get()) != nullptr);
+    CHECK(dynamic_cast<GdiFace*>(OpenFace({L"Tahoma", {}, Raster::Own}, 17, 700).get()) != nullptr);
+    CHECK(dynamic_cast<GdiFace*>(OpenFace({L"Marcellus SC", marcellus, Raster::Gdi}, 17, 600).get()) != nullptr);
+    const std::filesystem::path broken = dir / L"OFL-MarcellusSC.txt";
+    CHECK(!CanRasterize(broken) && !TtFace(broken, 17, 600).Valid());
+    CHECK(!CanRasterize(dir / L"no-such-file.ttf"));
+}
+
+void TestRasterSetting() {
+    using ddmod::fonts::ParseRaster;
+    using ddmod::text::Raster;
+    CHECK(ParseRaster("own") == Raster::Own && ParseRaster("GDI") == Raster::Gdi && !ParseRaster("stb"));
+}
+
 // A minimal ML_FONT_01 file built by the test (no game data): 'A' is a 2x2 glyph, 'B' an alias of 'A'.
 void TestFntFont() {
     using namespace ddmod::overlay;
@@ -1511,6 +1633,8 @@ int main() {
     TestGdiGlyphs();
     TestTextStyle();
     TestGdiFace();
+    TestTtFace();
+    TestRasterSetting();
     TestFntFont();
     TestFontChain();
     TestDgVoodooConf();

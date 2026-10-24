@@ -1,6 +1,7 @@
 #include "overlay/banner.h"
 
 #include <algorithm>
+#include <memory>
 
 #include <windows.h>
 
@@ -9,7 +10,7 @@
 #include "fonts/familypaint.h"
 #include "overlay/fnt.h"
 #include "overlay/glyphs.h"
-#include "text/gdiface.h"
+#include "text/face.h"
 
 namespace ddmod::overlay {
 namespace {
@@ -38,8 +39,9 @@ bool PaintPart(const std::filesystem::path& fontsDir, const BannerPart& part, Pa
     for (wchar_t ch = L'A'; ch <= L'Z'; ++ch) caps.push_back(original.Get(ch));
     const text::CapMetrics cap = text::MeasureCap(caps, settings.capitals);
     if (cap.height <= 0) return false;
-    const int height = text::HeightForCap(family.face->face, settings.weight, cap.height, settings.capitals);
-    const text::GdiFace face(family.face->face, height, settings.weight);
+    const int height = text::HeightForCap(family.source, settings.weight, cap.height, settings.capitals);
+    const std::unique_ptr<text::Face> openedFace = text::OpenFace(family.source, height, settings.weight);
+    const text::Face& face = *openedFace;
     if (!face.Valid()) return false;
     const text::CapMetrics faceCap = face.Capitals(settings.capitals);
     const fonts::FontColors colors = fonts::ColorsOf(part.font, part.family, caps);

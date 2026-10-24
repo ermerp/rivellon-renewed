@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "fonts/fontchain.h"
+#include "text/face.h"
 #include "text/style.h"
 
 namespace ddmod::fonts {
@@ -82,12 +83,20 @@ FamilySettings DefaultSettings(Family family);
 // Arrows=original keeps the original arrow glyphs.
 FamilySettings ConfiguredSettings(Family family);
 
+// [Fonts] Raster: own = our own rasterizer for faces with a font file (the bundled faces; the
+// same look on Windows and Proton), gdi = GDI for every face. Installed faces (Tahoma) always
+// use GDI. An invalid value is logged and gives own.
+std::optional<text::Raster> ParseRaster(std::string_view text);
+text::Raster ConfiguredRaster();
+
 // A family's configured settings and its face, resolved and logged on first use (the face's file
 // is registered for the process): no face if the family is switched off or none of its faces is
-// available. Later calls return the same result. Thread-safe.
+// available. `source` is the face with its rasterizer ([Fonts] Raster; GDI for an installed face
+// or a file our rasterizer cannot read). Later calls return the same result. Thread-safe.
 struct ResolvedFamily {
     FamilySettings settings;
     std::optional<FontEntry> face;
+    text::FaceSource source;
 };
 const ResolvedFamily& Resolved(Family family);
 

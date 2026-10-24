@@ -39,6 +39,15 @@ add_library(minhook STATIC
 target_include_directories(minhook PUBLIC ${minhook_SOURCE_DIR}/include)
 target_compile_options(minhook PRIVATE /W3)
 
+# --- stb_truetype (public domain / MIT), pinned commit of the stb repository ---
+# Only the header stb_truetype.h is used (outlines of the bundled faces, src/text/ttface.cpp).
+FetchContent_Declare(stb
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG        2c980bb59875b0d32144a71867fbdebb2f77cd20  # 2026-08-01, stb_truetype v1.26
+    SOURCE_SUBDIR  do-not-add  # header-only, no CMakeLists.txt
+)
+FetchContent_MakeAvailable(stb)
+
 # --- ddmod core (shared by the plugin and the unit tests) ---
 add_library(ddmod_core STATIC
     src/core/paths.cpp
@@ -63,7 +72,9 @@ add_library(ddmod_core STATIC
     src/fonts/glyphtable.cpp
     src/fonts/spacing.cpp
     src/text/style.cpp
+    src/text/face.cpp
     src/text/gdiface.cpp
+    src/text/ttface.cpp
     src/text/symbols.cpp
     src/features/dgvoodoo.cpp
     src/features/fog.cpp
@@ -77,6 +88,7 @@ add_library(ddmod_core STATIC
     src/overlay/overlay.cpp
 )
 target_include_directories(ddmod_core PUBLIC src)
+target_include_directories(ddmod_core PRIVATE ${stb_SOURCE_DIR})
 target_compile_definitions(ddmod_core PUBLIC
     WIN32_LEAN_AND_MEAN
     NOMINMAX

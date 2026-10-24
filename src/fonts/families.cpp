@@ -11,6 +11,7 @@
 #include "core/config.h"
 #include "core/log.h"
 #include "core/paths.h"
+#include "text/ttface.h"
 
 namespace ddmod::fonts {
 namespace {
@@ -161,10 +162,34 @@ const ResolvedFamily& Resolved(Family family) {
         log::Warn("Fonts: family {} has no available face - original glyphs", name);
         return *slot;
     }
+    slot->source = {slot->face->face, slot->face->file, text::Raster::Gdi};
+    if (ConfiguredRaster() == text::Raster::Own && !slot->face->file.empty()) {
+        if (text::CanRasterize(slot->face->file)) {
+            slot->source.raster = text::Raster::Own;
+        } else {
+            log::Warn("Fonts: family {} - own rasterizer cannot read {} - using GDI", name, paths::ToUtf8(slot->face->file));
+        }
+    }
     const LineHeight& line = slot->settings.lineHeight;
-    log::Info("Fonts: family {} - \"{}\" weight {}, line height {}", name, paths::ToUtf8(slot->face->face),
-              slot->settings.weight, line.automatic ? std::string("auto") : std::to_string(line.percent) + "%");
+    log::Info("Fonts: family {} - \"{}\" weight {}, line height {}, {} rasterizer", name, paths::ToUtf8(slot->face->face),
+              slot->settings.weight, line.automatic ? std::string("auto") : std::to_string(line.percent) + "%",
+              slot->source.raster == text::Raster::Own ? "own" : "GDI");
     return *slot;
+}
+
+std::optional<text::Raster> ParseRaster(std::string_view text) {
+    std::string value(text);
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (value == "own") return text::Raster::Own;
+    if (value == "gdi") return text::Raster::Gdi;
+    return std::nullopt;
+}
+
+text::Raster ConfiguredRaster() {
+    const std::string text = config::GetString("Fonts", "Raster", "own");
+    if (const auto raster = ParseRaster(text)) return *raster;
+    log::Warn("[Fonts] Raster=\"{}\" is not own or gdi - using own", text);
+    return text::Raster::Own;
 }
 
 }  // namespace ddmod::fonts

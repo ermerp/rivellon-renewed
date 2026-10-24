@@ -17,7 +17,7 @@
 #include "fonts/families.h"
 #include "fonts/fontcolors.h"
 #include "game/exe.h"
-#include "text/gdiface.h"
+#include "text/face.h"
 #include "text/style.h"
 
 namespace ddmod::fonts {
@@ -53,7 +53,7 @@ int g_fontsReplaced = 0;
 int g_glyphsReplaced = 0;
 double g_milliseconds = 0.0;
 
-// GDI height per family and capital height (the search costs a few milliseconds).
+// Face height per family and capital height (the search costs a few milliseconds).
 std::array<std::map<int, int>, std::size(kFamilies)> g_heightForCap;
 
 template <typename T>
@@ -73,14 +73,14 @@ void Write(std::uint8_t* at, T value) {
     std::memcpy(at, &value, sizeof(T));
 }
 
-// The family's own glyphs for one font at one GDI height, placed with the face's capitals where
+// The family's own glyphs for one font at one face height, placed with the face's capitals where
 // the original's are, before painting.
 struct Pending {
     int byte = 0;
-    text::GdiFace::Mask m;
+    text::Face::Mask m;
 };
 struct Layout {
-    std::unique_ptr<text::GdiFace> face;  // null if GDI cannot create it
+    std::unique_ptr<text::Face> face;  // null if it cannot be created
     int height = 0;
     text::CapMetrics faceCap;
     int shift = 0;    // from the face's line to the game's: the capitals' tops meet
@@ -90,16 +90,16 @@ struct Layout {
     std::vector<Pending> pending;
 };
 
-Layout LayOut(void** table, const FamilySettings& settings, const std::wstring& faceName, int height,
+Layout LayOut(void** table, const FamilySettings& settings, const text::FaceSource& source, int height,
               const text::CapMetrics& cap) {
     Layout l;
     l.height = height;
-    l.face = std::make_unique<text::GdiFace>(faceName, height, settings.weight);
+    l.face = text::OpenFace(source, height, settings.weight);
     if (!l.face->Valid()) {
         l.face.reset();
         return l;
     }
-    const text::GdiFace& face = *l.face;
+    const text::Face& face = *l.face;
     l.faceCap = face.Capitals(settings.capitals);
     l.shift = cap.top - l.faceCap.top;
     for (int byte = 0x21; byte < 0x100; ++byte) {
@@ -157,16 +157,15 @@ void ReplaceGlyphs(void* font, const std::string& stem, Family family) {
         log::Warn("Glyph renderer: {} has no capitals to measure - original glyphs", stem);
         return;
     }
-    const std::wstring& faceName = state.face->face;
     auto [known, inserted] = g_heightForCap[static_cast<std::size_t>(family)].try_emplace(cap.height, 0);
-    if (inserted) known->second = text::HeightForCap(faceName, settings.weight, cap.height, settings.capitals);
-    Layout layout = LayOut(table, settings, faceName, known->second, cap);
+    if (inserted) known->second = text::HeightForCap(state.source, settings.weight, cap.height, settings.capitals);
+    Layout layout = LayOut(table, settings, state.source, known->second, cap);
     if (!layout.face) {
-        log::Warn("Glyph renderer: {} - GDI cannot create \"{}\" {} - original glyphs", stem, paths::ToUtf8(faceName),
+        log::Warn("Glyph renderer: {} - cannot create \"{}\" {} - original glyphs", stem, paths::ToUtf8(state.source.face),
                   known->second);
         return;
     }
-    const text::GdiFace& face = *layout.face;
+    const text::Face& face = *layout.face;
     const int height = layout.height;
     const text::CapMetrics faceCap = layout.faceCap;
     const int shift = layout.shift;
@@ -178,7 +177,7 @@ void ReplaceGlyphs(void* font, const std::string& stem, Family family) {
     const FamilyPaint paint(settings, caps, textColor, edge);
 
     for (Pending& p : pending) {
-        const text::GdiFace::Mask& m = p.m;
+        const text::Face::Mask& m = p.m;
         const int byte = p.byte;
         const text::Image painted = paint.Paint(m.mask, faceCap.top - m.top, faceCap.height);
         PixelGlyph out;
@@ -216,7 +215,7 @@ void ReplaceGlyphs(void* font, const std::string& stem, Family family) {
         table[byte] = g_glyphMemory.back().get();
         ++arrows;
     }
-    text::GdiFace::Mask space;
+    text::Face::Mask space;
     if (face.GlyphMask(L' ', 0, space) && space.advance > 0) {
         Field<std::int16_t>(font, kSpaceWidth) = static_cast<std::int16_t>(space.advance);
     }
@@ -231,7 +230,7 @@ void ReplaceGlyphs(void* font, const std::string& stem, Family family) {
     ++g_fontsReplaced;
     g_glyphsReplaced += replaced;
     g_milliseconds += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-    log::Debug("Glyph renderer: {} - {} glyphs replaced, {} own arrows, {} kept (GDI height {}, capital height {}, "
+    log::Debug("Glyph renderer: {} - {} glyphs replaced, {} own arrows, {} kept (height {}, capital height {}, "
                "color #{:02X}{:02X}{:02X} on #{:02X}{:02X}{:02X}, line height {} -> {})",
                stem, replaced, arrows, kept, height, cap.height, textColor.r, textColor.g, textColor.b, edge.r, edge.g,
                edge.b, originalLine, lineHeight);
