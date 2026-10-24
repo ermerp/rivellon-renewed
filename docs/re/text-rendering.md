@@ -118,6 +118,16 @@ Both font kinds end in the same structures, so everything here holds for `.fnt` 
 - **Licenses:** all chosen faces are SIL OFL 1.1 (ship with `OFL.txt`). Probable source faces of the bitmap fonts: dialog Tahoma/Verdana Bold, interface Lithos, handwriting Ondine (commercial), diary Vinque (Typodermic; its free desktop license excludes games and software that include the font), menu capitals unknown Lombardic (free Lombardic faces do not exist; Goudy Text Lombardic and Tarisel are commercial).
 - **Comparison sheets** (outside the repo, `C:\dev\screenshots\fonts\`): `candidates\Schriftvergleich.pdf` (round 1) to `candidates5\Schriftvergleich-Runde5.pdf`, `candidates6\Menue-Glanz.pdf` (gloss); specs and fonts: `--scene` (CLAUDE.md), downloads in `environment.md`.
 
+## GDI rasterizing, measured (reference for own rasterizing)
+
+Measured on Windows 11 with `GetGlyphOutlineW(GGO_GRAY8_BITMAP)` against stb_truetype for the faces and GDI heights the glyph renderer uses (scratchpad spike, sheets in `C:\dev\screenshots\planb\`):
+
+- **Synthetic bold (weight ≥ 600 on a face with only a regular cut)** is the regular glyph overstruck one pixel to the right: each output level is `min(64, regular(x) + regular(x-1))`, the black box one pixel wider, the advance one pixel larger, nothing changes vertically – bit-exact at every size (10 to 50).
+- **Sizes:** a positive height is the cell height `usWinAscent + usWinDescent` (OS/2). Metrics (`tmAscent`, advances) use the unrounded scale `height / (winAscent + winDescent)`; the outlines are scaled to the nearest whole ppem (`round(height · unitsPerEm / (winAscent + winDescent))`).
+- **Coverage:** 8×8 point samples per pixel (65 levels); emulated by rendering at 8× and counting sub-pixels at least half covered.
+- **Result for the four OFL faces** (practically unhinted: dummy `fpgm`/`prep`, `gasp` 0xF): ascent and advances equal (one character differs by 1 px at Fondamento 21 and Uncial Antiqua 33), shape difference 0.7–3.7 % of the ink with bold.
+- **Tahoma Bold** is fully hinted (stems snapped to 2 px at height 17); an unhinted rasterizer comes out softer and a pixel taller, so Tahoma stays on GDI.
+
 ## Consequences
 
 - **All or nothing:** because `use8bitfont` switches all 61 fonts at once, the font mode turns every family into the chain's face (Tahoma Bold). The per-family faces above need the per-family font chain (PLAN.md next steps) and, for the styles, the target text renderer – an own glyph table per font (Glyph table, above) gives both per font without the GDI path.
