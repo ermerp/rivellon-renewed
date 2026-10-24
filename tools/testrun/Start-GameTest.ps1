@@ -24,6 +24,10 @@
         key <name> [<n>]      press a key n times (default 1); names: Up Down Left Right Enter Esc
                               Back Tab Space Home End Del F1-F12, a letter or digit, or 0xNN
         hold <name> <ms>      hold a key, with key-down repeats like a held real key
+        down <name> / up <name>  only the key-down or only the key-up (no repeats in between),
+                              e.g. to take a shot while a key is down
+        chord <a>+<b>[+...]   press keys together, released in reverse order (e.g. Ctrl+Shift+F2;
+                              key names as for key, plus Ctrl Shift Alt)
         type <text>           letters, digits and spaces as key presses
         shot <name>           screenshot of the game window
         state [<label>]       print the game window's style, size and focus
@@ -166,6 +170,12 @@ public static class DdCapture {
         if (attached) AttachThreadInput(self, fgThread, false);
         System.Threading.Thread.Sleep(300);
         return GetForegroundWindow() == h;
+    }
+
+    // One key-down or key-up into the focused game window (no auto-repeat while it stays down).
+    public static bool SendKeyHalf(IntPtr h, int vk, bool up) {
+        if (!Focus(h)) return false;
+        return SendKeyEvent(vk, up);
     }
 
     static bool SendKeyEvent(int vk, bool up) {
@@ -409,6 +419,7 @@ function Get-KeyVk([string] $name) {
     $named = @{
         Up = 0x26; Down = 0x28; Left = 0x25; Right = 0x27; Enter = 0x0D; Esc = 0x1B; Back = 0x08
         Tab = 0x09; Space = 0x20; Home = 0x24; End = 0x23; Del = 0x2E
+        Ctrl = 0x11; Shift = 0x10; Alt = 0x12
     }
     if ($named.ContainsKey($name)) { return $named[$name] }
     if ($name -match '^F([1-9]|1[0-2])$') { return 0x6F + [int]$Matches[1] }
@@ -484,6 +495,9 @@ function Invoke-Step([string] $step) {
                 Start-Sleep -Milliseconds 100
             }
         }
+        'down' { $ok = [DdCapture]::SendKeyHalf($h, (Get-KeyVk $arg), $false) }
+        'up' { $ok = [DdCapture]::SendKeyHalf($h, (Get-KeyVk $arg), $true) }
+        'chord' { $ok =[DdCapture]::SendChord($h, @($arg -split '\+' | ForEach-Object { Get-KeyVk $_ })) }
         'alttab' { $ok = [DdCapture]::SendChord($h, @(0x12, 0x09)) }
         'refocus' { $ok = [DdCapture]::Refocus($h) }
         default { throw "Unknown step '$step'" }

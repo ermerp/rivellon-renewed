@@ -26,10 +26,90 @@ std::atomic<LeftButtonObserver> g_leftButtonObserver{nullptr};
 // Game-thread state: the key whose messages we are currently swallowing.
 std::uint8_t g_swallowVk = 0;
 
-// [Features] BlockMenuKey, read in Install.
+// [Features] BlockMenuKey and KeyRepeat, [Input] RepeatDelay/RepeatRate, read in Install.
 bool g_blockMenuKey = false;
+bool g_keyRepeat = false;
+RepeatTiming g_repeatTiming;
+
+// Game-thread state of the own key repeat: the text-edit key held down (0 = none), the window
+// its key-ups go to and its key-down's lParam.
+std::uint8_t g_repeatVk = 0;
+HWND g_repeatWindow = nullptr;
+std::uint32_t g_repeatParam = 0;
+// LogLevel=debug: key-ups sent for the current press.
+int g_repeatCount = 0;
+// Timer on the game window; the id only has to differ from the game's own timers.
+constexpr UINT_PTR kRepeatTimerId = 0x52524B52;  // "RRKR"
 
 bool IsRepeat(LPARAM lParam) { return (static_cast<UINT>(lParam) & (1u << 30)) != 0; }
+
+bool SendRepeatKeyUp() {
+    ++g_repeatCount;
+    return PostMessageA(g_repeatWindow, WM_KEYUP, g_repeatVk, static_cast<LPARAM>(RepeatKeyUpParam(g_repeatParam))) != 0;
+}
+
+void StopRepeat(const char* reason) {
+    if (g_repeatVk != 0) {
+        log::Debug("Key repeat: {} stopped ({}) after {} key-up(s)", ToString(KeyCombo{g_repeatVk, kNone}), reason,
+                   g_repeatCount);
+    }
+    if (g_repeatWindow) KillTimer(g_repeatWindow, kRepeatTimerId);
+    g_repeatVk = 0;
+    g_repeatWindow = nullptr;
+}
+
+bool GameInForeground() {
+    DWORD pid = 0;
+    GetWindowThreadProcessId(GetForegroundWindow(), &pid);
+    return pid == GetCurrentProcessId();
+}
+
+// Runs on the game thread (DispatchMessage of the timer's WM_TIMER).
+void CALLBACK RepeatTimerProc(HWND window, UINT, UINT_PTR, DWORD) {
+    if (g_repeatVk == 0 || window != g_repeatWindow) {
+        StopRepeat("stale timer");
+        return;
+    }
+    if (GetAsyncKeyState(g_repeatVk) >= 0) {
+        StopRepeat("key up");
+        return;
+    }
+    if (!GameInForeground()) {
+        StopRepeat("game not in the foreground");
+        return;
+    }
+    SendRepeatKeyUp();
+    SetTimer(window, kRepeatTimerId, g_repeatTiming.intervalMs, &RepeatTimerProc);
+}
+
+// [Features] KeyRepeat for one message; true if the game must not see it.
+bool HandleTextEditKey(const MSG& msg) {
+    const auto vk = static_cast<std::uint8_t>(msg.wParam);
+    if (msg.message == WM_KEYDOWN) {
+        if (!IsTextEditKey(vk)) {
+            if (g_repeatVk != 0 && !IsRepeat(msg.lParam)) StopRepeat("another key");  // as in Windows
+            return false;
+        }
+        if (IsRepeat(msg.lParam)) return vk == g_repeatVk || g_repeatVk == 0;  // Windows' repeats: ours instead
+        StopRepeat("pressed again");
+        g_repeatVk = vk;
+        g_repeatWindow = msg.hwnd;
+        g_repeatParam = static_cast<std::uint32_t>(msg.lParam);
+        g_repeatCount = 0;
+        const bool posted = SendRepeatKeyUp();  // acts at once, not on release
+        const bool timer = SetTimer(msg.hwnd, kRepeatTimerId, g_repeatTiming.delayMs, &RepeatTimerProc) != 0;
+        log::Debug("Key repeat: {} down (hwnd {:08X}), key-up {}, timer {}", ToString(KeyCombo{vk, kNone}),
+                   reinterpret_cast<std::uintptr_t>(msg.hwnd), posted ? "posted" : "NOT posted",
+                   timer ? "started" : "NOT started");
+        return false;  // the key-down itself reaches the game as usual
+    }
+    if (msg.message == WM_KEYUP && IsTextEditKey(vk)) {
+        if (IsRepeatKeyUp(static_cast<std::uint32_t>(msg.lParam))) return false;  // one of ours
+        if (vk == g_repeatVk) StopRepeat("released");
+        return true;  // the press already acted
+    }
+    return false;
+}
 
 std::uint8_t CurrentModifiers() {
     // GetKeyState reflects the keyboard state up to the message just retrieved.
@@ -89,6 +169,8 @@ LRESULT CALLBACK GetMessageHook(int code, WPARAM removal, LPARAM lParam) {
             }
         }
         if (HandleKey(msg)) {
+            msg.message = WM_NULL;
+        } else if (g_keyRepeat && HandleTextEditKey(msg)) {
             msg.message = WM_NULL;
         } else if (g_blockMenuKey) {
             const auto vk = static_cast<std::uint8_t>(msg.wParam);
@@ -168,6 +250,20 @@ bool Install(HWND window) {
     if (g_hook) return true;
     const DWORD thread = GetWindowThreadProcessId(window, nullptr);
     g_blockMenuKey = config::GetBool("Features", "BlockMenuKey", true);
+    g_keyRepeat = config::GetBool("Features", "KeyRepeat", true);
+    if (g_keyRepeat) {
+        UINT delaySetting = 1, speedSetting = 31;
+        SystemParametersInfoW(SPI_GETKEYBOARDDELAY, 0, &delaySetting, 0);
+        SystemParametersInfoW(SPI_GETKEYBOARDSPEED, 0, &speedSetting, 0);
+        const RepeatTiming windows = WindowsRepeatTiming(delaySetting, speedSetting);
+        bool valid = true;
+        const std::string delay = config::GetString("Input", "RepeatDelay", "300");
+        g_repeatTiming.delayMs = ParseRepeatDelay(delay, windows.delayMs, valid);
+        if (!valid) log::Warn("[Input] RepeatDelay=\"{}\" is not a number of milliseconds or windows - using {}", delay, g_repeatTiming.delayMs);
+        const std::string rate = config::GetString("Input", "RepeatRate", "15");
+        g_repeatTiming.intervalMs = ParseRepeatInterval(rate, windows.intervalMs, valid);
+        if (!valid) log::Warn("[Input] RepeatRate=\"{}\" is not a number per second or windows - using {}", rate, kDefaultRepeatRate);
+    }
     // hMod = nullptr: thread-specific hook on a thread of our own process.
     const HHOOK hook = SetWindowsHookExA(WH_GETMESSAGE, &GetMessageHook, nullptr, thread);
     if (!hook) {
@@ -178,6 +274,10 @@ bool Install(HWND window) {
     g_hook = hook;
     log::Info("Input hook installed on thread {} ({} hotkey(s)){}", thread, g_hotkeys.size(),
               g_blockMenuKey ? ", F10/Alt open no window menu" : "");
+    if (g_keyRepeat) {
+        log::Info("Key repeat for Backspace, Delete, Left, Right: first repeat after {} ms, then every {} ms ([Input])",
+                  g_repeatTiming.delayMs, g_repeatTiming.intervalMs);
+    }
     if (log::Enabled(log::Level::Debug)) {
         g_sentHook = SetWindowsHookExA(WH_CALLWNDPROC, &CallWndProcHook, nullptr, thread);
         if (!g_sentHook) log::Debug("Window message log: SetWindowsHookEx(WH_CALLWNDPROC) failed ({})", GetLastError());

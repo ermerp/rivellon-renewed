@@ -858,6 +858,28 @@ void TestKeyCombo() {
     CHECK(PlainMenuKeyMessage(WM_SYSKEYDOWN, VK_F4, true) == WM_SYSKEYDOWN);   // Alt+F4
     CHECK(PlainMenuKeyMessage(WM_KEYDOWN, VK_F10, false) == WM_KEYDOWN);
     CHECK(PlainMenuKeyMessage(WM_CHAR, VK_F10, false) == WM_CHAR);
+
+    // [Features] KeyRepeat: the text-edit keys, the mod's own key-ups and the timing.
+    using namespace ddmod::input;
+    CHECK(IsTextEditKey(VK_BACK) && IsTextEditKey(VK_DELETE) && IsTextEditKey(VK_LEFT) && IsTextEditKey(VK_RIGHT));
+    CHECK(!IsTextEditKey('A') && !IsTextEditKey(VK_UP) && !IsTextEditKey(VK_RETURN) && !IsTextEditKey(VK_HOME));
+    // Backspace pressed: scan code 0x0E, count 1 -> key-up with count 0, previous down, transition up.
+    CHECK(RepeatKeyUpParam(0x000E0001u) == 0xC00E0000u);
+    CHECK(RepeatKeyUpParam(0x414B0001u) == 0xC14B0000u);  // extended Left arrow keeps its flag
+    CHECK(IsRepeatKeyUp(RepeatKeyUpParam(0x000E0001u)));
+    CHECK(!IsRepeatKeyUp(0xC00E0001u));                    // a real key-up counts 1
+    CHECK(WindowsRepeatTiming(1, 31).delayMs == 500 && WindowsRepeatTiming(1, 31).intervalMs == 33);
+    CHECK(WindowsRepeatTiming(0, 0).delayMs == 250 && WindowsRepeatTiming(0, 0).intervalMs == 400);
+    CHECK(WindowsRepeatTiming(3, 99).delayMs == 1000);
+    bool valid = true;
+    CHECK(ParseRepeatDelay("300", 500, valid) == 300 && valid);
+    CHECK(ParseRepeatDelay(" Windows ", 500, valid) == 500 && valid);
+    CHECK(ParseRepeatDelay("50", 500, valid) == 100 && valid);    // clamped
+    CHECK(ParseRepeatDelay("fast", 500, valid) == kDefaultRepeatDelayMs && !valid);
+    CHECK(ParseRepeatInterval("15", 33, valid) == 67 && valid);
+    CHECK(ParseRepeatInterval("windows", 33, valid) == 33 && valid);
+    CHECK(ParseRepeatInterval("200", 33, valid) == 20 && valid);  // 50 per second at most
+    CHECK(ParseRepeatInterval("", 33, valid) == 67 && !valid);
     CHECK(!Matches(hotkey, VK_F11, kCtrl | kShift));
     CHECK(!Matches(KeyCombo{}, 0, kNone));
 }

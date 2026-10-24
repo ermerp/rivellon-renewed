@@ -1,5 +1,6 @@
 #include "input/keys.h"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <format>
@@ -94,7 +95,49 @@ std::optional<std::uint8_t> ParseModifier(std::string_view name) {
     return std::nullopt;
 }
 
+// A whole decimal number (up to 4 digits), or nullopt.
+std::optional<unsigned> Number(std::string_view text) {
+    if (text.empty() || text.size() > 4) return std::nullopt;
+    unsigned value = 0;
+    for (const char c : text) {
+        if (c < '0' || c > '9') return std::nullopt;
+        value = value * 10 + static_cast<unsigned>(c - '0');
+    }
+    return value;
+}
+
 }  // namespace
+
+RepeatTiming WindowsRepeatTiming(unsigned delaySetting, unsigned speedSetting) {
+    RepeatTiming timing;
+    timing.delayMs = 250 * (std::min(delaySetting, 3u) + 1);
+    // Speed 0 = about 2.5, 31 = about 30 repeats per second, in even steps.
+    const double perSecond = 2.5 + std::min(speedSetting, 31u) * (27.5 / 31.0);
+    timing.intervalMs = static_cast<unsigned>(1000.0 / perSecond + 0.5);
+    return timing;
+}
+
+unsigned ParseRepeatDelay(std::string_view text, unsigned windowsMs, bool& valid) {
+    text = Trim(text);
+    valid = true;
+    if (EqualsNoCase(text, "windows")) return windowsMs;
+    if (const auto ms = Number(text)) return std::clamp(*ms, 100u, 2000u);
+    valid = false;
+    return kDefaultRepeatDelayMs;
+}
+
+unsigned ParseRepeatInterval(std::string_view text, unsigned windowsIntervalMs, bool& valid) {
+    text = Trim(text);
+    valid = true;
+    if (EqualsNoCase(text, "windows")) return windowsIntervalMs;
+    unsigned perSecond = kDefaultRepeatRate;
+    if (const auto rate = Number(text)) {
+        perSecond = std::clamp(*rate, 1u, 50u);
+    } else {
+        valid = false;
+    }
+    return (1000 + perSecond / 2) / perSecond;
+}
 
 std::optional<KeyCombo> ParseKeyCombo(std::string_view text) {
     text = Trim(text);
