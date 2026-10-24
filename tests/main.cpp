@@ -541,10 +541,6 @@ void TestMovement() {
     CHECK(ParseWalkRadius("12px", valid) == std::optional<int>(features::kDefaultWalkRadius) && !valid);
     CHECK(ParseWalkRadius("", valid) == std::optional<int>(features::kDefaultWalkRadius) && !valid);
     CHECK(features::WalkRadiusText(std::nullopt) == "original" && features::WalkRadiusText(175) == "175");
-    CHECK(features::NextWalkRadius(std::nullopt) == std::optional<int>(125));
-    CHECK(features::NextWalkRadius(225) == std::optional<int>(250) && features::NextWalkRadius(250) == std::optional<int>(275));
-    CHECK(features::NextWalkRadius(200) == std::optional<int>(225));
-    CHECK(!features::NextWalkRadius(325).has_value() && !features::NextWalkRadius(1000).has_value());
     CHECK(features::RadiusCode(std::nullopt) == features::kOriginalRadiusCode);
 
     // The radius code runs in a stand-in of the game's code: ebx = screen height, then the nine
@@ -851,6 +847,17 @@ void TestKeyCombo() {
     CHECK(Matches(hotkey, VK_F10, kCtrl | kShift));
     CHECK(!Matches(hotkey, VK_F10, kCtrl));
     CHECK(!Matches(hotkey, VK_F10, kCtrl | kShift | kAlt));
+
+    using ddmod::input::PlainMenuKeyMessage;
+    CHECK(PlainMenuKeyMessage(WM_SYSKEYDOWN, VK_F10, false) == WM_KEYDOWN);
+    CHECK(PlainMenuKeyMessage(WM_SYSKEYUP, VK_F10, false) == WM_KEYUP);
+    CHECK(PlainMenuKeyMessage(WM_SYSKEYDOWN, VK_F10, true) == WM_SYSKEYDOWN);  // Alt+F10 stays
+    CHECK(PlainMenuKeyMessage(WM_SYSKEYUP, VK_MENU, false) == WM_KEYUP);
+    CHECK(PlainMenuKeyMessage(WM_SYSKEYDOWN, VK_MENU, true) == WM_SYSKEYDOWN);
+    CHECK(PlainMenuKeyMessage(WM_SYSKEYDOWN, VK_TAB, true) == WM_SYSKEYDOWN);  // Alt+Tab
+    CHECK(PlainMenuKeyMessage(WM_SYSKEYDOWN, VK_F4, true) == WM_SYSKEYDOWN);   // Alt+F4
+    CHECK(PlainMenuKeyMessage(WM_KEYDOWN, VK_F10, false) == WM_KEYDOWN);
+    CHECK(PlainMenuKeyMessage(WM_CHAR, VK_F10, false) == WM_CHAR);
     CHECK(!Matches(hotkey, VK_F11, kCtrl | kShift));
     CHECK(!Matches(KeyCombo{}, 0, kNone));
 }
@@ -1341,31 +1348,49 @@ void TestFntFont() {
     std::filesystem::remove(path);
 }
 
-void TestDgVoodooWatermark() {
-    using ddmod::features::SetWatermark;
-    using ddmod::features::WatermarkEdit;
+void TestDgVoodooConf() {
+    using ddmod::features::ConfEdit;
+    using ddmod::features::SetConfValue;
+    auto watermark = [](std::string& text, bool on) {
+        return SetConfValue(text, "DirectX", "dgVoodooWatermark", on ? "true" : "false");
+    };
     // Layout as in dgVoodoo's own file: aligned '=', CRLF, the same key name pattern in [Glide].
     const std::string conf =
         "[Glide]\r\n3DfxWatermark                       = true\r\n\r\n"
         "[DirectX]\r\n;dgVoodooWatermark: comment = true\r\n"
         "dgVoodooWatermark                    = true\r\nFastVideoMemoryAccess = false\r\n";
     std::string text = conf;
-    CHECK(SetWatermark(text, false) == WatermarkEdit::Changed);
+    CHECK(watermark(text, false) == ConfEdit::Changed);
     CHECK(text.find("dgVoodooWatermark                    = false\r\nFastVideoMemoryAccess") != std::string::npos);
     CHECK(text.find("3DfxWatermark                       = true\r\n") != std::string::npos);
     CHECK(text.find(";dgVoodooWatermark: comment = true") != std::string::npos);
     CHECK(text.size() == conf.size() + 1);
-    CHECK(SetWatermark(text, false) == WatermarkEdit::Unchanged);
-    CHECK(SetWatermark(text, true) == WatermarkEdit::Changed && text == conf);
+    CHECK(watermark(text, false) == ConfEdit::Unchanged);
+    CHECK(watermark(text, true) == ConfEdit::Changed && text == conf);
 
     std::string bare = "[directx]\ndgVoodooWatermark=\n";  // section name case, no value, LF only
-    CHECK(SetWatermark(bare, true) == WatermarkEdit::Changed && bare == "[directx]\ndgVoodooWatermark= true\n");
+    CHECK(watermark(bare, true) == ConfEdit::Changed && bare == "[directx]\ndgVoodooWatermark= true\n");
     std::string upper = "[DirectX]\ndgVoodooWatermark = TRUE";  // no line end at all
-    CHECK(SetWatermark(upper, true) == WatermarkEdit::Unchanged);
+    CHECK(watermark(upper, true) == ConfEdit::Unchanged);
     std::string elsewhere = "[General]\ndgVoodooWatermark = true\n";
-    CHECK(SetWatermark(elsewhere, false) == WatermarkEdit::NotFound);
+    CHECK(watermark(elsewhere, false) == ConfEdit::NotFound);
     std::string longer = "[DirectX]\ndgVoodooWatermarkX = true\n";
-    CHECK(SetWatermark(longer, false) == WatermarkEdit::NotFound);
+    CHECK(watermark(longer, false) == ConfEdit::NotFound);
+
+    // FullscreenAttributes: dgVoodoo writes the empty value as "key = " with a trailing space.
+    const std::string ext = "[GeneralExt]\r\nWindowedAttributes                   = \r\n"
+                            "FullscreenAttributes                 = \r\nFPSLimit = 0\r\n";
+    std::string fs = ext;
+    CHECK(SetConfValue(fs, "GeneralExt", "FullscreenAttributes", "") == ConfEdit::Unchanged);
+    CHECK(SetConfValue(fs, "GeneralExt", "FullscreenAttributes", "fake") == ConfEdit::Changed);
+    CHECK(fs.find("FullscreenAttributes                 = fake\r\nFPSLimit") != std::string::npos);
+    CHECK(fs.find("WindowedAttributes                   = \r\n") != std::string::npos);
+    CHECK(SetConfValue(fs, "GeneralExt", "FullscreenAttributes", "") == ConfEdit::Changed && fs == ext);
+    std::string noSpace = "[GeneralExt]\nFullscreenAttributes=\n";
+    CHECK(SetConfValue(noSpace, "GeneralExt", "FullscreenAttributes", "fake") == ConfEdit::Changed &&
+          noSpace == "[GeneralExt]\nFullscreenAttributes= fake\n");
+    CHECK(SetConfValue(noSpace, "GeneralExt", "FullscreenAttributes", "") == ConfEdit::Changed &&
+          noSpace == "[GeneralExt]\nFullscreenAttributes= \n");
 }
 
 void TestFontChain() {
@@ -1466,7 +1491,7 @@ int main() {
     TestGdiFace();
     TestFntFont();
     TestFontChain();
-    TestDgVoodooWatermark();
+    TestDgVoodooConf();
     TestOverlayStatus();
     std::printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

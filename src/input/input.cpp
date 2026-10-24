@@ -26,6 +26,9 @@ std::atomic<LeftButtonObserver> g_leftButtonObserver{nullptr};
 // Game-thread state: the key whose messages we are currently swallowing.
 std::uint8_t g_swallowVk = 0;
 
+// [Features] BlockMenuKey, read in Install.
+bool g_blockMenuKey = false;
+
 bool IsRepeat(LPARAM lParam) { return (static_cast<UINT>(lParam) & (1u << 30)) != 0; }
 
 std::uint8_t CurrentModifiers() {
@@ -85,9 +88,55 @@ LRESULT CALLBACK GetMessageHook(int code, WPARAM removal, LPARAM lParam) {
                 observer(static_cast<unsigned>(msg.time), msg.pt.x, msg.pt.y);
             }
         }
-        if (HandleKey(msg)) msg.message = WM_NULL;
+        if (HandleKey(msg)) {
+            msg.message = WM_NULL;
+        } else if (g_blockMenuKey) {
+            const auto vk = static_cast<std::uint8_t>(msg.wParam);
+            if (const UINT plain = PlainMenuKeyMessage(msg.message, vk, GetKeyState(VK_MENU) < 0); plain != msg.message) {
+                if (msg.message == WM_SYSKEYDOWN || msg.message == WM_SYSKEYUP) {
+                    log::Debug("Menu key {} {}: passed on as a normal key", vk == VK_F10 ? "F10" : "Alt",
+                               msg.message == WM_SYSKEYDOWN ? "down" : "up");
+                }
+                msg.message = plain;
+            }
+        }
     }
     return CallNextHookEx(nullptr, code, removal, lParam);
+}
+
+std::atomic<HHOOK> g_sentHook{nullptr};
+
+// LogLevel=debug: sent messages that show menu mode (F10, Alt) and screen mode changes (Alt+Tab).
+LRESULT CALLBACK CallWndProcHook(int code, WPARAM wParam, LPARAM lParam) {
+    if (code == HC_ACTION) {
+        const auto& m = *reinterpret_cast<const CWPSTRUCT*>(lParam);
+        const auto hwnd = reinterpret_cast<std::uintptr_t>(m.hwnd);
+        switch (m.message) {
+            case WM_SYSCOMMAND:
+                log::Debug("Window message WM_SYSCOMMAND {:04X} (hwnd {:08X})", static_cast<unsigned>(m.wParam & 0xFFF0),
+                           hwnd);
+                break;
+            case WM_ENTERMENULOOP:
+                log::Debug("Window message WM_ENTERMENULOOP (hwnd {:08X})", hwnd);
+                break;
+            case WM_EXITMENULOOP:
+                log::Debug("Window message WM_EXITMENULOOP (hwnd {:08X})", hwnd);
+                break;
+            case WM_ACTIVATEAPP:
+                log::Debug("Window message WM_ACTIVATEAPP {} (hwnd {:08X})", m.wParam ? "on" : "off", hwnd);
+                break;
+            case WM_STYLECHANGED:
+                if (m.wParam == static_cast<WPARAM>(GWL_STYLE)) {
+                    const auto& s = *reinterpret_cast<const STYLESTRUCT*>(m.lParam);
+                    log::Debug("Window message WM_STYLECHANGED {:08X} -> {:08X} (hwnd {:08X})", s.styleOld, s.styleNew,
+                               hwnd);
+                }
+                break;
+            default:
+                break;
+        }
+    }
+    return CallNextHookEx(nullptr, code, wParam, lParam);
 }
 
 }  // namespace
@@ -118,6 +167,7 @@ void SetLeftButtonObserver(LeftButtonObserver observer) { g_leftButtonObserver.s
 bool Install(HWND window) {
     if (g_hook) return true;
     const DWORD thread = GetWindowThreadProcessId(window, nullptr);
+    g_blockMenuKey = config::GetBool("Features", "BlockMenuKey", true);
     // hMod = nullptr: thread-specific hook on a thread of our own process.
     const HHOOK hook = SetWindowsHookExA(WH_GETMESSAGE, &GetMessageHook, nullptr, thread);
     if (!hook) {
@@ -126,11 +176,17 @@ bool Install(HWND window) {
         return false;
     }
     g_hook = hook;
-    log::Info("Input hook installed on thread {} ({} hotkey(s))", thread, g_hotkeys.size());
+    log::Info("Input hook installed on thread {} ({} hotkey(s)){}", thread, g_hotkeys.size(),
+              g_blockMenuKey ? ", F10/Alt open no window menu" : "");
+    if (log::Enabled(log::Level::Debug)) {
+        g_sentHook = SetWindowsHookExA(WH_CALLWNDPROC, &CallWndProcHook, nullptr, thread);
+        if (!g_sentHook) log::Debug("Window message log: SetWindowsHookEx(WH_CALLWNDPROC) failed ({})", GetLastError());
+    }
     return true;
 }
 
 void Uninstall() {
+    if (const HHOOK sent = g_sentHook.exchange(nullptr)) UnhookWindowsHookEx(sent);
     const HHOOK hook = g_hook.exchange(nullptr);
     if (!hook) return;
     UnhookWindowsHookEx(hook);

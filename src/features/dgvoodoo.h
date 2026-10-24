@@ -6,25 +6,29 @@
 
 namespace ddmod::features {
 
-// dgVoodoo2's watermark (logo in the bottom corner, on in dgVoodoo's default config). dgVoodoo
-// reads dgVoodoo.conf next to its DDraw.dll when the renderer plugin loads it - after the mod's
-// DllMain - so the mod sets "dgVoodooWatermark" in [DirectX] of the game folder's dgVoodoo.conf
-// just before (docs/re/environment.md, "Watermark"). [DgVoodoo] Watermark: 0 = off (default),
-// 1 = on, keep = the file is not touched. No dgVoodoo.conf (Steam Deck, no dgVoodoo) = nothing
-// to do.
+// Settings the mod keeps in dgVoodoo2's config. dgVoodoo reads dgVoodoo.conf next to its
+// DDraw.dll when the renderer plugin loads it - after the mod's DllMain - so the mod rewrites
+// single keys of the game folder's dgVoodoo.conf just before (docs/re/environment.md):
+// - [DgVoodoo] Watermark: dgVoodooWatermark in [DirectX] (on in dgVoodoo's default config);
+//   0 = off (default), 1 = on, keep.
+// - [DgVoodoo] FullScreen: FullscreenAttributes in [GeneralExt]; borderless (default) = "fake"
+//   (a screen-size window without a frame, which stays one after Alt+Tab), exclusive = empty
+//   (dgVoodoo's own full screen), keep.
+// No dgVoodoo.conf (Steam Deck, no dgVoodoo) = nothing to do.
 
-enum class WatermarkEdit {
+enum class ConfEdit {
     Changed,    // `text` holds the file with the new value
     Unchanged,  // the value is already the wanted one
-    NotFound,   // no dgVoodooWatermark key in [DirectX]
+    NotFound,   // no such key in the section
 };
 
-// Sets the value of dgVoodooWatermark in [DirectX] of the dgVoodoo.conf text `text` to "true" or
-// "false", keeping everything else (alignment, comments, line endings) as it is.
-WatermarkEdit SetWatermark(std::string& text, bool on);
+// Sets the value of `key` in `section` of the dgVoodoo.conf text `text` (names without case),
+// keeping everything else (alignment, comments, line endings) as it is. An empty value leaves
+// "key = " as dgVoodoo writes it.
+ConfEdit SetConfValue(std::string& text, std::string_view section, std::string_view key, std::string_view value);
 
-// Applies [DgVoodoo] Watermark to `conf` (normally ModDir() / "dgVoodoo.conf") and logs the
-// outcome. Call from DllMain, before the renderer plugin loads dgVoodoo.
-void ApplyWatermarkSetting(const std::filesystem::path& conf);
+// Applies [DgVoodoo] to `conf` (normally ModDir() / "dgVoodoo.conf") and logs the outcome. Call
+// from DllMain, before the renderer plugin loads dgVoodoo.
+void ApplyDgVoodooSettings(const std::filesystem::path& conf);
 
 }  // namespace ddmod::features

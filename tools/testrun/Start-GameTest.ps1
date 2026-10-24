@@ -26,6 +26,9 @@
         hold <name> <ms>      hold a key, with key-down repeats like a held real key
         type <text>           letters, digits and spaces as key presses
         shot <name>           screenshot of the game window
+        state [<label>]       print the game window's style, size and focus
+        alttab                Alt+Tab as real input (switches away; only from the game window)
+        refocus               bring the game window back, like a click on its taskbar button
       Example: -Steps 'wait 20','mouse','key Down 2','key Enter','wait 3','shot load'
     - Saves PNGs to -OutDir (default C:\dev\screenshots, outside the repo).
     - Reports whether the game exited early (crash) or stopped responding.
@@ -237,6 +240,29 @@ public static class DdCapture {
         return SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT))) == 1 && ok;
     }
 
+    [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+    [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
+    [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int index);
+
+    // Brings the window back like a click on its taskbar button (restored if minimized).
+    public static bool Refocus(IntPtr h) {
+        if (IsIconic(h)) { ShowWindow(h, 9 /* SW_RESTORE */); System.Threading.Thread.Sleep(300); }
+        return Focus(h);
+    }
+
+    // Window style, size and focus in one line, e.g. for the borderless window checks.
+    public static string Describe(IntPtr h) {
+        RECT r; GetWindowRect(h, out r);
+        RECT c; GetClientRect(h, out c);
+        int style = GetWindowLong(h, -16 /* GWL_STYLE */), ex = GetWindowLong(h, -20 /* GWL_EXSTYLE */);
+        var screen = System.Windows.Forms.Screen.FromHandle(h).Bounds;
+        return string.Format("window {0},{1} {2}x{3}, client {4}x{5}, style {6:X8} ({7}), exstyle {8:X8}{9}, " +
+            "monitor {10}x{11}, {12}", r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top, c.Right, c.Bottom, style,
+            (style & 0x00C00000) == 0x00C00000 ? "caption" : ((style & unchecked((int)0x80000000)) != 0 ? "popup" : "no caption"),
+            ex, (ex & 0x8) != 0 ? " topmost" : "", screen.Width, screen.Height,
+            IsIconic(h) ? "minimized" : (GetForegroundWindow() == h ? "foreground" : "background"));
+    }
+
     // Answers a standard message box with the given button id (e.g. 7 = IDNO).
     public static void AnswerMessageBox(IntPtr h, int buttonId) {
         SendMessage(h, 0x0111 /* WM_COMMAND */, new IntPtr(buttonId), IntPtr.Zero);
@@ -414,6 +440,10 @@ function Invoke-Step([string] $step) {
             Save-Shot $bmp $arg $method ([int]((Get-Date) - $start).TotalSeconds)
             return $true
         }
+        'state' {
+            Write-Host "$elapsed state $arg - $(if ($h -ne [IntPtr]::Zero) { [DdCapture]::Describe($h) } else { 'no game window' })"
+            return $true
+        }
     }
     if ($h -eq [IntPtr]::Zero) { Write-Host "$elapsed $step - no game window"; return $false }
     $ok = $true
@@ -454,6 +484,8 @@ function Invoke-Step([string] $step) {
                 Start-Sleep -Milliseconds 100
             }
         }
+        'alttab' { $ok = [DdCapture]::SendChord($h, @(0x12, 0x09)) }
+        'refocus' { $ok = [DdCapture]::Refocus($h) }
         default { throw "Unknown step '$step'" }
     }
     Write-Host "$elapsed $step$(if (-not $ok) { ' - NOT sent (game window not in the foreground)' })"

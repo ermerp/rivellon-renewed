@@ -60,9 +60,6 @@ std::string WalkRadiusText(std::optional<int> radius);
 // leaves the radius), padded with nops; nullopt gives the original bytes.
 std::array<std::uint8_t, 9> RadiusCode(std::optional<int> radius);
 
-// The value after `current` in the test cycle of [Keys] CycleWalkRadius (… → original → first).
-std::optional<int> NextWalkRadius(std::optional<int> current);
-
 // Double click detection from the left button's presses (time in ms, screen position): a press
 // is the second of a double click if it follows the previous one within `maxMs` and inside the
 // `maxDx` × `maxDy` box (Windows' double click settings).
@@ -105,9 +102,5 @@ bool InstallWalkRadius();
 bool InstallDoubleClickRun();
 // LogLevel=debug: logs every change of the held-button walk/run choice.
 bool InstallRunLog();
-
-// Hotkey [Keys] CycleWalkRadius: next radius of the test cycle, saved into the INI, shown in the
-// overlay.
-void CycleWalkRadius();
 
 }  // namespace ddmod::features

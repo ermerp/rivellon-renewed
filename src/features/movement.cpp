@@ -5,7 +5,6 @@
 #include <charconv>
 #include <cstdlib>
 #include <cstring>
-#include <format>
 
 #include <windows.h>
 
@@ -15,7 +14,6 @@
 #include "core/patch.h"
 #include "game/exe.h"
 #include "input/input.h"
-#include "overlay/overlay.h"
 
 namespace ddmod::features {
 namespace {
@@ -24,7 +22,6 @@ using AlwaysRunGetterFn = int(__thiscall*)(void* player);
 using HeldRunSetterFn = void(__thiscall*)(void* agent, int run);
 
 std::uintptr_t g_radiusCode = 0;  // 0 = walk radius not installed
-std::optional<int> g_radius;
 AlwaysRunGetterFn g_alwaysRunGetter = nullptr;
 DoubleClickTracker g_clicks;
 HeldRunSetterFn g_heldRunSetter = nullptr;
@@ -38,9 +35,6 @@ void __fastcall HeldRunSetterDetour(void* agent, void* /*edx*/, int run) {
     }
     g_heldRunSetter(agent, run);
 }
-
-// The test cycle of [Keys] CycleWalkRadius.
-constexpr int kCycle[] = {125, 175, 225, 250, 275, 325};
 
 // See FontInitDetour (fontmode.cpp) for the __fastcall stand-in of __thiscall.
 int __fastcall AlwaysRunGetterDetour(void* player, void* /*edx*/) {
@@ -82,14 +76,6 @@ std::array<std::uint8_t, 9> RadiusCode(std::optional<int> radius) {
     return code;
 }
 
-std::optional<int> NextWalkRadius(std::optional<int> current) {
-    if (!current) return kCycle[0];
-    for (int value : kCycle) {
-        if (value > *current) return value;
-    }
-    return std::nullopt;
-}
-
 bool DoubleClickTracker::Press(unsigned timeMs, int x, int y) {
     const bool isDouble = havePrevious_ && !lastWasDouble_ && timeMs - previousTime_ <= maxMs_ &&
                           std::abs(x - previousX_) <= maxDx_ / 2 && std::abs(y - previousY_) <= maxDy_ / 2;
@@ -114,7 +100,6 @@ bool InstallWalkRadiusAt(std::uintptr_t circleCheck, std::optional<int> radius) 
 bool SetWalkRadius(std::optional<int> radius) {
     if (!g_radiusCode) return false;
     if (!patch::WriteCode("WalkRadius", g_radiusCode, RadiusCode(radius))) return false;
-    g_radius = radius;
     return true;
 }
 
@@ -171,19 +156,6 @@ bool InstallRunLog() {
     return hooks::CreateRaw("HeldRunSetter", reinterpret_cast<void*>(setter), reinterpret_cast<void*>(&HeldRunSetterDetour),
                             reinterpret_cast<void**>(&g_heldRunSetter)) &&
            hooks::Enable("HeldRunSetter");
-}
-
-void CycleWalkRadius() {
-    if (!g_radiusCode) {
-        log::Info("Walk radius: not installed - hotkey ignored");
-        return;
-    }
-    const std::optional<int> next = NextWalkRadius(g_radius);
-    if (!SetWalkRadius(next)) return;
-    const std::string text = WalkRadiusText(next);
-    const bool saved = config::SetString("Movement", "WalkRadius", text.c_str());
-    log::Info("Walk radius: {}{} (hotkey){}", text, next ? " px" : "", saved ? " - saved" : " - INI not writable");
-    overlay::ShowNotice(next ? std::format(L"Walk radius {} px", *next) : std::wstring(L"Walk radius original"), 3);
 }
 
 }  // namespace ddmod::features

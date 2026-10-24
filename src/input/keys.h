@@ -37,4 +37,19 @@ inline bool Matches(KeyCombo combo, std::uint8_t vk, std::uint8_t mods) {
     return combo.Bound() && combo.vk == vk && combo.mods == mods;
 }
 
+// [Features] BlockMenuKey: the message a key message becomes so that DefWindowProc opens no window
+// menu (docs/re/input.md). F10 without Alt arrives as WM_SYSKEYDOWN/WM_SYSKEYUP and becomes
+// WM_KEYDOWN/WM_KEYUP; a lone Alt opens the menu on its WM_SYSKEYUP, which becomes WM_KEYUP.
+// Everything else (Alt+Tab, Alt+F4, Alt+Enter, Alt+F10) keeps its message.
+inline unsigned PlainMenuKeyMessage(unsigned message, std::uint8_t vk, bool altHeld) {
+    constexpr unsigned kKeyDown = 0x0100, kKeyUp = 0x0101, kSysKeyDown = 0x0104, kSysKeyUp = 0x0105;
+    constexpr std::uint8_t kVkMenu = 0x12, kVkF10 = 0x79;
+    if (vk == kVkF10 && !altHeld) {
+        if (message == kSysKeyDown) return kKeyDown;
+        if (message == kSysKeyUp) return kKeyUp;
+    }
+    if (vk == kVkMenu && message == kSysKeyUp) return kKeyUp;
+    return message;
+}
+
 }  // namespace ddmod::input

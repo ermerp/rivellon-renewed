@@ -60,7 +60,6 @@ void OnGameWindow(HWND window) {
     if (config::GetBool("Features", "InputHook", true)) {
         input::RegisterHotkey("TestHotkey", "Ctrl+Shift+F3", &OnTestHotkey);
         if (overlay) input::RegisterHotkey("ToggleFps", "Ctrl+Shift+F2", &overlay::ToggleFps);
-        input::RegisterHotkey("CycleWalkRadius", "Ctrl+Shift+F4", &features::CycleWalkRadius);
         input::Install(window);
     } else {
         log::Info("Input hook disabled ([Features] InputHook=0)");
@@ -91,7 +90,7 @@ void Startup(HMODULE self) {
 
     game::IdentifyExe(paths::ExePath());
     // dgVoodoo reads its config when the renderer plugin loads DDraw.dll, after this point.
-    features::ApplyWatermarkSetting(paths::ModDir() / L"dgVoodoo.conf");
+    features::ApplyDgVoodooSettings(paths::ModDir() / L"dgVoodoo.conf");
 
     std::size_t codeBytes = 0;
     int codeSections = 0;
