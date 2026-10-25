@@ -16,6 +16,10 @@ bool Install();
 // before Install.
 void ToggleFps();
 
+// While a movie plays the status line is hidden and the banner time does not start (the movie
+// runs at 640x480 scaled to the screen, features/resolution.h). Safe to call from any thread.
+void SetMoviePlaying(bool playing);
+
 // Shows `text` as an extra line for `seconds` (e.g. the value a test hotkey just set); a new
 // notice replaces the old one. Safe to call from any thread.
 void ShowNotice(std::wstring text, int seconds);

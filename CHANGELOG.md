@@ -5,6 +5,8 @@
 Every feature can be switched off in `RivellonRenewed.ini`.
 
 - Game texts in vector faces in the game's own look: menu (Uncial Antiqua), diary title (Almendra SC), interface (Marcellus SC), books and letters (Fondamento, wider line pitch), dialog (DejaVu Sans Condensed Bold); the same pixels on Windows and Steam Deck.
+- The game starts in the monitor's resolution, up to 1080 lines by default (1280×800 on the Steam Deck) – no configuration tool needed; `config.div` stays unchanged.
+- Intro and story movies fill the screen (4:3, black bars at the sides).
 - Borderless full screen through dgVoodoo2 (Alt+Tab works), dgVoodoo watermark off.
 - F10 and a lone Alt no longer freeze the game.
 - Key repeat for Backspace, Delete, Left and Right in text fields.
@@ -19,6 +21,9 @@ One line per finished step, newest first (`docs/test-results.md` for the tests).
 
 | Date | Step |
 |---|---|
+| 2026-10-25 | Resolution picked by the mod, full-screen movies, dgVoodoo aspect scaling; fresh Steam install analyzed (T1.28-W, T1.29-W, T1.30-D) |
+| 2026-10-25 | Play copy `dd-play` updated to the T1.27 build |
+| 2026-10-25 | v0.01 step 7.1: docs cleanup – small session context, one place per fact, old full texts in `docs/archive/` |
 | 2026-10-25 | Phase 1 merged into `main`; release path for v0.01 planned |
 | 2026-10-25 | Dialog and overlay in the bundled DejaVu Sans Condensed Bold, no system fonts (T1.27) |
 | 2026-10-25 | Plan B accepted on the Deck after a clean install (T1.26-D) – Phase 1 step 7 done |

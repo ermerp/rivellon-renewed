@@ -30,6 +30,8 @@
 #include "core/sha256.h"
 #include "features/dgvoodoo.h"
 #include "features/fog.h"
+#include "features/resolution.h"
+#include "game/configfile.h"
 #include "features/movement.h"
 #include "features/shortlabels.h"
 #include "fonts/fontchain.h"
@@ -287,6 +289,7 @@ void TestFogHook() {
     CHECK(features::ParseFog("maybe", valid) == std::optional<bool>(true) && !valid);
 
     // Fog=1: "no fog" in the file is cleared after the call, the neighbors stay untouched.
+    game::ClearConfigObservers();
     CHECK(hooks::Init());
     CHECK(features::InstallFogAt(reinterpret_cast<void*>(&FakeConfigReader), reinterpret_cast<void*>(&FakeConfigWriter),
                                  true, &OnFogWrite));
@@ -306,6 +309,92 @@ void TestFogHook() {
     CHECK(reader(settings, "other") == 1 && noFog() == 1);
     hooks::Shutdown();
     CHECK(reader(settings, "other") == 1 && noFog() == 0);
+}
+
+// Stand-in for the reader that stores a size, like config.div's width/height lines.
+__declspec(noinline) int __fastcall FakeSizeReader(void* settings, void* /*edx*/, const char* file) {
+    if (file && std::strcmp(file, "config.div") == 0) {
+        const std::int32_t size[2] = {1024, 768};
+        std::memcpy(static_cast<std::uint8_t*>(settings) + ddmod::features::kWidthField, size, 8);
+    }
+    return 1;
+}
+ddmod::features::Size g_sizeWritten;
+std::int32_t g_writerSwitch = -1;
+__declspec(noinline) int __fastcall FakeSizeWriter(void* settings, void* /*edx*/) {
+    std::memcpy(&g_sizeWritten, static_cast<std::uint8_t*>(settings) + ddmod::features::kWidthField, 8);
+    std::memcpy(&g_writerSwitch, static_cast<std::uint8_t*>(settings) + ddmod::features::kResolutionSwitchField, 4);
+    return 3;
+}
+
+void TestResolution() {
+    using namespace ddmod::features;
+    bool valid = false;
+    CHECK(ParseResolution("auto", valid).mode == ResolutionMode::Auto && valid);
+    CHECK(ParseResolution(" Config ", valid).mode == ResolutionMode::Config && valid);
+    const ResolutionSetting fixed = ParseResolution("1920 X 1080", valid);
+    CHECK(fixed.mode == ResolutionMode::Fixed && fixed.fixed == (Size{1920, 1080}) && valid);
+    for (const char* bad : {"", "1920", "x1080", "1920x", "19a0x1080", "320x200", "1920x1080x2", "1234567x1"}) {
+        CHECK(ParseResolution(bad, valid).mode == ResolutionMode::Auto && !valid);
+    }
+
+    // The 2560x1440 monitor of the dev PC (mode list as dgVoodoo2 reports it, measured).
+    const Size pc[] = {{640, 480},   {800, 600},   {1024, 768},  {1280, 720},  {1280, 800},  {1366, 768},
+                       {1600, 900},  {1680, 1050}, {1920, 1080}, {1920, 1200}, {1920, 1440}, {2560, 1440}};
+    CHECK(ChooseAutoResolution({2560, 1440}, pc, 1080) == (Size{1920, 1080}));
+    CHECK(ChooseAutoResolution({2560, 1440}, pc, 0) == (Size{2560, 1440}));
+    CHECK(ChooseAutoResolution({2560, 1440}, pc, 900) == (Size{1600, 900}));
+    // Steam Deck: below the limit, the panel size itself.
+    const Size deck[] = {{640, 480}, {800, 600}, {1024, 768}, {1280, 720}, {1280, 800}};
+    CHECK(ChooseAutoResolution({1280, 800}, deck, 1080) == (Size{1280, 800}));
+    // 16:10 at 2560x1600: no 16:10 mode up to 1080 lines in the list -> the largest one that fits.
+    const Size wide[] = {{1280, 800}, {1680, 1050}, {1920, 1080}, {2560, 1600}};
+    CHECK(ChooseAutoResolution({2560, 1600}, wide, 1080) == (Size{1680, 1050}));
+    const Size noAspect[] = {{1024, 768}, {1920, 1080}};
+    CHECK(ChooseAutoResolution({2560, 1600}, noAspect, 1080) == (Size{1920, 1080}));
+    // Nothing fits (all too narrow or too big).
+    const Size none[] = {{320, 240}, {3840, 2160}};
+    CHECK(!ChooseAutoResolution({1920, 1080}, none, 0).has_value());
+
+    // Hooks: the size after every read, the file's size while config.div is written.
+    using namespace ddmod;
+    using ConfigReaderFn = int(__thiscall*)(void*, const char*);
+    using ConfigWriterFn = int(__thiscall*)(void*);
+    ConfigReaderFn volatile reader = reinterpret_cast<ConfigReaderFn>(&FakeSizeReader);
+    ConfigWriterFn volatile writer = reinterpret_cast<ConfigWriterFn>(&FakeSizeWriter);
+    std::uint8_t settings[0x174] = {};
+    const auto stored = [&] {
+        Size s;
+        std::memcpy(&s, settings + kWidthField, 8);
+        return s;
+    };
+    game::ClearConfigObservers();
+    CHECK(hooks::Init());
+    CHECK(InstallResolutionAt(reinterpret_cast<void*>(&FakeSizeReader), reinterpret_cast<void*>(&FakeSizeWriter),
+                              {1920, 1080}));
+    settings[kWidthField - 1] = 0x55;
+    settings[kHeightField + 4] = 0x66;
+    CHECK(reader(settings, "config.lcl") == 1 && stored() == (Size{1920, 1080}));
+    CHECK(reader(settings, "config.div") == 1 && stored() == (Size{1920, 1080}));
+    CHECK(settings[kWidthField - 1] == 0x55 && settings[kHeightField + 4] == 0x66);
+    CHECK(writer(settings) == 3 && g_sizeWritten == (Size{1024, 768}) && stored() == (Size{1920, 1080}));
+    hooks::Shutdown();
+    game::ClearConfigObservers();
+    CHECK(reader(settings, "config.div") == 1 && stored() == (Size{1024, 768}));
+
+    // Full-screen movies: "resolution switch" on after every read, the file's 0 while writing.
+    const auto resolutionSwitch = [&] {
+        std::int32_t v = 0;
+        std::memcpy(&v, settings + kResolutionSwitchField, 4);
+        return v;
+    };
+    g_writerSwitch = -1;
+    CHECK(hooks::Init());
+    CHECK(InstallFullScreenMoviesAt(reinterpret_cast<void*>(&FakeSizeReader), reinterpret_cast<void*>(&FakeSizeWriter)));
+    CHECK(reader(settings, "config.div") == 1 && resolutionSwitch() == 1 && stored() == (Size{1024, 768}));
+    CHECK(writer(settings) == 3 && g_writerSwitch == 0 && resolutionSwitch() == 1);
+    hooks::Shutdown();
+    game::ClearConfigObservers();
 }
 
 void TestShortLabels() {
@@ -478,18 +567,26 @@ void TestFontModeSignature() {
     if (loaderMatches.size() == 1) CHECK(FileOffsetToRva(file, loaderMatches[0]) == fonts::kLoadFontFileRva);
 
     // Config file reader (features/fog.h): unique and at the documented RVA.
-    const auto reader = pattern::Parse(features::kConfigReaderPattern);
+    const auto reader = pattern::Parse(game::kConfigReaderPattern);
     CHECK(reader.has_value());
     if (!reader) return;
     const auto readerMatches = pattern::FindAll(file, *reader);
     CHECK(readerMatches.size() == 1);
-    if (readerMatches.size() == 1) CHECK(FileOffsetToRva(file, readerMatches[0]) == features::kConfigReaderRva);
-    const auto writer = pattern::Parse(features::kConfigWriterPattern);
+    if (readerMatches.size() == 1) CHECK(FileOffsetToRva(file, readerMatches[0]) == game::kConfigReaderRva);
+    const auto writer = pattern::Parse(game::kConfigWriterPattern);
     CHECK(writer.has_value());
     if (!writer) return;
     const auto writerMatches = pattern::FindAll(file, *writer);
     CHECK(writerMatches.size() == 1);
-    if (writerMatches.size() == 1) CHECK(FileOffsetToRva(file, writerMatches[0]) == features::kConfigWriterRva);
+    if (writerMatches.size() == 1) CHECK(FileOffsetToRva(file, writerMatches[0]) == game::kConfigWriterRva);
+
+    // Video player (features/resolution.h): unique and at the documented RVA.
+    const auto player = pattern::Parse(features::kMoviePlayerPattern);
+    CHECK(player.has_value());
+    if (!player) return;
+    const auto playerMatches = pattern::FindAll(file, *player);
+    CHECK(playerMatches.size() == 1);
+    if (playerMatches.size() == 1) CHECK(FileOffsetToRva(file, playerMatches[0]) == features::kMoviePlayerRva);
 
     // Text file loader (features/shortlabels.h): unique and at the documented RVA.
     const auto textLoader = pattern::Parse(features::kTextLoaderPattern);
@@ -1644,6 +1741,7 @@ int main() {
     TestHooks();
     TestFontModeHook();
     TestFogHook();
+    TestResolution();
     TestFontModeSignature();
     TestMovement();
     TestArrowMask();

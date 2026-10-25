@@ -4,6 +4,9 @@ One line per finished test, newest first. `-W` = Windows, `-D` = Steam Deck. Ful
 
 | ID | What | Where | Result | Date |
 |---|---|---|---|---|
+| T1.30-D | Resolution `auto` and full-screen movies on the Deck | Deck (DE), Game Mode | passed: Proton reports 1280×800, `auto` picks it (before 1280×720), in `slash1.dll`'s list (17 modes up to 1280×800); menu at 1280×800; startup and menu intro switch to 640×480, gamescope scales to full height with side bars (human); 0 warnings | 2026-10-25 |
+| T1.29-W | Full-screen movies (`[Display] FullScreenMovies=1`), dgVoodoo scaling aspect, automated (no input) | DE, 2560×1440 windowed and borderless full screen | passed: `larian.bik` at 640×480 scaled to full height with 4:3 side bars, back to 2560×1440 after the movies, banner only afterwards; `config.div` unchanged | 2026-10-25 |
+| T1.28-W | Resolution picked by the mod (`[Display] Resolution=auto`), borderless full screen | DE (limit 1080 → 1920×1080), EN (no limit → 2560×1440) | passed: fills the screen, mouse exact, Alt+Tab fine, 1080 scaled up slightly soft (human: acceptable); `config.div` unchanged. Main menu (1024×768) and intro movie (640×480) stay centered as in the original | 2026-10-25 |
 | T1.27-W/D | Dialog and overlay in the bundled DejaVu Sans Condensed Bold, no installed fonts | DE, EN, Deck | passed, 0 warnings; dialog pixel-identical on Windows and the Deck | 2026-10-25 |
 | T1.26-D | Plan B (own rasterizer) on the Deck after a clean install | Deck 1280×720 | passed; banner 412×39 px as on Windows (T1.24-D: 378); human's choice DejaVu for the dialog, accepted in their own Deck play test | 2026-10-25 |
 | T1.25-W | Own rasterizer `[Fonts] Raster=own` vs. `gdi` (A: menu, B: in game) | DE, EN, FR | passed, 18 runs without warning; only change: menu 8 px lower instead of 7 (whole D, human's choice) | 2026-10-24/25 |
