@@ -111,7 +111,7 @@ Pitfalls:
 - Run remote scripts from the **Bash tool** with a heredoc: `ssh -o BatchMode=yes deck@<deck-ip> 'bash -s' <<'EOF' … EOF`. Not from PowerShell 5.1 (strips inner quotes); no files with CRLF/BOM.
 - `pgrep -f div.exe` matches itself – use `pgrep -x div.exe`.
 - Game folder: `~/.local/share/Steam/steamapps/common/divine_divinity` (German, same `div.exe`; own `config.div` 1280×720, `rgb 565`). Savegames in `savegames/`.
-- Backups: `divine_divinity/_backup_ddmod_20261018-110251` (original configs, run markers, all savegames); disabled dgVoodoo files in `divine_divinity/_ddmod_dgvoodoo_disabled`; `config.div.broken` = config after a self-reset.
+- Backups of the Deck's savegames and earlier game-folder backups: `C:\dev\backups\deck-divine_divinity-<YYYYMMDD-HHMMSS>` on the PC.
 - Proton log (launch option `PROTON_LOG=1`): `~/steam-214170.log`, overwritten on every start. Steam screenshots (Steam+R1): `~/.local/share/Steam/userdata/*/760/remote/214170/screenshots/`.
 - Launch options are set by the human in Steam (Game Mode); hand them over as a text file on `~/Desktop`. For the mod: `WINEDLLOVERRIDES="winmm=n,b" %command%`.
 - `tools/testrun/deck.sh <user@host> check|install|testsaves|start|steps|fetch|uninstall` (usage at its top): read-only check first; `install` backs up saves and configs; `start`/`steps` drive the game in **Game Mode only** (`xdotool`, `gamescopectl screenshot` only while the game is the focused app – rule 11). Switching to Desktop Mode ends a running game; the human must not touch the Deck during a run.

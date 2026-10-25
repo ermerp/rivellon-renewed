@@ -28,8 +28,8 @@ public:
     std::wstring Missing(const std::wstring& chars) const override;
     int Ascent() const override { return ascent_; }
     int CellHeight() const override { return ascent_ + descent_; }
-    // The box of the outline's extremes rounded to whole pixels (like GDI's GGO_METRICS, which
-    // the capital measurements use), not the inked box of the mask.
+    // The box of all outline points rounded to whole pixels (like GDI's GGO_METRICS, which the
+    // capital measurements use), not the inked box of the mask.
     bool GlyphBox(wchar_t ch, Box& box) const override;
     bool GlyphMask(wchar_t ch, int pad, Mask& out) const override;
 
