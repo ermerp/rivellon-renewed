@@ -148,7 +148,7 @@ About 1 030 functions (184 KB) of each `slash*.dll` have identical sizes in all 
 Measured with `ddmod_coverage.asi` (`tools/coverage/`, developer tool): a one-shot breakpoint on each of the 8 152 non-funclet function entries, the first hit recorded. Two sets of runs:
 
 - **Scripted runs** in `dd-test` (DE, windowed 2560×1440, without `RivellonRenewed.asi`, from process start): (1) main menu → load a save → inventory, letter, book, diary, map, walk out, save dialog; (2) NPC dialog with answers; (3) options pages; (4) credits; (5) new game → character selection.
-- **Play sessions** of the human in `dd-play` (TRE.1-W, `testing.md`; with the mod, `defer-window`, so start-up code before the game window is missed): new game, walking, NPCs, traders, chests, letters/books, cut-scene, cellar, melee fights with a skeleton and rats, intro and credits from the menu, picture settings – about 45 minutes in three starts. No ranged weapon, no spell, no level-up.
+- **Play sessions** of the human in `dd-play` (TRE.1-W, `docs/test-results.md`; with the mod, `defer-window`, so start-up code before the game window is missed): new game, walking, NPCs, traders, chests, letters/books, cut-scene, cellar, melee fights with a skeleton and rats, intro and credits from the menu, picture settings – about 45 minutes in three starts. No ranged weapon, no spell, no level-up.
 
 | Measure | Value |
 |---|---|
