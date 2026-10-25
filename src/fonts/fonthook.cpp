@@ -1,0 +1,158 @@
+#include "fonts/fonthook.h"
+
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
+#include <intrin.h>
+#include <string>
+
+#include <windows.h>
+
+#include "core/config.h"
+#include "core/hooks.h"
+#include "core/log.h"
+#include "fonts/fontchain.h"
+#include "game/exe.h"
+#include "game/fontlog.h"
+
+namespace ddmod::fonts {
+namespace {
+
+using CreateFontAFn = HFONT(WINAPI*)(int, int, int, int, int, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD,
+                                     LPCSTR);
+using CreateFontIndirectAFn = HFONT(WINAPI*)(const LOGFONTA*);
+using GetGlyphOutlineAFn = DWORD(WINAPI*)(HDC, UINT, UINT, LPGLYPHMETRICS, DWORD, LPVOID, const MAT2*);
+
+CreateFontAFn g_createFontA = nullptr;
+CreateFontIndirectAFn g_createFontIndirectA = nullptr;
+GetGlyphOutlineAFn g_getGlyphOutlineA = nullptr;
+bool g_replace = false;
+std::uintptr_t g_exeBegin = 0, g_exeEnd = 0;
+
+bool FromGame(const void* caller) {
+    const auto at = reinterpret_cast<std::uintptr_t>(caller);
+    return at >= g_exeBegin && at < g_exeEnd;
+}
+
+// The face to use instead of the game's, as an ANSI string (empty = keep the game's face).
+const std::string& ReplacementFace() {
+    static const std::string face = [] {
+        const auto& chosen = Configured();
+        if (!chosen) return std::string();
+        char ansi[LF_FACESIZE] = {};
+        WideCharToMultiByte(CP_ACP, 0, chosen->face.c_str(), -1, ansi, LF_FACESIZE - 1, nullptr, nullptr);
+        return std::string(ansi);
+    }();
+    return face;
+}
+
+int ScaledHeight(int height) {
+    static const int percent = std::clamp(config::GetInt("Fonts", "GameFontSize", 100), 50, 300);
+    return height * percent / 100;
+}
+
+// The charset from [Fonts] Charset for this EXE, resolved once (-1 = keep the game's).
+int CharsetOverride() {
+    static const int charset = [] {
+        const std::string value = config::GetString("Fonts", "Charset", "auto");
+        const int result = CharsetFor(value, game::Exe().edition);
+        if (result == kCharsetInvalid) {
+            log::Warn("[Fonts] Charset=\"{}\" is not auto, 1252 or 1251 - using the game's charset", value);
+            return kKeepCharset;
+        }
+        if (result != kKeepCharset) log::Info("Game fonts: charset {} ([Fonts] Charset={})", result, value);
+        return result;
+    }();
+    return charset;
+}
+
+HFONT WINAPI CreateFontIndirectADetour(const LOGFONTA* lf) {
+    void* caller = _ReturnAddress();
+    if (!lf || !g_replace || !FromGame(caller) || ReplacementFace().empty()) {
+        const HFONT font = g_createFontIndirectA(lf);
+        if (lf) {
+            log::Debug("CreateFontIndirectA from 0x{:08X}: face \"{}\" height {} weight {} charset {} -> font {:08X}",
+                       reinterpret_cast<std::uintptr_t>(caller), lf->lfFaceName, lf->lfHeight, lf->lfWeight,
+                       lf->lfCharSet, reinterpret_cast<std::uintptr_t>(font));
+        }
+        return font;
+    }
+    LOGFONTA changed = *lf;
+    strncpy_s(changed.lfFaceName, ReplacementFace().c_str(), _TRUNCATE);
+    changed.lfHeight = ScaledHeight(lf->lfHeight);
+    if (CharsetOverride() != kKeepCharset) changed.lfCharSet = static_cast<BYTE>(CharsetOverride());
+    const HFONT font = g_createFontIndirectA(&changed);
+    log::Debug("CreateFontIndirectA from 0x{:08X}: face \"{}\" height {} weight {} charset {} -> \"{}\" height {} "
+               "charset {} -> font {:08X}",
+               reinterpret_cast<std::uintptr_t>(caller), lf->lfFaceName, lf->lfHeight, lf->lfWeight, lf->lfCharSet,
+               changed.lfFaceName, changed.lfHeight, changed.lfCharSet, reinterpret_cast<std::uintptr_t>(font));
+    return font;
+}
+
+HFONT WINAPI CreateFontADetour(int height, int width, int escapement, int orientation, int weight, DWORD italic,
+                               DWORD underline, DWORD strikeOut, DWORD charSet, DWORD outPrecision,
+                               DWORD clipPrecision, DWORD quality, DWORD pitchAndFamily, LPCSTR face) {
+    void* caller = _ReturnAddress();
+    const bool replace = g_replace && FromGame(caller) && !ReplacementFace().empty();
+    const LPCSTR useFace = replace ? ReplacementFace().c_str() : face;
+    const int useHeight = replace ? ScaledHeight(height) : height;
+    const DWORD useCharSet =
+        replace && CharsetOverride() != kKeepCharset ? static_cast<DWORD>(CharsetOverride()) : charSet;
+    const HFONT font = g_createFontA(useHeight, width, escapement, orientation, weight, italic, underline, strikeOut,
+                                     useCharSet, outPrecision, clipPrecision, quality, pitchAndFamily, useFace);
+    log::Debug("CreateFontA from 0x{:08X}: face \"{}\" height {} weight {} charset {} -> \"{}\" height {} charset {} "
+               "-> font {:08X}",
+               reinterpret_cast<std::uintptr_t>(caller), face ? face : "", height, weight, charSet,
+               useFace ? useFace : "", useHeight, useCharSet, reinterpret_cast<std::uintptr_t>(font));
+    return font;
+}
+
+DWORD WINAPI GetGlyphOutlineADetour(HDC dc, UINT ch, UINT format, LPGLYPHMETRICS metrics, DWORD size, LPVOID buffer,
+                                    const MAT2* matrix) {
+    // The bitmap fonts have no glyphs below 0x20, and the game's text fields insert every
+    // character the font has a glyph for - with a Windows font that includes the Backspace
+    // character (WM_CHAR 0x08) as a box. "No glyph" makes them behave like the bitmap fonts.
+    if (g_replace && IsControlCharacter(ch) && FromGame(_ReturnAddress())) return GDI_ERROR;
+    // The game first asks for the size with a null buffer; log only the calls that rasterize.
+    if (buffer && format != GGO_METRICS) game::LogGlyph(dc, ch);
+    return g_getGlyphOutlineA(dc, ch, format, metrics, size, buffer, matrix);
+}
+
+}  // namespace
+
+bool IsControlCharacter(unsigned ch) { return (ch & 0xFF) < 0x20; }
+
+int CharsetFor(std::string_view setting, game::Edition edition) {
+    if (setting == "auto" || setting.empty()) {
+        return edition == game::Edition::Russian ? RUSSIAN_CHARSET : kKeepCharset;
+    }
+    if (setting == "1251") return RUSSIAN_CHARSET;
+    if (setting == "1252") return ANSI_CHARSET;
+    return kCharsetInvalid;
+}
+
+namespace {
+
+template <typename Fn>
+bool HookGdi(const char* name, Fn* detour, Fn** original) {
+    auto* target = reinterpret_cast<Fn*>(GetProcAddress(GetModuleHandleW(L"gdi32.dll"), name));
+    return hooks::Create(name, target, detour, original) && hooks::Enable(name);
+}
+
+}  // namespace
+
+bool Install(bool replace) {
+    g_replace = replace;
+    const auto exe = reinterpret_cast<const std::uint8_t*>(GetModuleHandleW(nullptr));
+    const auto nt = reinterpret_cast<const IMAGE_NT_HEADERS32*>(exe + reinterpret_cast<const IMAGE_DOS_HEADER*>(exe)->e_lfanew);
+    g_exeBegin = reinterpret_cast<std::uintptr_t>(exe);
+    g_exeEnd = g_exeBegin + nt->OptionalHeader.SizeOfImage;
+    const bool ok = HookGdi("CreateFontIndirectA", &CreateFontIndirectADetour, &g_createFontIndirectA) &&
+                    HookGdi("CreateFontA", &CreateFontADetour, &g_createFontA) &&
+                    HookGdi("GetGlyphOutlineA", &GetGlyphOutlineADetour, &g_getGlyphOutlineA);
+    if (ok && replace) log::Info("Font hook installed: game GDI fonts use the font chain ([Fonts])");
+    if (ok && !replace) log::Info("Font hook installed for logging only (FontHook=0)");
+    return ok;
+}
+
+}  // namespace ddmod::fonts

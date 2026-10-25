@@ -1,0 +1,108 @@
+#include "features/fog.h"
+
+#include <algorithm>
+#include <cctype>
+#include <cstring>
+#include <string>
+
+#include "core/config.h"
+#include "core/hooks.h"
+#include "core/log.h"
+#include "game/exe.h"
+
+namespace ddmod::features {
+namespace {
+
+using ConfigReaderFn = int(__thiscall*)(void* settings, const char* file);
+using ConfigWriterFn = int(__thiscall*)(void* settings);
+
+ConfigReaderFn g_configReader = nullptr;
+ConfigWriterFn g_configWriter = nullptr;
+bool g_fogOn = true;
+void (*g_onWrite)(bool fogOn) = nullptr;
+
+std::uint32_t& NoFog(void* settings) {
+    return *reinterpret_cast<std::uint32_t*>(static_cast<std::uint8_t*>(settings) + kNoFogField);
+}
+
+// See FontInitDetour (fontmode.cpp) for the __fastcall stand-in of __thiscall.
+int __fastcall ConfigReaderDetour(void* settings, void* /*edx*/, const char* file) {
+    const int result = g_configReader(settings, file);
+    const std::uint32_t wanted = g_fogOn ? 0 : 1;
+    if ((NoFog(settings) != 0) != (wanted != 0)) {
+        log::Info("Fog: {} after reading {} ([Features] Fog={})", g_fogOn ? "on" : "off", file ? file : "?",
+                  g_fogOn ? 1 : 0);
+    }
+    NoFog(settings) = wanted;
+    return result;
+}
+
+int __fastcall ConfigWriterDetour(void* settings, void* /*edx*/) {
+    if (g_onWrite) g_onWrite(NoFog(settings) == 0);
+    return g_configWriter(settings);
+}
+
+// The picture settings' last state goes into the INI, so the next start begins with it.
+void SaveFogSetting(bool fogOn) {
+    if (fogOn == g_fogOn) return;
+    if (config::SetString("Features", "Fog", fogOn ? "1" : "0")) {
+        log::Info("Fog: switched {} in the game's picture settings - [Features] Fog={} saved", fogOn ? "on" : "off",
+                  fogOn ? 1 : 0);
+    } else {
+        log::Warn("Fog: switched {} in the game's picture settings, but {} cannot be written", fogOn ? "on" : "off",
+                  config::File().string());
+    }
+    g_fogOn = fogOn;
+}
+
+}  // namespace
+
+std::optional<bool> ParseFog(std::string_view text, bool& valid) {
+    std::string value(text);
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    valid = true;
+    if (value == "1" || value == "on" || value == "true" || value == "yes") return true;
+    if (value == "0" || value == "off" || value == "false" || value == "no") return false;
+    if (value == "keep") return std::nullopt;
+    valid = false;
+    return true;
+}
+
+bool InstallFogAt(void* configReader, void* configWriter, bool fogOn, void (*onWrite)(bool fogOn)) {
+    g_fogOn = fogOn;
+    g_onWrite = onWrite;
+    if (!hooks::CreateRaw("ConfigReader", configReader, reinterpret_cast<void*>(&ConfigReaderDetour),
+                          reinterpret_cast<void**>(&g_configReader)) ||
+        !hooks::Enable("ConfigReader")) {
+        return false;
+    }
+    if (!configWriter) return true;
+    return hooks::CreateRaw("ConfigWriter", configWriter, reinterpret_cast<void*>(&ConfigWriterDetour),
+                            reinterpret_cast<void**>(&g_configWriter)) &&
+           hooks::Enable("ConfigWriter");
+}
+
+bool InstallFog() {
+    const std::string text = config::GetString("Features", "Fog", "1");
+    bool valid = true;
+    const std::optional<bool> fog = ParseFog(text, valid);
+    if (!valid) log::Warn("[Features] Fog=\"{}\" is not 1, 0 or keep - using 1", text);
+    if (!fog) {
+        log::Info("Fog as config.div says ([Features] Fog=keep)");
+        return false;
+    }
+    const std::uintptr_t reader = game::Resolve({"ConfigReader", kConfigReaderPattern, 0, kConfigReaderRva});
+    if (!reader) {
+        log::Warn("Fog: config reader not found - fog as config.div says");
+        return false;
+    }
+    const std::uintptr_t writer = game::Resolve({"ConfigWriter", kConfigWriterPattern, 0, kConfigWriterRva});
+    if (!writer) log::Warn("Fog: config writer not found - changes in the picture settings are not kept");
+    if (!InstallFogAt(reinterpret_cast<void*>(reader), reinterpret_cast<void*>(writer), *fog, &SaveFogSetting)) {
+        return false;
+    }
+    log::Info("Fog hooks installed: fog {} ([Features] Fog={})", *fog ? "on" : "off", *fog ? 1 : 0);
+    return true;
+}
+
+}  // namespace ddmod::features

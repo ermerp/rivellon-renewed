@@ -1,0 +1,54 @@
+# Input and the game window (1.0062A)
+
+## How the game reads input
+
+- No DirectInput. `div.exe` runs its own message loop (`PeekMessageA`/`GetMessageA` → `TranslateMessage` → `DispatchMessageA`) and also polls `GetAsyncKeyState`/`GetKeyState`/`GetCursorPos`.
+- **Window procedure** (`0x40C890` in 1.0062A, handed to the renderer plugin when it creates the window; not a function in the Ghidra map): branches on the message number. Key-down and key-up each read Ctrl/Shift/Alt through `GetAsyncKeyState` and offer the key to the open game windows (GUI manager at `0x745454`, which walks its windows and calls their key-down slot `+0x20` or key-up slot `+0x28`), then to the other screens (diary, map, …). A dword at `0x6496DC` is set in the key-up branch when the game windows did not take the key and cleared again in the key-down branch; while it is set, key-ups are ignored (exact meaning open, not needed so far). Characters (`WM_CHAR`) take their own path.
+- **Text fields act on Backspace, Delete, arrows, Home/End and Enter when the key is released** (the window forwards the key-up to the field's key handler, `text-rendering.md`, Text fields) – checked in game: Backspace held down without auto-repeat leaves the text unchanged, the character goes when the key comes up (T1.23-W). Windows' auto-repeats of a held key are further key-downs, so a held Backspace deletes one character only; letters repeat, because each repeat also produces a `WM_CHAR`.
+- Key names in bindings come from `MapVirtualKeyA`/`GetKeyNameTextA`; the bindings themselves live in `keylist.txt` (`key-events.md`).
+- Default bindings with modifiers (DE and EN identical): `Ctrl+F12` key plate, `Ctrl+F11` screenshot, `Ctrl+L` quick load, `Ctrl+S` quick save. Everything else is a plain key (letters, Space, `-`).
+
+## The game window
+
+- `div.exe` does not create the window. The renderer plugin does (`slash1`–`4.dll` import `RegisterClassExA`/`CreateWindowExA`, `architecture.md`). All four use the window class **`Divinity`**; the title is also `Divinity`.
+- It is an ANSI window (`RegisterClassExA`) and belongs to the **main thread**, the same thread that runs `DllMain` of the mod.
+- When it appears: about 1.1–1.9 s after process start in full screen (with or without intro) and windowed with intro; about 7.4–9.4 s only windowed **without** intro (dgVoodoo2, Windows; cause not known). `binkw32.dll` registers a window class of its own too, so the mod matches on the class name, not on "first visible window".
+- Other top-level windows of the process (full screen, dgVoodoo2): `D3DProxyWindow` and `DXGIWatchdogThreadWindow` (DXGI, hidden) and the IME windows.
+- **The window procedure does not stay put.** In full screen, within 500 ms after the mod subclassed it, the procedure pointed first into `DDRAW.dll` (dgVoodoo2) and then to code outside every module (`03BA0000`/`03CA0000`, generated at run time), and that chain does not call ours. Key messages then bypass a subclass entirely. Windowed, the subclass stayed in place.
+- **Alt+Tab with dgVoodoo2's exclusive full screen** (`FullscreenAttributes` empty): the window has style `14000000` (no caption, no system menu) and is topmost. On Alt+Tab dgVoodoo leaves full screen; in some runs the window then comes back framed (`14CF0000`, caption and system menu, 2580×1483) and stays so, in others it returns to full screen – also without the mod. Playing continues normally. The tester knows the same from play: a click outside the game (second monitor) turned exclusive full screen into a framed window, and the game went on in it.
+- **dgVoodoo2's fake full screen** (`FullscreenAttributes = fake`, `[DgVoodoo] FullScreen=borderless`): a popup window of screen size (`94000000`, not topmost). Alt+Tab out and back leaves it unchanged (dgVoodoo re-applies the same style on activation), every run in DE and EN (T1.20-W).
+- **F10 and a lone Alt** reach `DefWindowProc` as `WM_SYSKEYDOWN`/`WM_SYSKEYUP` and become `WM_SYSCOMMAND SC_KEYMENU` every time. Without a system menu (exclusive full screen) nothing follows; with a frame (windowed, or framed after Alt+Tab) Windows enters its menu loop (`WM_ENTERMENULOOP`): the game stops drawing until a click or another Alt – the "F10 softlock". The game itself binds neither F10 nor Alt by default (`keylist.txt`).
+- The game window is destroyed only at exit. Whether a resolution or renderer change re-creates it: not observed yet.
+
+## How the mod hooks input
+
+**Deferred start.** `DllMain` only sets up logging, config, the EXE check and starts a **watcher thread**. The thread polls every 50 ms (`EnumWindows`: own process, no owner, class `Divinity`). When the window exists, it initializes MinHook and installs the input hook. Reasons:
+
+- Nothing to hook before the window exists; the renderer DLL is not even loaded at `DllMain` time.
+- `DllMain` runs under the loader lock; enabling hooks suspends threads and should not happen there. Starting a thread from `DllMain` is safe because it only runs after the lock is released.
+- Polling needs no hook to find the window. The alternatives would be: hooking `CreateWindowExA` (needs a hook in `DllMain`, or an import hook in each `slash*.dll`); a `WH_CBT` hook (also installed in `DllMain`). The 50 ms delay is irrelevant for hotkeys.
+- Later game hooks (overlay at `DllSlashedEndFrame`) start from the same point.
+
+The watcher thread stays alive afterwards: Windows removes a `SetWindowsHookEx` hook when the thread that installed it exits. With `LogLevel=debug` it logs, until the game exits, all windows of the process with the module of their window procedure plus the foreground/focus window and its thread, whenever that changes; the hook then also logs every key-down it sees (key, modifiers, target window) and every character message (`WM_CHAR`, with a "repeat" mark for held keys) – so a debug log records what the player typed.
+
+**`WH_GETMESSAGE` hook on the game thread.** `SetWindowsHookExA(WH_GETMESSAGE, …, nullptr, <thread of the game window>)`. Windows calls the hook on the game thread inside `GetMessageA`/`PeekMessageA`, before the game's loop calls `TranslateMessage`/`DispatchMessageA`. It does not depend on which window procedure is current, nor on which window of the thread gets the message – important with dgVoodoo2 (Windows) and WineD3D (Deck), which both take over the window.
+
+- Handles `WM_KEYDOWN` **and** `WM_SYSKEYDOWN` (F10 and every Alt combination arrive as `WM_SYSKEYDOWN`). Modifiers come from `GetKeyState` – the thread's *synchronous* key state, which Windows advances message by message as input is taken off the queue – and must match exactly. Not `GetAsyncKeyState` (the physical state right now). So keys the game takes off the queue late are still judged by the modifier state they were typed with: during a load the game stopped pumping messages, and a queued Ctrl, Shift, Ctrl, Shift, F3 was delivered in one burst seconds later and still recognized as Ctrl+Shift+F3 (T2.0-W B1).
+- On a match: runs the handler on the game thread and rewrites the message to `WM_NULL`. Its auto-repeats and its key-up are rewritten too. Because this happens before `TranslateMessage`, no `WM_CHAR` is produced and `DefWindowProc` never sees the key (no menu mode on F10).
+- Only messages removed from the queue (`PM_REMOVE`) are handled; a `PM_NOREMOVE` peek comes back later with `PM_REMOVE`. Sent (not posted) messages do not pass the hook; keyboard input is always posted.
+- **`[Features] BlockMenuKey=1`** (default): F10 without Alt is rewritten from `WM_SYSKEYDOWN`/`WM_SYSKEYUP` to `WM_KEYDOWN`/`WM_KEYUP`, and the `WM_SYSKEYUP` of Alt to `WM_KEYUP` – the game still sees both keys, `DefWindowProc` opens no menu. Alt combinations keep their messages (Alt+Tab is handled by Windows anyway, Alt+F4 and dgVoodoo's Alt+Enter act on the key-down). Rule: `PlainMenuKeyMessage` in `src/input/keys.h`.
+- **`[Features] KeyRepeat=1`** (default) – own key repeat for the keys text fields act on at key-up: Backspace, Delete, Left, Right. The key-down passes as usual, and the hook posts a key-up right after it (the key acts on press, as in other programs). While the key stays down, a timer on the game window (`SetTimer` with a callback, run by the game's `DispatchMessage`) posts one key-up after `[Input] RepeatDelay` (default 300 ms) and then every 1/`RepeatRate` s (default 15 per second; `windows` = the Windows keyboard settings, read with `SystemParametersInfo`); it stops when `GetAsyncKeyState` shows the key up, another key goes down or another process has the foreground. Windows' own repeats of these keys and their real key-up become `WM_NULL`. The posted key-ups carry a repeat count of 0 (a real key-up counts 1), which is how the hook tells them apart. Outside text fields the four keys are unbound by default; holding Left in the game world changed nothing (T1.23-W). Rules: `IsTextEditKey`, `RepeatKeyUpParam`, `ParseRepeatDelay`/`ParseRepeatInterval` in `src/input/keys.h`.
+- Every other message passes unchanged.
+- With `LogLevel=debug` a second hook (`WH_CALLWNDPROC`) logs the sent messages that show menu mode and screen mode changes: `WM_SYSCOMMAND`, `WM_ENTERMENULOOP`/`WM_EXITMENULOOP`, `WM_ACTIVATEAPP`, `WM_STYLECHANGED`.
+
+Rejected: subclassing the window procedure (`SetWindowLongPtrA(GWLP_WNDPROC)`) – worked windowed, but in full screen dgVoodoo2 replaces the procedure without chaining to ours (see above).
+
+**Limit:** the game polls `GetAsyncKeyState` as well. A hotkey key held down is therefore still visible to that polling, even though its messages are swallowed. Hence hotkeys should be combinations the game does not use. Hooking `GetAsyncKeyState` is possible (USER32 import) if a feature needs it.
+
+**Rule for default hotkeys:** no F10 and no Alt combinations. If the hook ever misses a key (or `BlockMenuKey=0`), Windows treats F10/Alt as the menu key and puts a framed game window into menu mode – the game seems to freeze until a click (seen in T1.5-W part B with `Ctrl+Shift+F10`). Also avoid the game's bindings, Steam's F12 and the tester's F5–F9.
+
+**Test hotkey:** `Ctrl+Shift+F3` – free in the game's bindings and the 40 key events.
+
+## Key syntax in `RivellonRenewed.ini`
+
+`[Keys]`: optional modifiers `Ctrl` (alias `Control`), `Shift`, `Alt` joined with `+`, then exactly one key: `A`–`Z`, `0`–`9`, `F1`–`F24`, `Num0`–`Num9`, `NumAdd`/`NumSub`/`NumMul`/`NumDiv`/`NumDecimal`, `Space`, `Enter`, `Escape`, `Tab`, `Backspace`, `Insert`, `Delete`, `Home`, `End`, `PageUp`, `PageDown`, arrows (`Up`, …), `Pause`, `ScrollLock` (plus short aliases such as `Esc`, `PgDn`). Case-insensitive. Empty or `None` = unbound. `PrintScreen` is not allowed (Windows sends no key-down for it). Invalid text disables the hotkey with a warning in the log. Parser: `src/input/keys.cpp`, unit tests in `tests/main.cpp`.
