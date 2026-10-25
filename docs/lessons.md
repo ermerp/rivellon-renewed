@@ -1,0 +1,25 @@
+# Lessons
+
+Incidents that led to a rule or a way of working – what happened, and what we do since. Newest first. Rules themselves live in `CLAUDE.md`, test pitfalls in [dev/workflow.md](dev/workflow.md); this file keeps the why. Old test protocols: [archive/testing-2026-10.md](archive/testing-2026-10.md).
+
+| Date | What happened | What we do since |
+|---|---|---|
+| 2026-10-25 | GDI accepted the font chain entry `Tahoma @ DejaVu…ttf` – it picks an installed font of the same name even when the given file does not hold it (T1.27). | A chain entry is checked against the file's own `name` table, never by asking the OS. |
+| 2026-10-25 | The T1.24-D click points for inventory, letter and book missed in the next save state – those windows open where the save puts them. | On the Deck navigate step by step with a shot after each action. |
+| 2026-10-24 | The Deck's game folder held a third-party font tweak from earlier (36 replaced `.fnt` files) – it falsified the interface sizes and the dialog font in T1.24-D. | Before a platform comparison: clean install, check the game folder for foreign changes first (`deck.sh check`). |
+| 2026-10-24 | Steam screenshots (Steam+R1) and Spectacle could not be automated or limited to the game window. | `gamescopectl screenshot` only while gamescope reports the game as focused (Game Mode). |
+| 2026-10-24 | Walk vs. run could not be told reliably from screenshots. | Debug log lines on the run setter and the always-run getter ("Held move", "Click move"). |
+| 2026-10-24 | The black screen at a new-game start (T2.0-W) did not show in 18 starts (T1.21-W). | One new-game start per release instead of the full matrix. |
+| 2026-10-24 | The key-up guard idea for Backspace was built on a wrong assumption (text fields delete on key-down) and changed nothing. | Check which event acts (`down`/`up` steps with a shot in between) before building a fix. |
+| 2026-10-23 | `LowerAccent` wrote past a lone accent's mask: crash on closing and a hung game on the next exit (T1.17-W). | New glyph code runs once in a bounds-checked build over every Latin-1 glyph at heights 10–64. |
+| 2026-10-23 | `Start-GameTest.ps1` failed on a second game instance that ended at once and skipped its restore (T1.17-W). | Check that no `div.exe` is left before a run; the script restores also when the game ends at once. |
+| 2026-10-23 | The "cut main menu" seemed tied to the books' line height until the same cut appeared with line height 100. | Repeat a run before blaming a setting – one or two screenshots do not rule a layout effect in or out. |
+| 2026-10-23 | Clicking the trader in `T-Händler-links` at a fixed point missed – he and the hero move after loading, the click walked the hero out of the house. | Press Space right after loading; check his spot with a `shot` before the click. |
+| 2026-10-23 | Windowed runs at 1920×1080 on the 1920×1080 laptop at 125 % scaling lost the right and bottom part of the window – looked like a mod bug (T1.14-W). | Windowed screenshot runs need a window that fits on the screen: 1600×900 with `HIGHDPIAWARE` there. |
+| 2026-10-20 | The bitmap fonts' 8-bit colors passed on unchanged came out one 565 step darker (T1.9-W). | Measure the converted result, not only the input; the mod passes the smallest bytes that keep the 565 value. |
+| 2026-10-20 | A click on the game's icon bar in a windowed run opened the Windows Start menu – the window is taller than the screen and the taskbar covers its bottom. | No clicks in the bottom part of the window; use the game's keys (`keylist.txt`). |
+| 2026-10-19 | Changing the resolution in game as a test step – the game has no such option. | Resolution tests set `config.div` and `slashed-d3d6.cfg` before the start. |
+| 2026-10-18 | Posted key messages (`PostMessage`) did not test modifier hotkeys – `GetKeyState` does not see posted modifiers. | Chords as real input via `SendInput` into the foreground game window, only when the PC is free. |
+| 2026-10-18 | The test script's desktop screenshot fallback captured private data. | Screenshots only of the game window (rule 11); no game window, no shot. |
+| 2026-10-18 | After dgVoodoo crashes under Proton the game reset `config.div` and deleted `slashed-d3d6.cfg`, although "No" was chosen in the reset dialog (T0.6-D). | Back up every config file before a test that changes it; restore from the backup. |
+| 2026-10-18 | Pixel-diffing main-menu screenshots could not detect option effects – the menu background is animated. | Judge option effects on static screens or from the log. |

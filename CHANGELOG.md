@@ -1,0 +1,52 @@
+# Changelog
+
+## Unreleased (v0.01)
+
+Every feature can be switched off in `RivellonRenewed.ini`.
+
+- Game texts in vector faces in the game's own look: menu (Uncial Antiqua), diary title (Almendra SC), interface (Marcellus SC), books and letters (Fondamento, wider line pitch), dialog (DejaVu Sans Condensed Bold); the same pixels on Windows and Steam Deck.
+- Borderless full screen through dgVoodoo2 (Alt+Tab works), dgVoodoo watermark off.
+- F10 and a lone Alt no longer freeze the game.
+- Key repeat for Backspace, Delete, Left and Right in text fields.
+- Smaller walk/run circle (225 px at every resolution) and double click to run.
+- Ground fog on, kept in sync with the game's performance page.
+- Start banner "Rivellon Renewed v0.01 active" for a few seconds; FPS display on Ctrl+Shift+F2.
+- Russian edition: overlay and input only, original fonts (best effort).
+
+## Steps
+
+One line per finished step, newest first (`docs/test-results.md` for the tests).
+
+| Date | Step |
+|---|---|
+| 2026-10-25 | Phase 1 merged into `main`; release path for v0.01 planned |
+| 2026-10-25 | Dialog and overlay in the bundled DejaVu Sans Condensed Bold, no system fonts (T1.27) |
+| 2026-10-25 | Plan B accepted on the Deck after a clean install (T1.26-D) – Phase 1 step 7 done |
+| 2026-10-24 | Own rasterizer for the bundled faces: stb_truetype with GDI's sizing and bold repeated, `[Fonts] Raster` (T1.25-W) |
+| 2026-10-24 | Deck test of Phase 1 (T1.24-D): mod runs under Proton; faces narrower through Wine's bold → plan B |
+| 2026-10-24 | Bug round: own key repeat for text fields (T1.23-W), Ctrl+Shift+F2 with a potion on F2 (T1.22-W), black screen not reproduced (T1.21-W) |
+| 2026-10-24 | Borderless full screen via dgVoodoo, F10/Alt menu-key fix (T1.20-W) |
+| 2026-10-24 | Walk radius as fixed pixels and double click run, movement RE (T1.19-W) |
+| 2026-10-23 | Own option arrows, "v0.01" banner, fog switch, short menu labels (T1.18-W) |
+| 2026-10-23 | Play sessions in `dd-play`: coverage 55 % of the game code, play-test log, sight-range RE (TRE.1-W) |
+| 2026-10-23 | Engine map of `div.exe`, function coverage tool, play copy `dd-play` |
+| 2026-10-23 | Glyph renderer R5: capitals matched on all letters, ink below the line top, banner in the game's look (T1.17-W) |
+| 2026-10-23 | Glyph renderer R4: menu arrow glyphs kept, remaining screens (T1.16-W) |
+| 2026-10-23 | Glyph renderer R3: file behind each face logged, FR/RU spot test (T1.15-W) |
+| 2026-10-23 | Glyph renderer R2: faces per family in the mod (T1.14-W) |
+| 2026-10-23 | Glyph renderer R1: shared text style renderer `src/text`, version 0.01 |
+| 2026-10-22 | Own glyph tables for the bitmap fonts: analysis and proof of concept (T1.13-W) |
+| 2026-10-22 | Font choice per family from comparison sheets in the game's look, measured styles |
+| 2026-10-21 | Overlay start banner, FPS off by default with a toggle hotkey (T1.12-W) |
+| 2026-10-20 | dgVoodoo watermark switch (T1.11-W) |
+| 2026-10-20 | Renamed to Rivellon Renewed (T1.10-W) |
+| 2026-10-20 | Font mode: original text colors (T1.9-W), Backspace and letter-spacing fixes, input script for test runs, log history |
+| 2026-10-19 | Language check FR/RU, charset setting, Russian edition best effort (T1.8-W) |
+| 2026-10-19 | Font mode: `use8bitfont 0` in memory (T1.7-W) |
+| 2026-10-18 | Font hook for game texts and shared font chain; font families identified, `ddmod_fontpreview` |
+| 2026-10-18 | Phase 1 step 6: minimal overlay via `CD3D6VideoMem` at `DllSlashedEndFrame` (T1.6-W) |
+| 2026-10-18 | Phase 1 step 5: deferred start, `WH_GETMESSAGE` input hook, `[Keys]` hotkeys (T1.5-W) |
+| 2026-10-18 | Phase 1 step 4: signature scanner, hook manager, EXE hash check (T1.4-W) |
+| 2026-10-18 | Phase 1 steps 1–3: ASI plugin, log, INI (T1.1-W) |
+| 2026-10-18 | Phase 0 done: target 1.0062A, overlay plan, dgVoodoo2 on Windows only (T0.6-W, T0.6-D) |
+| 2026-10-17 | Phase 0 started: repo, rules, import analysis, patch 1.34A contents |

@@ -15,7 +15,7 @@ How the mod draws its own overlay ("Rivellon Renewed <version>" + FPS, later deb
 - Status line "Rivellon Renewed <version> active": `[Overlay] Status` – `banner` (default: for `BannerSeconds` = 5 s from the first drawn frame, then hidden), `always`, `off`.
 - FPS line: `[Overlay] ShowFps` (default 0) sets it at start; the hotkey `[Keys] ToggleFps` (default Ctrl+Shift+F2) switches it on the game thread (atomic flag).
 - When neither is shown, the detour does not lock the frame at all.
-- **Save pictures:** the game reads the screen for a save's preview picture between frames (`renderer-d3d6.md`, Screen captures), so whatever the overlay shows at that moment ends up in the picture. With the banner and FPS off by default this only happens on purpose (FPS on, or saving during the banner) – a README known issue. Fix for when the overlay gets lasting content: `PLAN.md`, Decisions (HideInCaptures).
+- **Save pictures:** the game reads the screen for a save's preview picture between frames (`renderer-d3d6.md`, Screen captures), so whatever the overlay shows at that moment ends up in the picture. With the banner and FPS off by default this only happens on purpose (FPS on, or saving during the banner) – a README known issue. Fix for when the overlay gets lasting content: `docs/decisions.md` (HideInCaptures).
 
 ## Drawing path: own blitter through `CD3D6VideoMem`
 
@@ -24,7 +24,7 @@ Per frame: `DllSlashedGetInfo(3)` → lock (vtable `+0x04`) → base pointer, pi
 - **Pixel format:** the lock always locks the real back buffer, also when it is not 16 bit (`renderer-d3d6.md`). So the format comes from that surface (`IDirectDrawSurface4::GetPixelFormat` on the object's `+0x24` member), looked up again whenever that pointer changes (start, resolution change). Supported: RGB565, RGB555, XRGB8888 (windowed on a 32-bit desktop without dgVoodoo2); anything else → warning, no drawing.
 - **Lost surface:** the lock leaves its count unchanged when it cannot restore the surface; the backend compares the lock count (`+0x18`) before and after and only unlocks what it locked.
 - **Safety:** the object layout is build-specific, so the backend only runs when `slash1.dll` has the verified SHA-256 (`game-version.md`), and it skips drawing if the object's vtable does not lie inside `slash1.dll`.
-- Why not GDI text on the back buffer (`GetDC` + `DrawTextW`): the game uses `GetDC` on the back buffer only in its copy path for a non-16-bit back buffer, never with dgVoodoo2 or in full screen; GDI has no alpha; the own blitter also grows into the panel/ImGui renderer needed later (`PLAN.md`, rejected approaches).
+- Why not GDI text on the back buffer (`GetDC` + `DrawTextW`): the game uses `GetDC` on the back buffer only in its copy path for a non-16-bit back buffer, never with dgVoodoo2 or in full screen; GDI has no alpha; the own blitter also grows into the panel/ImGui renderer needed later (`docs/rejected.md`).
 
 ## Text
 

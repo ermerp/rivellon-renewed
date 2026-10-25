@@ -70,7 +70,7 @@ struct FamilySettings {
     TopFit topFit = TopFit::None;
 };
 
-// The defaults (human's choice, PLAN.md Decisions): interface Marcellus SC 600, books Fondamento
+// The defaults (human's choice, docs/decisions.md): interface Marcellus SC 600, books Fondamento
 // 400 with a line height that keeps lines apart, menu Uncial Antiqua 600 with the measured shine
 // at twice its strength plus texture (its '[' and ']' are the options pages' arrows, drawn as own
 // triangles), dialog

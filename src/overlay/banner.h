@@ -9,7 +9,7 @@
 
 namespace ddmod::overlay {
 
-// The start banner in the game's own look (PLAN.md Decisions): parts in different families on one
+// The start banner in the game's own look (docs/decisions.md): parts in different families on one
 // baseline, each at the size and in the colors of one of the game's bitmap fonts and in its
 // family's face and style ("Rivellon Renewed" like the menu's small capitals, the version like the
 // load list, "active" like the load dialog's title). The bitmap fonts are read from the game's

@@ -12,7 +12,7 @@ namespace ddmod::features {
 // after the game has loaded its localized texts (localizations\<language>\text.cmp,
 // docs/re/text-rendering.md, "Text table"). Only while the glyph renderer replaces the menu
 // font; [Fonts] ShortLabels=0 keeps the original texts. To be dropped when the menus get an own
-// layout (PLAN.md).
+// layout (docs/decisions.md).
 
 // One label: the original text and its shorter replacement (code page 1252, at most as long).
 struct ShortLabel {

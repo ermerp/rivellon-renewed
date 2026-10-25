@@ -1,6 +1,6 @@
 # Engine map of `div.exe`
 
-How much code the game has, how it splits into subsystems and where each one lies – the basis for estimating the "replace subsystems step by step" course (`PLAN.md`, Decisions) and the Phase 11 outlook. Addresses are for the verified 1.0062A build (`game-version.md`); sizes are machine-code bytes as Ghidra 12.1.4 counts them after its default auto-analysis (function bodies, no data).
+How much code the game has, how it splits into subsystems and where each one lies – the basis for estimating the "replace subsystems step by step" course (`docs/decisions.md`) and the Phase 11 outlook. Addresses are for the verified 1.0062A build (`game-version.md`); sizes are machine-code bytes as Ghidra 12.1.4 counts them after its default auto-analysis (function bodies, no data).
 
 ## Method
 

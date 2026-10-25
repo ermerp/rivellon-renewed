@@ -10,7 +10,7 @@ namespace ddmod::text {
 
 using overlay::Rgb;
 
-// The mod's text styles (PLAN.md Decisions, target text renderer; docs/re/text-rendering.md,
+// The mod's text styles (docs/decisions.md, target text renderer; docs/re/text-rendering.md,
 // Colors): a vector glyph's coverage is painted with style parameters measured from the game's
 // bitmap fonts - colors, color profile, edge and across-stroke brightness, texture strength. Only
 // these numbers are taken from the originals, never their pixels. Shared by the game's glyph
