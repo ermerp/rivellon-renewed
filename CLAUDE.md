@@ -67,6 +67,7 @@ Read this file, `PLAN.md`, the first 10 lines of the table in `CHANGELOG.md`, `g
 | Original game (Steam, German, 1.0062A) | `C:\Program Files (x86)\Steam\steamapps\common\divine_divinity` – **read only, never modify** |
 | Working copies (1.0062A + dgVoodoo2 2.87.5 + mod, 2560×1440, originals of changed configs as `*.orig`) | `C:\dev\dd-test` (DE), `C:\dev\dd-test-en` (EN), `C:\dev\dd-test-fr` (FR), `C:\dev\dd-test-ru` (RU, **own EXE 1.0061**) |
 | **Play copy of the human** (1920×1080, coverage always on; feedback in `docs/playtest-log.md`) | `C:\dev\dd-play` – the human's **real saves**: no automated tests, never touch `savegames\`; mod updates only after asking, with a save backup first (`C:\dev\backups\dd-play-savegames-<YYYYMMDD-HHMMSS>`) |
+| Fresh Steam install (DE, before the first start), **never modify** – copy it for a fresh working copy | `C:\dev\dd-steam-clean` |
 | Reference copy 1.0034A (on hold, do not change) | `C:\dev\dd-test-134` |
 | Test saves (one per situation, `T-*`) | `C:\dev\testsaves\de` – copy into a working copy's `savegames\`, never over the human's own saves |
 | Downloads (verified, outside repo) | `C:\dev\downloads` |

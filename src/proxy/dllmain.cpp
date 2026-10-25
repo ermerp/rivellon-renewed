@@ -11,10 +11,12 @@
 #include "core/log.h"
 #include "core/paths.h"
 #include "core/scanner.h"
+#include "game/configfile.h"
 #include "game/exe.h"
 #include "features/dgvoodoo.h"
 #include "features/fog.h"
 #include "features/movement.h"
+#include "features/resolution.h"
 #include "features/shortlabels.h"
 #include "fonts/families.h"
 #include "fonts/fontcolors.h"
@@ -56,6 +58,7 @@ void OnTestHotkey() { ddmod::log::Info("Test hotkey pressed"); }
 void OnGameWindow(HWND window) {
     using namespace ddmod;
     if (hooks::Init()) log::Info("Hook manager ready (MinHook)");
+    features::CheckRendererModes();
     const bool overlay = config::GetBool("Features", "Overlay", true);
     if (config::GetBool("Features", "InputHook", true)) {
         input::RegisterHotkey("TestHotkey", "Ctrl+Shift+F3", &OnTestHotkey);
@@ -129,7 +132,11 @@ void Startup(HMODULE self) {
         if (debug) game::InstallFontLog();
     }
     // The game reads config.lcl and config.div right after start, too.
-    if (hooks::Init()) features::InstallFog();
+    if (hooks::Init()) {
+        features::InstallFog();
+        features::InstallResolution();
+        game::InstallConfigHooks();
+    }
     // Code changes in memory are safest while only the loading thread runs.
     if (hooks::Init()) {
         features::InstallWalkRadius();

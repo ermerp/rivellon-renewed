@@ -12,12 +12,13 @@ Internals of the Direct3D renderer plugin, as far as the overlay (Phase 1 step 6
 | Export | RVA | Purpose |
 |---|---|---|
 | `DllSlashedInit` | `0x2300` | Args: window procedure, instance, "force windowed" flag. Reads `slashed-d3d6.cfg` (falls back to 800×600 full screen), enumerates DirectDraw devices, applies the configuration, retries at 640×480 on failure. Third argument non-zero → windowed. |
-| `DllSlashedInternalApplyConfiguration` | `0x28D0` | Takes a 0x34-byte configuration block (same layout as `slashed-d3d6.cfg`); recreates DirectDraw, window, surfaces and device only for the parts that changed. |
+| `DllSlashedInternalApplyConfiguration` | `0x28D0` | Takes a 0x34-byte configuration block (same layout as `slashed-d3d6.cfg`); recreates DirectDraw, window, surfaces and device only for the parts that changed. Returns 0 on failure. **Size check:** in full screen the mode setter (`0x10001E70`) accepts width/height only if the pair is in the mode list of `DllSlashedGetResolutions`, then sets exclusive cooperative level and a 16-bit display mode; windowed it takes any size (normal cooperative level, window sized to the client area). |
 | `DllSlashedStartFrame` | `0x2580` | Stores its argument, calls the texture cache's begin-frame method, then `IDirect3DDevice3::BeginScene`. |
 | `DllSlashedEndFrame` | `0x25B0` | `IDirect3DDevice3::EndScene`, texture cache end-frame method (empty in this build), then presents: full screen → `Flip` of the primary (wait flag); windowed → `Blt` of the back buffer to the window's client area on the primary. On `DDERR_SURFACELOST` it restores the primary and retries once. |
 | `DllSlashedGetInfo` | `0x26F0` | Returns internal objects by index (table below). |
 | `DllSlashedShutdown` | `0x2460` | Writes `slashed-d3d6.cfg` (only when not forced windowed), releases everything, closes the window. |
-| `DllSlashedGetResolutions`, `…GetMajorVersion`, `…GetMinorVersion`, `…GetIdentification`, `…GetDate`, `DllSlashedGlowDraw{Line,Rect,Square,Quad}` | | Not analyzed in detail. |
+| `DllSlashedGetResolutions` | `0x2400` | One argument: a buffer for (width, height) DWORD pairs, or null. Copies the mode list and returns the number of entries (null → only the number). The list is filled while `DllSlashedInit` enumerates the display modes (16-bit RGB, at least 640 wide), so it is valid only after `DllSlashedInit`. |
+| `…GetMajorVersion`, `…GetMinorVersion`, `…GetIdentification`, `…GetDate`, `DllSlashedGlowDraw{Line,Rect,Square,Quad}` | | Not analyzed in detail. |
 
 `DllSlashedEndFrame` starts with a 5-byte `mov eax, [device global]`, which MinHook can relocate.
 

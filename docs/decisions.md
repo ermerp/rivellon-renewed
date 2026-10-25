@@ -25,6 +25,7 @@ One line per decision with its reason; the human keeps these decisions (CLAUDE.m
 
 ## Platforms and versions
 
+- **Resolution by the mod: `[Display] Resolution=auto|config|<w>x<h>`, auto = the largest display mode of the primary monitor up to `AutoMaxHeight=1080` lines, the monitor's aspect ratio first; set in memory only, `config.div` untouched** – installation needs no settings (a fresh Steam install starts at 1024×768); the game does not scale, so above 1080 lines figures and text get small (the human plays 1920×1080 on 2560×1440); uninstalling leaves the old resolution. Working copies use `AutoMaxHeight=0`, since work at higher resolutions is the goal.
 - **Target EXE 1.0062A** (Steam/GOG) – everyone has it, handles 2560×1440; 1.0034A needs a CD-path workaround (`docs/re/patch-134.md`).
 - **Language priority: 1. EN + DE, 2. FR, 3. RU** – EN/DE fully tested; FR same build, spot test per release (accents); RU (own EXE 1.0061) best effort: overlay and input run, original Cyrillic bitmap fonts, `[Fonts] Charset=auto` picks 1251 by EXE hash. Full RU support is open after v0.01.
 - **Proxy: Ultimate ASI Loader as `winmm.dll`** – `div.exe` imports it; `ddraw.dll`/`D3DImm.dll` belong to dgVoodoo2; coexists with OsirisRE's `osi_extender`.

@@ -15,7 +15,7 @@ Findings in our own words – **no decompiled code, no pseudocode** (CLAUDE.md r
 | [glyph-layout.md](glyph-layout.md) | Font object/glyph/sprite layout, `.fnt` loading, drawing and line pitch (`+0x0C`), cut-off above the line top, ways to feed own glyphs, text colors (descriptors, 565 conversion, 23 original colors, stroke edges) |
 | [fonts-mod.md](fonts-mod.md) | The mod's text: glyph renderer, shared style renderer (`src/text/`), `[Fonts] Colors`, short labels and menu label widths, font hook, font mode (`use8bitfont` in memory), `[Fonts] Spacing`, faces per family |
 | [gdi-raster.md](gdi-raster.md) | GDI rasterizing measured (sizing, sampling, bold, composites, metrics box, over-ascent defect) – reference for the own rasterizer |
-| [config-files.md](config-files.md) | `config.div`/`config.lcl`/`slashed*.cfg`, run markers, settings object and all config keys |
+| [config-files.md](config-files.md) | `config.div`/`config.lcl`/`slashed*.cfg`, which file decides the resolution at startup, run markers, settings object and all config keys |
 | [developer-mode.md](developer-mode.md) | Developer flag (settings `+0x28`) and the forum byte patch |
 | [input.md](input.md) | Message loop, game window (class `Divinity`), deferred start, `WH_GETMESSAGE` hotkeys, why subclassing fails in full screen, `[Keys]` syntax |
 | [key-events.md](key-events.md) | 40 key events, `divinityevent.dat`, `keylist.txt` IDs and format |
