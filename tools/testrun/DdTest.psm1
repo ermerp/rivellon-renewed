@@ -10,6 +10,9 @@ function Assert-WorkingCopy {
     if ($full -ieq $script:SteamGameDir) {
         throw "Refusing to modify the original Steam installation: $full"
     }
+    if ($full -ieq 'C:\dev\dd-steam-clean') {
+        throw "Refusing to modify the untouched copy of a fresh Steam install: $full (copy it first)"
+    }
     if (-not (Test-Path -LiteralPath (Join-Path $full 'div.exe'))) {
         throw "No div.exe in $full"
     }
@@ -216,6 +219,9 @@ function Install-DdMod {
     $fonts = Join-Path $dir "$script:ModStem\fonts"
     New-Item -ItemType Directory -Force -Path $fonts | Out-Null
     Copy-Item -Path (Join-Path $repo 'assets\fonts\*') -Destination $fonts -Force
+    # Setup for users (dgVoodoo2 download, uninstall), as in the release zip.
+    Copy-Item -LiteralPath (Join-Path $repo 'setup\RivellonRenewed-Setup.cmd') -Destination $dir -Force
+    Copy-Item -LiteralPath (Join-Path $repo 'setup\setup.ps1') -Destination (Join-Path $dir "$script:ModStem\setup.ps1") -Force
     # The INI is always rebuilt from the repo default (new keys and comments); the values of the
     # existing RivellonRenewed.ini - or of a ddmod.ini - are taken over unless -ResetIni.
     $ini = Join-Path $dir "$script:ModStem.ini"
@@ -258,7 +264,8 @@ function Uninstall-DdMod {
             Write-Warning "$winmm is not the ASI loader - left in place"
         }
     }
-    $files = @("$script:ModStem.asi", "$script:ModStem.log", "$script:ModStem.prev.log") + $script:LegacyFiles
+    $files = @("$script:ModStem.asi", "$script:ModStem.log", "$script:ModStem.prev.log", "$script:ModStem-Setup.cmd",
+               "$script:ModStem\setup.ps1") + $script:LegacyFiles
     foreach ($f in $files) { Remove-Item -LiteralPath (Join-Path $dir $f) -ErrorAction SilentlyContinue }
     foreach ($sub in @("$script:ModStem\fonts", "$script:ModStem\logs") + $script:LegacyDirs) {
         $path = Join-Path $dir $sub

@@ -145,7 +145,7 @@ bool InstallFullScreenMoviesAt(void* configReader, void* configWriter) {
 }
 
 bool InstallFullScreenMovies() {
-    if (!config::GetBool("Display", "FullScreenMovies", true)) {
+    if (!config::GetBool("Display", "FullScreenMovies", false)) {
         log::Info("Movies as config.div says ([Display] FullScreenMovies=0)");
         return false;
     }

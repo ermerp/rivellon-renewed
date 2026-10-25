@@ -6,7 +6,7 @@ Every feature can be switched off in `RivellonRenewed.ini`.
 
 - Game texts in vector faces in the game's own look: menu (Uncial Antiqua), diary title (Almendra SC), interface (Marcellus SC), books and letters (Fondamento, wider line pitch), dialog (DejaVu Sans Condensed Bold); the same pixels on Windows and Steam Deck.
 - The game starts in the monitor's resolution, up to 1080 lines by default (1280×800 on the Steam Deck) – no configuration tool needed; `config.div` stays unchanged.
-- Intro and story movies fill the screen (4:3, black bars at the sides).
+- Optional: intro and story movies fill the screen (`[Display] FullScreenMovies=1`, 4:3 with black bars at the sides).
 - Borderless full screen through dgVoodoo2 (Alt+Tab works), dgVoodoo watermark off.
 - F10 and a lone Alt no longer freeze the game.
 - Key repeat for Backspace, Delete, Left and Right in text fields.
