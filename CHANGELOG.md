@@ -19,6 +19,8 @@ One line per finished step, newest first (`docs/test-results.md` for the tests).
 
 | Date | Step |
 |---|---|
+| 2026-10-25 | Play copy `dd-play` updated to the T1.27 build |
+| 2026-10-25 | v0.01 step 7.1: docs cleanup – small session context, one place per fact, old full texts in `docs/archive/` |
 | 2026-10-25 | Phase 1 merged into `main`; release path for v0.01 planned |
 | 2026-10-25 | Dialog and overlay in the bundled DejaVu Sans Condensed Bold, no system fonts (T1.27) |
 | 2026-10-25 | Plan B accepted on the Deck after a clean install (T1.26-D) – Phase 1 step 7 done |
