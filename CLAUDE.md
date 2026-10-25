@@ -84,6 +84,10 @@ Read this file, `PLAN.md`, the first 10 lines of the table in `CHANGELOG.md`, `g
 - **Git:** one branch per feature or fix, created before the first file is touched; merge into `main` with `--no-ff` after the test, then delete the branch.
 - **Context handover:** after a finished phase, a larger sub-step or a long debugging session, suggest `/wrapup`, then `/clear`, then `/catchup` (optionally with the task, e.g. `/catchup v0.01 step 2`).
 
+## Release
+
+- **Docs hygiene check before every release:** (a) are the rules in this file and the documentation rules still current and useful? Name outdated or never-applied rules. (b) Are they kept? File sizes (≤ 15 KB except `docs/archive/`), every fact in one place only, no dead links, `PLAN.md` status current, `CHANGELOG.md` "Unreleased" complete as release notes, `docs/decisions.md`/`docs/rejected.md` without contradictions to the code. Result as a report with proposals to the human – change nothing silently.
+
 ## Workflow per feature
 
 Investigate → document in `docs/re/` → implement minimally behind a feature flag → test instructions in `docs/testing.md` → expand and harden → commit. **Every phase is tested in `dd-test` (DE) and `dd-test-en` (EN)**; every graphics/overlay change on PC **and** Deck. Build and test commands: `docs/dev/workflow.md`.

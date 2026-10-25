@@ -11,6 +11,7 @@ One line per decision with its reason; the human keeps these decisions (CLAUDE.m
 - **Branches: one per feature or fix, merged into `main` with a merge commit after its test, then deleted; a release is a tag on `main`** – simple for one person; `main` may be ahead of the latest release (`CHANGELOG.md` "Unreleased"), users install from Releases. Pushed branches may stay visible on GitHub (hiding them is not worth it).
 - **GitHub page like `ermerp/masterthesis`:** badges latest tag, release date, commits since latest release; releases in the sidebar; short README, details as Markdown sub-pages in `docs/` (GitHub Pages later – it costs money while the repo is private).
 - **Every release gets a final run with the release build** – the human's release test plus one start of each earlier automated check (e.g. one new-game start for T1.21-W), not the full matrix.
+- **Docs hygiene check before every release, as a report** (`CLAUDE.md`, Release) – rules and docs drift between releases; the human decides what changes (human's rule).
 - **Sight-range fix in v0.02, not v0.01** – human's choice.
 
 ## Direction
