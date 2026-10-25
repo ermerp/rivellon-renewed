@@ -7,7 +7,7 @@
 
 namespace ddmod::features {
 
-// Ground fog on by default (PLAN.md Decisions). Steam's config.div switches it off with the line
+// Ground fog on by default (docs/decisions.md). Steam's config.div switches it off with the line
 // "no fog", which the game stores in its settings object (docs/re/config-files.md). The game
 // reads config.lcl and config.div with one function per file; the hook sets the flag after each
 // call, so config.div is not needed for it. [Features] Fog: 1 = fog on (default), 0 = fog off,

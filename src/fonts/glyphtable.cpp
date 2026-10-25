@@ -23,7 +23,7 @@
 namespace ddmod::fonts {
 namespace {
 
-// Game font object (docs/re/text-rendering.md, "Glyph table"): +0x0C line height, +0x14 table of
+// Game font object (docs/re/glyph-layout.md): +0x0C line height, +0x14 table of
 // 256 glyph pointers, +0x18 the .fnt file block (null for a GDI font), +0x2C space width (i16).
 constexpr std::size_t kLineHeight = 0x0C;
 constexpr std::size_t kGlyphTable = 0x14;

@@ -8,7 +8,7 @@
 
 namespace ddmod::fonts {
 
-// Text colors of the game's GDI fonts (docs/re/text-rendering.md, "Colors"). The game describes
+// Text colors of the game's GDI fonts (docs/re/glyph-layout.md, "Colors"). The game describes
 // each of its 61 GDI fonts with a text color and an edge color and maps the 65 gray levels of a
 // glyph linearly from edge (level 0) to text (level 64). Its built-in colors are rough stand-ins
 // (pure yellow instead of the bitmap fonts' gold, gray edges on paper); [Fonts] Colors=original

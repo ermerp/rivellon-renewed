@@ -5,7 +5,7 @@
 namespace ddmod::text {
 
 // Own vector symbols for slots of the game's fonts that hold a symbol instead of a character
-// (the options pages' arrows in the menu fonts, docs/re/text-rendering.md). Painted like the
+// (the options pages' arrows in the menu fonts, docs/re/fonts-mod.md). Painted like the
 // family's letters (FamilyPaint), so they share its colors, shine and texture.
 
 // Outline of an arrow head pointing right, in a box from (0,0) to (1,1) with the tip at (1, 0.5):

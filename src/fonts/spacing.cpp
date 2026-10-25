@@ -12,7 +12,7 @@
 namespace ddmod::fonts {
 namespace {
 
-// Game font object (docs/re/text-rendering.md): +0x00 pointer to the GDI part (null for a bitmap
+// Game font object (docs/re/glyph-layout.md): +0x00 pointer to the GDI part (null for a bitmap
 // font), +0x14 table of 256 glyph pointers. Glyph: +0x08 origin x (i32), +0x10 advance (i16).
 constexpr std::size_t kGdiPart = 0x00;
 constexpr std::size_t kGlyphTable = 0x14;

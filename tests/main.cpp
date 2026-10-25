@@ -1354,7 +1354,7 @@ void TestGdiFace() {
 }
 
 // Our own rasterizer against GDI for the bundled faces at the heights the glyph renderer uses
-// (docs/re/text-rendering.md, GDI rasterizing): same sizes and advances, overstrike bold, shapes
+// (docs/re/gdi-raster.md): same sizes and advances, overstrike bold, shapes
 // within a few percent.
 void TestTtFace() {
     using namespace ddmod::text;

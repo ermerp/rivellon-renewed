@@ -33,7 +33,7 @@ struct InterfaceColor {
 
 // Original colors: the dominant color of the glyph interiors in each bitmap font; the textured
 // menu capitals and diary headings use the interior mean. All bitmap fonts shade their edges
-// linearly towards black (dark backgrounds) or towards the paper tone (docs/re/text-rendering.md).
+// linearly towards black (dark backgrounds) or towards the paper tone (docs/re/glyph-layout.md).
 constexpr InterfaceColor kInterface[8] = {
     {{"fontn1", "fontn2", "fontn3", "fontn4", "fontn5"}, OnBlack(0xFF, 0xFF, 0xFF), OnBlack(0xE7, 0xE7, 0xE7)},
     {{"fontgra1", "fontgra2", "fontgra3", "fontgra4", "fontgra5"}, OnBlack(0x7F, 0x7F, 0x7F), OnBlack(0x94, 0x96, 0x94)},

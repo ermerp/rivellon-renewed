@@ -11,7 +11,7 @@ namespace ddmod::text {
 // A vector face at one size, sized like GDI's CreateFont with a positive height (cell height) and
 // a weight (600 and up emboldens faces that have only a regular cut). Coverage has 65 levels like
 // GGO_GRAY8_BITMAP. Implemented by GDI (GdiFace) and by our own rasterizer (TtFace), which repeats
-// GDI's measured sizing, sampling and bold (docs/re/text-rendering.md, GDI rasterizing).
+// GDI's measured sizing, sampling and bold (docs/re/gdi-raster.md).
 class Face {
 public:
     virtual ~Face() = default;

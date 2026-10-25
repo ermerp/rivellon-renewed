@@ -26,7 +26,7 @@ Source typefaces were identified by the human from the character sheets (WhatThe
 
 Each glyph is a 16-byte prefix followed by the record:
 
-Prefix and record together are exactly the game's in-memory glyph followed by its sprite (`text-rendering.md`, Glyph table) – the loader uses them in place.
+Prefix and record together are exactly the game's in-memory glyph followed by its sprite (`glyph-layout.md`) – the loader uses them in place.
 
 - Prefix: 8 bytes `32 54 76 98 CC DD EE FF` (same in every glyph; the slot of the GDI black-box size, unused for bitmap fonts), i32 origin x (0), **i32 = minus the glyph's top row** relative to the top of the line (origin y; e.g. −3 for capitals, −5 for lowercase, −11 for `.` in `dialog_white`).
 - Record: i16 advance, i16 vertical advance (0), u16 character code, then the sprite: u32 size (= next field + 2 × pixel count), u32 offset of the pixel block (= 12 + size of the row table), u16 width, u16 height; then one row entry per pixel row – u16 span count *n*, u32 byte offset of the row's first pixel in the pixel block, *n* × (u16 x, u16 length), u16 *n* again; then the pixel block: RGB565 values of all spans, row by row; then one padding byte.
@@ -69,5 +69,5 @@ Status: index entry size known only (2026-10-18).
 - `CPackedb.<n>c` – compressed image data; begins with the same kind of stream header as the hero `.bic` files.
 - `apackedi.<n>` / `APackedb.<n>` – 16-byte entries, probably animation tables; `Collide.<n>` – collision data; `roofs.000` / `roofs.dat` – roof images and their table.
 
-**External reference – Divinity_Graphics_Extender** (Raanar, v0.01, `github.com/Raan/Divinity_Graphics_Extender`, published 2026-10-22): C#/WPF tool that exports and imports sprites of `CPackedi`/`CPackedb.*c` for Divine Divinity and Beyond Divinity. Only a README and a binary – no source code, no license; we neither download the binary nor take anything from it, it only shows that the format is decodable and re-encodable. Its stated limits fit our findings: the image size cannot change on import, and there is no semi-transparency (the sprite format has no per-pixel alpha, `text-rendering.md`). For us this means: HD or upscaled sprites cannot simply be written back into the packs at a larger size – they have to be supplied at runtime by hooks (Phase 8).
+**External reference – Divinity_Graphics_Extender** (Raanar, v0.01, `github.com/Raan/Divinity_Graphics_Extender`, published 2026-10-22): C#/WPF tool that exports and imports sprites of `CPackedi`/`CPackedb.*c` for Divine Divinity and Beyond Divinity. Only a README and a binary – no source code, no license; we neither download the binary nor take anything from it, it only shows that the format is decodable and re-encodable. Its stated limits fit our findings: the image size cannot change on import, and there is no semi-transparency (the sprite format has no per-pixel alpha, `glyph-layout.md`). For us this means: HD or upscaled sprites cannot simply be written back into the packs at a larger size – they have to be supplied at runtime by hooks (Phase 8).
 
