@@ -165,7 +165,8 @@ function Set-ModIniValue {
 
 function Copy-ModIniValues {
     # Copies every Key=Value of an older INI into a fresh default INI (keys the default no longer
-    # has are reported and dropped); the ddmod font folder in [Fonts] Chain is moved to the new one.
+    # has are reported and dropped); the ddmod font folder in [Fonts] Chain is moved to the new one,
+    # and the old default's installed "Tahoma" entry is removed from font chains (bundled faces only).
     param([Parameter(Mandatory)] [string] $From, [Parameter(Mandatory)] [string] $To)
     $section = ''
     foreach ($line in Get-Content -LiteralPath $From) {
@@ -173,6 +174,10 @@ function Copy-ModIniValues {
         if ($line -notmatch '^\s*([^;=\s][^=]*?)\s*=\s*(.*?)\s*$') { continue }
         $key = $Matches[1]
         $value = $Matches[2] -replace '(?i)\bddmod_fonts\\', "$script:ModStem\fonts\"
+        if ($key -in 'Chain', 'Face') {
+            $value = $value -replace '(?i)^\s*Tahoma\s*,\s*', ''
+            if ($value -match '(?i)^\s*Tahoma\s*$') { continue }   # nothing else given: keep the default
+        }
         try { Set-ModIniValue -Path $To -Section $section -Key $key -Value $value }
         catch { Write-Warning "[$section] $key from $From is unknown now - dropped" }
     }

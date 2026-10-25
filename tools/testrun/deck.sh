@@ -138,7 +138,8 @@ testsaves)
     saves=/c/dev/testsaves/de
     [ $# -gt 0 ] || set -- $(ls "$saves")
     for s in "$@"; do [ -d "$saves/$s" ] || { echo "No test save $saves/$s"; exit 1; }; done
-    existing=$(ssh "${ssh_opts[@]}" "$host" "ls ~/'$gamedir'/savegames")
+    # a fresh install has no savegames folder until the first save
+    existing=$(ssh "${ssh_opts[@]}" "$host" "mkdir -p ~/'$gamedir'/savegames && ls ~/'$gamedir'/savegames")
     copy=()
     for s in "$@"; do
         if grep -qxF "$s" <<<"$existing"; then echo "Skipped $s (exists on the Deck)"; else copy+=("$s"); fi

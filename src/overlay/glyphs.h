@@ -10,6 +10,10 @@
 
 #include "overlay/surface.h"
 
+namespace ddmod::text {
+class Face;  // text/face.h, which includes this header through text/style.h
+}
+
 namespace ddmod::overlay {
 
 // One rasterized character: an 8-bit coverage mask (0-255) placed relative to the pen position
@@ -47,8 +51,13 @@ struct FontSpec {
     bool bold = true;
 };
 
-// Returns nullptr if GDI cannot create the font or a drawing context.
+// Returns nullptr if GDI cannot create the font or a drawing context. Used by the font preview
+// tool to compare system faces; the mod itself draws with CreateFaceGlyphSource.
 std::unique_ptr<GlyphSource> CreateGdiGlyphSource(const FontSpec& spec);
+
+// Rasterizes characters with a text::Face (our own rasterizer for a bundled font file - the same
+// on Windows and Proton). Returns nullptr if the face is not valid.
+std::unique_ptr<GlyphSource> CreateFaceGlyphSource(std::unique_ptr<text::Face> face);
 
 // Rasterizes each character once, on first use. Characters the source cannot provide are drawn
 // as '?'.

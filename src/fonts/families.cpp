@@ -157,7 +157,7 @@ const ResolvedFamily& Resolved(Family family) {
         log::Info("Fonts: family {} off ([Family.{}] Enabled=0) - original glyphs", name, name);
         return *slot;
     }
-    slot->face = Resolve(ParseChain(slot->settings.chain, paths::ModDir()), slot->settings.weight >= FW_SEMIBOLD);
+    slot->face = Resolve(ParseChain(slot->settings.chain, paths::ModDir()));
     if (!slot->face) {
         log::Warn("Fonts: family {} has no available face - original glyphs", name);
         return *slot;

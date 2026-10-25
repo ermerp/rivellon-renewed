@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <filesystem>
 #include <format>
 #include <memory>
 #include <mutex>
@@ -18,6 +19,7 @@
 #include "overlay/backend.h"
 #include "overlay/banner.h"
 #include "overlay/glyphs.h"
+#include "text/ttface.h"
 
 namespace ddmod::overlay {
 namespace {
@@ -33,7 +35,7 @@ struct Settings {
     StatusMode status = StatusMode::Banner;
     int bannerSeconds = 5;
     bool gameLook = true;  // [Overlay] BannerLook=game (else plain)
-    std::wstring fontFace;  // from the font chain ([Fonts] Chain)
+    std::filesystem::path fontFile;  // from the font chain ([Fonts] Chain); empty = none available
     int fontSize = 0;  // 0 = from the frame height
 };
 
@@ -92,7 +94,7 @@ Settings ReadSettings() {
         s.gameLook = true;
     }
     const auto& font = fonts::Configured();
-    s.fontFace = font ? font->face : L"Tahoma";  // nothing available: let GDI substitute
+    if (font) s.fontFile = font->file;
     s.fontSize = std::clamp(config::GetInt("Overlay", "FontSize", 0), 0, 96);
     return s;
 }
@@ -110,10 +112,19 @@ void CountFrame(State& st, LARGE_INTEGER now) {
 // The font follows the frame height (a resolution change recreates the cache).
 GlyphCache* GlyphsFor(State& st, int frameHeight) {
     if (st.glyphs && st.glyphsForHeight == frameHeight) return st.glyphs->LineHeight() > 0 ? st.glyphs.get() : nullptr;
-    FontSpec spec;
-    spec.face = st.settings.fontFace;
-    spec.pixelHeight = st.settings.fontSize > 0 ? st.settings.fontSize : std::clamp(frameHeight / 60, 12, 48);
-    st.glyphs = std::make_unique<GlyphCache>(CreateGdiGlyphSource(spec));
+    // The size is the em (character height without leading), drawn by our own rasterizer.
+    const int em = st.settings.fontSize > 0 ? st.settings.fontSize : std::clamp(frameHeight / 60, 12, 48);
+    std::unique_ptr<GlyphSource> source;
+    if (const int cell = text::CellHeightForEm(st.settings.fontFile, em); cell > 0) {
+        source = CreateFaceGlyphSource(std::make_unique<text::TtFace>(st.settings.fontFile, cell, FW_BOLD));
+    }
+    if (source) {
+        log::Info("Overlay font: {} {} px (line height {}), own rasterizer", paths::ToUtf8(st.settings.fontFile.filename()), em,
+                  source->LineHeight());
+    } else {
+        log::Error("Overlay font: no readable font file from the font chain - no status line");
+    }
+    st.glyphs = std::make_unique<GlyphCache>(std::move(source));
     st.glyphsForHeight = frameHeight;
     return st.glyphs->LineHeight() > 0 ? st.glyphs.get() : nullptr;
 }

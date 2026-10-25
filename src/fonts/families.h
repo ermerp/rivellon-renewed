@@ -55,7 +55,7 @@ std::optional<TopFit> ParseTopFit(std::string_view text);
 
 struct FamilySettings {
     bool enabled = true;
-    std::string chain;  // [Fonts] Chain syntax: "Face @ file, Face, ..."
+    std::string chain;  // [Fonts] Chain syntax: "Face @ file, Face @ file, ..."
     int weight = 400;
     LineHeight lineHeight;
     GlyphStyle style = GlyphStyle::Ramp;
@@ -74,8 +74,7 @@ struct FamilySettings {
 // 400 with a line height that keeps lines apart, menu Uncial Antiqua 600 with the measured shine
 // at twice its strength plus texture (its '[' and ']' are the options pages' arrows, drawn as own
 // triangles), dialog
-// Tahoma Bold (else the bundled DejaVu Sans Condensed Bold), diary title Almendra SC 600 with the
-// measured style. Menu and diary title are matched on all their capitals (their faces' H is taller).
+// DejaVu Sans Condensed Bold, diary title Almendra SC 600 with the measured style. Menu and diary title are matched on all their capitals (their faces' H is taller).
 FamilySettings DefaultSettings(Family family);
 
 // The defaults overridden by [Family.<name>] Enabled, Face, Weight, LineHeight and TopFit (invalid values
@@ -83,16 +82,15 @@ FamilySettings DefaultSettings(Family family);
 // Arrows=original keeps the original arrow glyphs.
 FamilySettings ConfiguredSettings(Family family);
 
-// [Fonts] Raster: own = our own rasterizer for faces with a font file (the bundled faces; the
-// same look on Windows and Proton), gdi = GDI for every face. Installed faces (Tahoma) always
-// use GDI. An invalid value is logged and gives own.
+// [Fonts] Raster: own = our own rasterizer for the bundled faces (the same look on Windows and
+// Proton), gdi = GDI for every face. An invalid value is logged and gives own.
 std::optional<text::Raster> ParseRaster(std::string_view text);
 text::Raster ConfiguredRaster();
 
 // A family's configured settings and its face, resolved and logged on first use (the face's file
 // is registered for the process): no face if the family is switched off or none of its faces is
-// available. `source` is the face with its rasterizer ([Fonts] Raster; GDI for an installed face
-// or a file our rasterizer cannot read). Later calls return the same result. Thread-safe.
+// available. `source` is the face with its rasterizer ([Fonts] Raster; GDI for a file our
+// rasterizer cannot read). Later calls return the same result. Thread-safe.
 struct ResolvedFamily {
     FamilySettings settings;
     std::optional<FontEntry> face;

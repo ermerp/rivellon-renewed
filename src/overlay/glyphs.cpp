@@ -6,6 +6,7 @@
 
 #include "core/log.h"
 #include "core/paths.h"
+#include "text/face.h"
 
 namespace ddmod::overlay {
 namespace {
@@ -86,7 +87,39 @@ private:
     int lineHeight_ = 0;
 };
 
+class FaceGlyphSource final : public GlyphSource {
+public:
+    explicit FaceGlyphSource(std::unique_ptr<text::Face> face) : face_(std::move(face)) {}
+
+    int LineHeight() const override { return face_->CellHeight(); }
+
+    bool Rasterize(wchar_t ch, Glyph& out) override {
+        if (!face_->Missing(std::wstring(1, ch)).empty()) return false;
+        text::Face::Mask m;
+        if (!face_->GlyphMask(ch, 0, m)) return false;
+        out = {};
+        out.advance = m.advance;
+        out.width = m.mask.width;
+        out.height = m.mask.height;
+        out.offsetX = m.left;
+        out.offsetY = m.top;
+        out.coverage.resize(m.mask.alpha.size());
+        for (std::size_t i = 0; i < m.mask.alpha.size(); ++i) {
+            out.coverage[i] = static_cast<std::uint8_t>(std::clamp(m.mask.alpha[i], 0.0f, 1.0f) * 255.0f + 0.5f);
+        }
+        return true;
+    }
+
+private:
+    std::unique_ptr<text::Face> face_;
+};
+
 }  // namespace
+
+std::unique_ptr<GlyphSource> CreateFaceGlyphSource(std::unique_ptr<text::Face> face) {
+    if (!face || !face->Valid()) return nullptr;
+    return std::make_unique<FaceGlyphSource>(std::move(face));
+}
 
 std::unique_ptr<GlyphSource> CreateGdiGlyphSource(const FontSpec& spec) {
     auto source = std::make_unique<GdiGlyphSource>();

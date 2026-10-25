@@ -688,12 +688,24 @@ void TestFamilies() {
         CHECK(chain.size() == 1 && std::filesystem::exists(assets / L"fonts" / chain[0].file.filename()));
         if (chain.size() != 1) continue;
         const std::filesystem::path file = assets / L"fonts" / chain[0].file.filename();
+        CHECK(ddmod::text::HoldsFace(file, chain[0].face));  // what Resolve checks
         CHECK(AddFontResourceExW(file.c_str(), FR_PRIVATE, nullptr) > 0);
         const ddmod::text::GdiFace face(chain[0].face, 20, DefaultSettings(family).weight);
         CHECK(face.ActualFace() == chain[0].face);
         CHECK(face.Missing(L"ÄÖÜäöüß ÀÂÆÇÈÉÊËÎÏÔŒÙÛŸàâæçèéêëîïôœùûÿ«»").empty());
         CHECK(face.Missing(L"Ж") == L"Ж");
         RemoveFontResourceExW(file.c_str(), FR_PRIVATE, nullptr);
+    }
+    // Dialog: the bundled DejaVu Sans Condensed Bold through our own rasterizer, with Cyrillic.
+    const auto dialog = ParseChain(DefaultSettings(Family::Dialog).chain, assets);
+    CHECK(dialog.size() == 1 && dialog[0].face == L"DejaVu Sans Condensed" &&
+          std::filesystem::exists(assets / L"fonts" / dialog[0].file.filename()));
+    if (dialog.size() == 1) {
+        const std::filesystem::path file = assets / L"fonts" / dialog[0].file.filename();
+        CHECK(ddmod::text::CanRasterize(file) && ddmod::text::HoldsFace(file, dialog[0].face));
+        const ddmod::text::TtFace face(file, 17, DefaultSettings(Family::Dialog).weight);
+        CHECK(face.Valid() && !face.Emboldened());  // a real bold cut, no overstrike
+        CHECK(face.Missing(L"ÄÖÜäöüß ÀÂÆÇÈÉÊËÎÏÔŒÙÛŸàâæçèéêëîïôœùûÿ«» Жжё").empty());
     }
 }
 
@@ -1107,6 +1119,34 @@ void TestGdiGlyphs() {
     FontSpec missing;
     missing.file = std::filesystem::temp_directory_path() / L"ddmod-no-such-font.ttf";
     CHECK(CreateGdiGlyphSource(missing) != nullptr);  // falls back to the installed face
+}
+
+// The overlay's glyphs: the bundled DejaVu Sans Condensed Bold through our own rasterizer.
+void TestFaceGlyphs() {
+    using namespace ddmod::overlay;
+    const std::filesystem::path file = std::filesystem::path(DDMOD_SOURCE_DIR) / L"assets" / L"fonts" / L"DejaVuSansCondensed-Bold.ttf";
+    const int cell = ddmod::text::CellHeightForEm(file, 16);
+    CHECK(cell > 16 && cell < 24);  // the em plus the face's leading
+    CHECK(ddmod::text::CellHeightForEm(L"ddmod-no-such-font.ttf", 16) == 0);
+    CHECK(CreateFaceGlyphSource(std::make_unique<ddmod::text::TtFace>(L"ddmod-no-such-font.ttf", 20, 700)) == nullptr);
+    auto source = CreateFaceGlyphSource(std::make_unique<ddmod::text::TtFace>(file, cell, 700));
+    CHECK(source != nullptr);
+    if (!source) return;
+    CHECK(source->LineHeight() == cell);
+    Glyph glyph;
+    CHECK(source->Rasterize(L'M', glyph));
+    CHECK(glyph.width > 4 && glyph.height > 8 && glyph.advance > glyph.width / 2);
+    CHECK(glyph.coverage.size() == static_cast<std::size_t>(glyph.width) * glyph.height);
+    bool opaque = false;
+    for (const auto c : glyph.coverage) opaque |= c == 255;
+    CHECK(opaque);
+    CHECK(glyph.offsetY >= 0 && glyph.offsetY + glyph.height <= source->LineHeight());
+    Glyph umlaut;
+    CHECK(source->Rasterize(L'Ä', umlaut) && umlaut.height > glyph.height);  // Ä is taller than M
+    Glyph space;
+    CHECK(source->Rasterize(L' ', space) && space.advance > 0);
+    Glyph none;
+    CHECK(!source->Rasterize(L'', none));  // private use: not in the face
 }
 
 // Capitals built by the test (no game data): every letter is a 6x8 block whose rows run from
@@ -1549,32 +1589,22 @@ void TestFontChain() {
     }
     CHECK(ParseChain("", base).empty());
     const auto defaults = ParseChain(kDefaultChain, base);
-    CHECK(defaults.size() == 2);
-    // Install-DdMod copies the bundled font to exactly this folder.
-    CHECK(defaults.size() == 2 && defaults[1].file == base / L"RivellonRenewed\\fonts\\DejaVuSansCondensed-Bold.ttf");
+    // Only the bundled face; Install-DdMod copies it to exactly this folder.
+    CHECK(defaults.size() == 1 && defaults[0].face == L"DejaVu Sans Condensed" &&
+          defaults[0].file == base / L"RivellonRenewed\\fonts\\DejaVuSansCondensed-Bold.ttf");
 
-    // A missing face is skipped (GDI would substitute it), an installed one is taken.
-    auto picked = Resolve(ParseChain("No Such Face 4711, Tahoma", base), true);
-    CHECK(picked && picked->face == L"Tahoma");
-    // The bundled fallback font loads from its file for this process only.
+    // An entry without a file is skipped even if the system has that face (no installed fonts),
+    // a missing file too; the bundled font loads from its file for this process only.
     const std::filesystem::path assets = std::filesystem::path(DDMOD_SOURCE_DIR) / L"assets";
-    picked = Resolve(ParseChain("No Such Face 4711, DejaVu Sans Condensed @ fonts\\DejaVuSansCondensed-Bold.ttf", assets), true);
+    CHECK(!Resolve(ParseChain("Tahoma, Arial", base)));
+    auto picked = Resolve(ParseChain("Tahoma, Y @ missing.ttf, DejaVu Sans Condensed @ fonts\\DejaVuSansCondensed-Bold.ttf", assets));
     CHECK(picked && picked->face == L"DejaVu Sans Condensed");
-    CHECK(!Resolve(ParseChain("No Such Face 4711, Y @ missing.ttf", assets), true));
-
-    // Registry font list: type suffix dropped, collections split at '&', whole names only.
-    CHECK(FontListNameMatches(L"Tahoma Bold (TrueType)", L"Tahoma Bold"));
-    CHECK(FontListNameMatches(L"tahoma bold (TrueType)", L"Tahoma Bold"));
-    CHECK(!FontListNameMatches(L"Tahoma Bold (TrueType)", L"Tahoma"));
-    CHECK(FontListNameMatches(L"Cambria & Cambria Math (TrueType)", L"Cambria Math"));
-    CHECK(FontListNameMatches(L"Cambria & Cambria Math (TrueType)", L"Cambria"));
-    CHECK(FontListNameMatches(L"Some Font", L"Some Font"));
-    CHECK(!FontListNameMatches(L"Some Font", L""));
-    // Tahoma Bold is a font of its own on Windows (tahomabd.ttf); the English full name also on a
-    // German Windows, whose GDI calls it "Tahoma Fett".
-    const InstalledFont tahoma = FindInstalledFont(L"Tahoma", true);
-    CHECK(tahoma.fullName == L"Tahoma Bold");
-    CHECK(_wcsicmp(tahoma.file.filename().c_str(), L"tahomabd.ttf") == 0 && std::filesystem::exists(tahoma.file));
+    // A file that does not hold the named face is not taken.
+    CHECK(!Resolve(ParseChain("Tahoma @ fonts\\DejaVuSansCondensed-Bold.ttf", assets)));
+    // Every family's default face is a bundled file.
+    for (const Family family : kFamilies) {
+        for (const FontEntry& entry : ParseChain(DefaultSettings(family).chain, base)) CHECK(!entry.file.empty());
+    }
 }
 
 void TestOverlayStatus() {
@@ -1631,6 +1661,7 @@ int main() {
     TestFillAndMask();
     TestGlyphCache();
     TestGdiGlyphs();
+    TestFaceGlyphs();
     TestTextStyle();
     TestGdiFace();
     TestTtFace();

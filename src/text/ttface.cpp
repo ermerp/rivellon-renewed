@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <climits>
 #include <cmath>
+#include <cwchar>
 #include <fstream>
 #include <iterator>
 #include <mutex>
@@ -323,5 +324,31 @@ bool TtFace::GlyphMask(wchar_t ch, int pad, Mask& out) const {
 }
 
 bool CanRasterize(const std::filesystem::path& file) { return Cached(file) != nullptr; }
+
+bool HoldsFace(const std::filesystem::path& file, const std::wstring& face) {
+    const auto font = Cached(file);
+    if (!font) return false;
+    // Family (1), full name (4) and typographic family (16), Windows platform, Unicode BMP.
+    for (const int nameId : {1, 4, 16}) {
+        for (const int language : {0x0409, 0}) {
+            int length = 0;
+            const char* name = stbtt_GetFontNameString(&font->info, &length, STBTT_PLATFORM_ID_MICROSOFT,
+                                                       STBTT_MS_EID_UNICODE_BMP, language, nameId);
+            if (!name || length <= 0) continue;
+            std::wstring text;
+            for (int i = 0; i + 1 < length; i += 2) {
+                text.push_back(static_cast<wchar_t>(static_cast<unsigned char>(name[i]) << 8 | static_cast<unsigned char>(name[i + 1])));
+            }
+            if (_wcsicmp(text.c_str(), face.c_str()) == 0) return true;
+        }
+    }
+    return false;
+}
+
+int CellHeightForEm(const std::filesystem::path& file, int em) {
+    const auto font = Cached(file);
+    if (!font || font->unitsPerEm <= 0) return 0;
+    return static_cast<int>(std::lround(static_cast<double>(em) * (font->winAscent + font->winDescent) / font->unitsPerEm));
+}
 
 }  // namespace ddmod::text

@@ -56,4 +56,12 @@ private:
 // True if our rasterizer can read the font file (cached; the file stays in memory).
 bool CanRasterize(const std::filesystem::path& file);
 
+// True if the font file's name table names `face` (family, full or typographic family name;
+// case-insensitive) - checked in the file itself, so an installed font of that name does not count.
+bool HoldsFace(const std::filesystem::path& file, const std::wstring& face);
+
+// The TtFace height (cell height) whose em is `em` pixels - what GDI's CreateFont makes of a
+// negative height; 0 if the file cannot be read.
+int CellHeightForEm(const std::filesystem::path& file, int em);
+
 }  // namespace ddmod::text

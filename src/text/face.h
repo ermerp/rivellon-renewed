@@ -59,7 +59,7 @@ public:
 };
 
 // Where a face comes from and who rasterizes it: our own rasterizer needs the font file; a face
-// without one (an installed font such as Tahoma) is always drawn by GDI.
+// without one (only the font preview tool compares installed faces) is always drawn by GDI.
 enum class Raster { Gdi, Own };
 struct FaceSource {
     std::wstring face;
