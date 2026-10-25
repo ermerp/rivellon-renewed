@@ -10,8 +10,11 @@
 #include <windows.h>
 
 #include "core/config.h"
+#include "core/hooks.h"
 #include "core/log.h"
 #include "game/configfile.h"
+#include "game/exe.h"
+#include "overlay/overlay.h"
 
 namespace ddmod::features {
 namespace {
@@ -41,6 +44,29 @@ void AroundConfigWrite(void* settings, bool before) {
     const Size& size = before ? g_fromFiles : *g_chosen;
     Field(settings, kWidthField) = size.width;
     Field(settings, kHeightField) = size.height;
+}
+
+// What the config files said about "resolution switch" (Steam's files do not have the key: 0).
+std::int32_t g_switchFromFiles = 0;
+
+void MoviesAfterConfigRead(void* settings, const char* /*file*/) {
+    if (Field(settings, kResolutionSwitchField) != 1) g_switchFromFiles = Field(settings, kResolutionSwitchField);
+    Field(settings, kResolutionSwitchField) = 1;
+}
+
+void MoviesAroundConfigWrite(void* settings, bool before) {
+    Field(settings, kResolutionSwitchField) = before ? g_switchFromFiles : 1;
+}
+
+using MoviePlayerFn = int(__cdecl*)(const char* file, int maySwitch, int switchBack, int flag);
+MoviePlayerFn g_moviePlayer = nullptr;
+
+int __cdecl MoviePlayerDetour(const char* file, int maySwitch, int switchBack, int flag) {
+    log::Debug("Movies: {} (switch {} -> 1, back {} -> 1)", file ? file : "(default)", maySwitch, switchBack);
+    overlay::SetMoviePlaying(true);
+    const int result = g_moviePlayer(file, 1, 1, flag);
+    overlay::SetMoviePlaying(false);
+    return result;
 }
 
 // Display modes of the primary monitor (any color depth, each size once) and its current size.
@@ -109,6 +135,32 @@ bool InstallResolutionAt(void* configReader, void* configWriter, Size size) {
     game::OnConfigRead(&AfterConfigRead);
     game::OnConfigWrite(&AroundConfigWrite);
     return game::InstallConfigHooksAt(configReader, configWriter);
+}
+
+bool InstallFullScreenMoviesAt(void* configReader, void* configWriter) {
+    g_switchFromFiles = 0;
+    game::OnConfigRead(&MoviesAfterConfigRead);
+    game::OnConfigWrite(&MoviesAroundConfigWrite);
+    return game::InstallConfigHooksAt(configReader, configWriter);
+}
+
+bool InstallFullScreenMovies() {
+    if (!config::GetBool("Display", "FullScreenMovies", true)) {
+        log::Info("Movies as config.div says ([Display] FullScreenMovies=0)");
+        return false;
+    }
+    game::OnConfigRead(&MoviesAfterConfigRead);
+    game::OnConfigWrite(&MoviesAroundConfigWrite);
+    const std::uintptr_t player = game::Resolve({"MoviePlayer", kMoviePlayerPattern, 0, kMoviePlayerRva});
+    if (!player || !hooks::CreateRaw("MoviePlayer", reinterpret_cast<void*>(player),
+                                     reinterpret_cast<void*>(&MoviePlayerDetour),
+                                     reinterpret_cast<void**>(&g_moviePlayer)) ||
+        !hooks::Enable("MoviePlayer")) {
+        log::Warn("Movies: video player not found - only the startup movie may fill the screen");
+        return false;
+    }
+    log::Info("Movies: full screen, the game switches to 640x480 for them ([Display] FullScreenMovies=1)");
+    return true;
 }
 
 bool InstallResolution() {

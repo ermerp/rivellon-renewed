@@ -20,7 +20,7 @@ Traced in the disassembly of 1.0062A (step 7.2); addresses in `div.exe`.
 
 So **`config.div` decides the resolution**; `slashed-d3d6.cfg` only sets the short first mode during `DllSlashedInit`, and `DllSlashedShutdown` writes the final size back into it. In full screen the size must be in the renderer's mode list (`renderer-d3d6.md`), otherwise step 3 ends the game; windowed takes any size.
 
-Later mode changes go through the same `0x557D00` with a copied block and the screen size globals: the video player switches to 640×480 for a movie and back (`0x40D1E0`), and the `resolution switch` path toggles between 640×480/800×600 and the globals (`0x40CB41`).
+Later mode changes go through the same `0x557D00` with a copied block and the screen size globals: the video player (`0x40D1D0`, `__cdecl`: movie file, "may switch", "switch back afterwards", one more flag) switches to 640×480 for a movie only if its caller allows it, settings `+0xD0` (`resolution switch #`, keyword 58 – read nowhere else) is set and the screen width differs from the movie's; otherwise it draws the 640×480 movie centered in the full frame, smaller the higher the resolution (T1.28-W). At startup only the first movie (`static\cdv.bik`) may switch, `larian.bik` and `kz.bik` follow without switching, and one restore runs after them; the story movies (`scene1.bik`, `scene2.bik`) never switch. **Steam ships no `cdv.bik`**, so even with `resolution switch 1` no movie fills the screen there. The player's own size globals `0x658D14`/`0x658D18` are set once from the screen size and to 640×480 on a switch, never back; and the `resolution switch` path toggles between 640×480/800×600 and the globals (`0x40CB41`).
 
 ## Parser and settings object
 

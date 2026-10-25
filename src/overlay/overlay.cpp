@@ -51,7 +51,8 @@ struct State {
     std::vector<std::uint8_t> bannerMask;
     std::vector<Rgb> bannerColors;
     LARGE_INTEGER frequency{};
-    LARGE_INTEGER firstFrame{};  // the banner time counts from here
+    LARGE_INTEGER firstFrame{};
+    LARGE_INTEGER bannerStart{};  // the banner time counts from the first frame outside a movie
     // FPS, measured over half-second windows.
     LARGE_INTEGER windowStart{};
     int framesInWindow = 0;
@@ -62,6 +63,7 @@ State g_state;
 EndFrameFn g_originalEndFrame = nullptr;
 // Written by the hotkey handler, read at the end of each frame.
 std::atomic<bool> g_showFps{false};
+std::atomic<bool> g_moviePlaying{false};
 // ShowNotice: text and the tick count when it disappears.
 std::mutex g_noticeMutex;
 std::wstring g_notice;
@@ -195,8 +197,11 @@ int __cdecl EndFrameDetour() {
         log::Info("Overlay: first frame");
     }
     CountFrame(st, now);
-    const double elapsed = static_cast<double>(now.QuadPart - st.firstFrame.QuadPart) / st.frequency.QuadPart;
-    const bool showStatus = StatusShown(st.settings.status, elapsed, st.settings.bannerSeconds);
+    // A movie plays at 640x480 scaled to the screen: no status line over it, the banner waits.
+    const bool movie = g_moviePlaying.load(std::memory_order_relaxed);
+    if (!movie && st.bannerStart.QuadPart == 0) st.bannerStart = now;
+    const double elapsed = static_cast<double>(now.QuadPart - st.bannerStart.QuadPart) / st.frequency.QuadPart;
+    const bool showStatus = !movie && StatusShown(st.settings.status, elapsed, st.settings.bannerSeconds);
     const bool showFps = g_showFps.load(std::memory_order_relaxed);
     const std::wstring notice = CurrentNotice();
     // Nothing to show: the frame is not even locked.
@@ -227,6 +232,8 @@ void ToggleFps() {
     g_showFps.store(on);
     log::Info("Overlay: FPS display {}", on ? "on" : "off");
 }
+
+void SetMoviePlaying(bool playing) { g_moviePlaying.store(playing); }
 
 void ShowNotice(std::wstring text, int seconds) {
     std::lock_guard lock(g_noticeMutex);

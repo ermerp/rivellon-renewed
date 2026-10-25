@@ -14,6 +14,9 @@ namespace ddmod::features {
 // - [DgVoodoo] FullScreen: FullscreenAttributes in [GeneralExt]; borderless (default) = "fake"
 //   (a screen-size window without a frame, which stays one after Alt+Tab), exclusive = empty
 //   (dgVoodoo's own full screen), keep.
+// - [DgVoodoo] Scaling: ScalingMode in [General]; aspect (default) = "stretched_ar" (scaled to the
+//   screen with the picture's aspect ratio kept - 4:3 movies get bars at the sides), stretch =
+//   "stretched" (fills the screen, distorted when the ratios differ), keep.
 // No dgVoodoo.conf (Steam Deck, no dgVoodoo) = nothing to do.
 
 enum class ConfEdit {

@@ -135,6 +135,7 @@ void Startup(HMODULE self) {
     if (hooks::Init()) {
         features::InstallFog();
         features::InstallResolution();
+        features::InstallFullScreenMovies();
         game::InstallConfigHooks();
     }
     // Code changes in memory are safest while only the loading thread runs.

@@ -320,8 +320,10 @@ __declspec(noinline) int __fastcall FakeSizeReader(void* settings, void* /*edx*/
     return 1;
 }
 ddmod::features::Size g_sizeWritten;
+std::int32_t g_writerSwitch = -1;
 __declspec(noinline) int __fastcall FakeSizeWriter(void* settings, void* /*edx*/) {
     std::memcpy(&g_sizeWritten, static_cast<std::uint8_t*>(settings) + ddmod::features::kWidthField, 8);
+    std::memcpy(&g_writerSwitch, static_cast<std::uint8_t*>(settings) + ddmod::features::kResolutionSwitchField, 4);
     return 3;
 }
 
@@ -379,6 +381,20 @@ void TestResolution() {
     hooks::Shutdown();
     game::ClearConfigObservers();
     CHECK(reader(settings, "config.div") == 1 && stored() == (Size{1024, 768}));
+
+    // Full-screen movies: "resolution switch" on after every read, the file's 0 while writing.
+    const auto resolutionSwitch = [&] {
+        std::int32_t v = 0;
+        std::memcpy(&v, settings + kResolutionSwitchField, 4);
+        return v;
+    };
+    g_writerSwitch = -1;
+    CHECK(hooks::Init());
+    CHECK(InstallFullScreenMoviesAt(reinterpret_cast<void*>(&FakeSizeReader), reinterpret_cast<void*>(&FakeSizeWriter)));
+    CHECK(reader(settings, "config.div") == 1 && resolutionSwitch() == 1 && stored() == (Size{1024, 768}));
+    CHECK(writer(settings) == 3 && g_writerSwitch == 0 && resolutionSwitch() == 1);
+    hooks::Shutdown();
+    game::ClearConfigObservers();
 }
 
 void TestShortLabels() {
@@ -563,6 +579,14 @@ void TestFontModeSignature() {
     const auto writerMatches = pattern::FindAll(file, *writer);
     CHECK(writerMatches.size() == 1);
     if (writerMatches.size() == 1) CHECK(FileOffsetToRva(file, writerMatches[0]) == game::kConfigWriterRva);
+
+    // Video player (features/resolution.h): unique and at the documented RVA.
+    const auto player = pattern::Parse(features::kMoviePlayerPattern);
+    CHECK(player.has_value());
+    if (!player) return;
+    const auto playerMatches = pattern::FindAll(file, *player);
+    CHECK(playerMatches.size() == 1);
+    if (playerMatches.size() == 1) CHECK(FileOffsetToRva(file, playerMatches[0]) == features::kMoviePlayerRva);
 
     // Text file loader (features/shortlabels.h): unique and at the documented RVA.
     const auto textLoader = pattern::Parse(features::kTextLoaderPattern);

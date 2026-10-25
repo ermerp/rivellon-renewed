@@ -69,6 +69,11 @@ std::vector<Setting> WantedSettings() {
                         {"full screen", "GeneralExt", "FullscreenAttributes", {}, {}})) {
         settings.push_back(*s);
     }
+    if (auto s = Wanted("scaling", "Scaling", "aspect",
+                        {{"aspect", "stretched_ar", "aspect"}, {"stretch", "stretched", "stretch"}},
+                        {"scaling", "General", "ScalingMode", {}, {}})) {
+        settings.push_back(*s);
+    }
     return settings;
 }
 
