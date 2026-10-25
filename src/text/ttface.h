@@ -14,8 +14,8 @@ namespace ddmod::text {
 struct FontFile;
 
 // A face rasterized by our own code (stb_truetype for the outlines) from its font file, the same
-// on Windows and Proton. It repeats what GDI does with an unhinted face (docs/re/text-rendering.md,
-// GDI rasterizing): the height is the cell height usWinAscent + usWinDescent, metrics use that
+// on Windows and Proton. It repeats what GDI does with an unhinted face (docs/re/gdi-raster.md):
+// the height is the cell height usWinAscent + usWinDescent, metrics use that
 // scale, outlines the nearest whole ppem; coverage counts 8x8 point samples per pixel (65 levels);
 // a weight of 600 and more on a face lighter than 600 overstrikes every glyph one pixel to the
 // right (levels added, advance one pixel larger). Hinting instructions are not run.

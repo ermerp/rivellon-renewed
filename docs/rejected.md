@@ -54,7 +54,7 @@ One line each, with why – so they are not tried again. Rejected test methods a
 - Swapping a shortened label's text pointer for an own string – the game frees the text table with its own allocator on a reload; the label is shortened in place.
 - Styled game text through the GDI path (per-family `CreateFontIndirectA`, or answering `GetGlyphOutlineA` with own coverage) – the game maps coverage through a two-color ramp, so no color profile, rim, gloss or texture.
 - Soft glyph edges by per-pixel alpha – the game's sprite format has none (0 = transparent, otherwise opaque); edges are blended into the family's background tone in advance.
-- Passing the bitmap fonts' 8-bit colors to the game's font descriptor unchanged – the game rounds down to 565, one step darker (`docs/re/text-rendering.md`, Colors).
+- Passing the bitmap fonts' 8-bit colors to the game's font descriptor unchanged – the game rounds down to 565, one step darker (`docs/re/glyph-layout.md`, Colors).
 - `[Fonts] Spacing=gap` as default – still left "2." and the foot in "Li" covered (the game's overlap test misses the bottom row).
 - Setting `use8bitfont 0` in `config.lcl` by `Install-`/`Uninstall-DdMod` – changes a game file and needs restore logic.
 - Only explaining `use8bitfont 0` in the README – a manual step for every user.

@@ -12,7 +12,7 @@
 
 namespace ddmod::fonts {
 
-// The glyph-table renderer (docs/re/text-rendering.md, "Glyph table, drawing and layout"): a
+// The glyph-table renderer (docs/re/glyph-layout.md, docs/re/fonts-mod.md): a
 // `.fnt` glyph is the game's in-memory glyph, so after the game has loaded a font file the mod
 // replaces the font's glyph pointers with glyphs of its own, in full 16-bit color per pixel - each
 // family with its own face and style (families.h, src/text). The game stays on its bitmap path.

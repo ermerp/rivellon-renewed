@@ -7,7 +7,7 @@
 namespace ddmod::fonts {
 
 // Forces the game's GDI text path (use8bitfont 0) in memory, without touching config.lcl
-// (docs/re/text-rendering.md, "Font mode"). The game reads the use8bitfont byte of its settings
+// (docs/re/fonts-mod.md, "Font mode"). The game reads the use8bitfont byte of its settings
 // object exactly once, in the function that creates its 61 fonts. The hook sets the byte to 0 for
 // the duration of that call and restores it afterwards, so the value the game writes back to
 // config.div on exit stays the user's own.

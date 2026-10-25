@@ -10,7 +10,7 @@ namespace ddmod::text {
 
 using overlay::Rgb;
 
-// The mod's text styles (docs/decisions.md, target text renderer; docs/re/text-rendering.md,
+// The mod's text styles (docs/decisions.md, target text renderer; docs/re/glyph-layout.md,
 // Colors): a vector glyph's coverage is painted with style parameters measured from the game's
 // bitmap fonts - colors, color profile, edge and across-stroke brightness, texture strength. Only
 // these numbers are taken from the originals, never their pixels. Shared by the game's glyph
@@ -76,7 +76,7 @@ struct Shine {
 Shine MeasureShine(const Capitals& caps);
 
 // The game draws nothing of a glyph above the top of its line in pre-rendered texts (menu entries,
-// diary title; docs/re/text-rendering.md). These keep a face's ink below it.
+// diary title; docs/re/glyph-layout.md). These keep a face's ink below it.
 // LowerAccent: the ink above the letter's body and the empty rows under it (an accent or the dots
 // of an umlaut) moves down by up to `rows` rows, keeping one empty row above the body (which
 // starts at mask row `capTop` or at the first inked row above it that joins it). Returns the rows
