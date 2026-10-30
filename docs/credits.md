@@ -1,6 +1,6 @@
 # Credits and sources
 
-Everything from others that Rivellon Renewed uses – code, data, tools, knowledge, ideas, also mere inspiration – with who made it and where it is. A line is added the moment we use something (CLAUDE.md rule 14), so the README thanks and `THIRD-PARTY-NOTICES.md` can be drawn from here. Licenses and pinned versions: `THIRD-PARTY-NOTICES.md` (step 7.4), `docs/re/environment.md`. Tools we plan to check later: `docs/roadmap.md`.
+Everything from others that Rivellon Renewed uses – code, data, tools, knowledge, ideas, also mere inspiration – with who made it and where it is. A line is added the moment we use something (CLAUDE.md rule 14), so the README can credit it. Pinned versions: `docs/re/environment.md`.
 
 ## Shipped with the mod or fetched by it
 

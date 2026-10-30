@@ -4,7 +4,7 @@ Why persons vanish on large screens, and where the game decides it. Addresses fo
 
 ## Observation
 
-At 1920×1080 an NPC in front of a house door disappeared when the view moved and she was ≈450–500 px left of the screen center, while the ground under her was still drawn (human's play session, `playtest-log.md`). The cut-off is **not** a screen-size constant: the world and sprite code use the real resolution (globals `0x64D9B8` width / `0x64D9BC` height, 640×480 only as static default). It is the hero's **sight range**, a game value.
+At 1920×1080 an NPC in front of a house door disappeared when the view moved and she was ≈450–500 px left of the screen center, while the ground under her was still drawn (human's play session). The cut-off is **not** a screen-size constant: the world and sprite code use the real resolution (globals `0x64D9B8` width / `0x64D9BC` height, 640×480 only as static default). It is the hero's **sight range**, a game value.
 
 ## How it works
 
@@ -32,4 +32,4 @@ The fade function (`0x4496F0`) re-runs the test only when the hero's or the agen
 - The range was evidently made for the original screens: the vanishing point seen at 1920×1080 (≈450 px from the center) is close to half the width of an 800×600 or 1024×768 screen; the hero's actual sight value is not measured yet. At 1920×1080 or 2560×1440 much of the visible world lies outside the range, so persons there are not drawn.
 - **Fix that keeps the game rule:** hook `0x435570` (only two callers, both presentation) and scale the range by the screen size relative to 800×600 (or a factor from the INI) before the distance test – AI perception (`0x435410`, `0x4356F0`) stays untouched, so fights and story events do not change. The line-of-sight check stays.
 - **Simplest switch:** settings `+0x2C` = 0 shows every agent on screen, through walls too – a bigger change to the game's feel; at most an option.
-- Whether the shroud (black unexplored area) uses the same range is not checked (`open-questions.md`).
+- Whether the shroud (black unexplored area) uses the same range is not checked.

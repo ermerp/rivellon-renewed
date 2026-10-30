@@ -1,6 +1,6 @@
 # Direct3D 6 renderer (`slash1.dll`)
 
-Internals of the Direct3D renderer plugin, as far as the overlay (Phase 1 step 6) needs them. Addresses are virtual addresses at the preferred image base `0x10000000` of the verified `slash1.dll` (`game-version.md`); the DLL can be relocated, so code finds everything through exports and signatures (rule 8). The other renderers (`slash2`–`4.dll`) are not analyzed yet.
+Internals of the Direct3D renderer plugin, as far as the overlay needs them. Addresses are virtual addresses at the preferred image base `0x10000000` of the verified `slash1.dll` (`game-version.md`); the DLL can be relocated, so code finds everything through exports and signatures (rule 8). The other renderers (`slash2`–`4.dll`) are not analyzed yet.
 
 ## How `div.exe` binds the renderer
 

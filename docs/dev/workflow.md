@@ -1,6 +1,6 @@
 # Developer workflow
 
-Build, install, test scripts and tools on the Windows dev PC. Rules: `CLAUDE.md`; Steam Deck: [steam-deck.md](steam-deck.md); input sequences: [test-sequences.md](test-sequences.md); test conditions: [../testing.md](../testing.md).
+Build, install, test scripts and tools on the Windows dev PC. Rules: `CLAUDE.md`; Steam Deck: [steam-deck.md](steam-deck.md); input sequences: [test-sequences.md](test-sequences.md).
 
 ## Build
 
@@ -26,7 +26,7 @@ The module refuses the Steam folder.
 - `Set-ModIniValue -Path <copy>\RivellonRenewed.ini -Section … -Key … -Value …` – changes one INI value.
 - `Set-DgVoodooProfile -GameDir … -Adapter 1 [-Watermark]`, `Set-DivConfig -GameDir … -Width … -Height …`.
 
-**Log level:** `LogLevel=debug` in `RivellonRenewed.ini` logs every key-down and character message, focus change, sent window message, game font creation, `.fnt` file open and the characters each GDI font rasterizes. While a test round runs, all working copies stay on `debug`; when it ends, back to `info` – the current state is in `PLAN.md` "Current status".
+**Log level:** `LogLevel=debug` in `RivellonRenewed.ini` logs every key-down and character message, focus change, sent window message, game font creation, `.fnt` file open and the characters each GDI font rasterizes. While a test round runs, all working copies stay on `debug`; when it ends, back to `info`.
 
 ## Automated start test (`tools/testrun/Start-GameTest.ps1`)
 
@@ -88,5 +88,5 @@ Renders with the overlay's text code; game `.fnt` files are read from a working 
 - Before a run check that no `div.exe` is left (`Get-Process div`): a second instance exits at once. A `div.exe` hung on exit ignores `Stop-Process`/`taskkill /F` – ask the human to end it in Task Manager, then check `config.div`, `dgVoodoo.conf` and the run markers of that copy.
 - An aborted `Start-GameTest.ps1` leaves `dgVoodoo.conf` windowed and `startup logo` in `config.div` – restore both.
 - Windowed runs at 2560×1440: the window (2562×1474) is taller than the screen and the taskbar covers its bottom – no `click` in the bottom part; use the game's keys (`keylist.txt`).
-- `-FullScreen` runs: in the borderless full screen `PrintWindow` captures the game window normally; with `exclusive` it returns black and the script skips the shot (also a real all-black picture – until the switch to full screen by default, `PLAN.md` release path).
+- `-FullScreen` runs: in the borderless full screen `PrintWindow` captures the game window normally; with `exclusive` it returns black and the script skips the shot (also a real all-black picture).
 - In heredocs of the Bash tool, backslash escapes in inline Python and Windows paths in `sed` replacements get mangled – write scripts with the Write tool and change text with the Edit tool.

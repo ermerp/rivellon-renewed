@@ -32,7 +32,7 @@ dgVoodoo2 (`ddraw.dll` + `D3DImm.dll`) therefore covers Direct3D, DirectDraw and
 ## Input, audio, video, dialogs, scripts
 
 - **Input:** no DirectInput. Window messages (`PeekMessageA`/`GetMessageA`) plus `GetAsyncKeyState`/`GetKeyState`/`GetCursorPos` → the mod hooks message retrieval with `WH_GETMESSAGE` (`input.md`); the USER32 functions can be hooked if needed.
-- **Audio:** FMOD 3.x (uses DirectSound/WINMM). Ducking (Phase 7): `FSOUND_SetVolume`, stream functions.
+- **Audio:** FMOD 3.x (uses DirectSound/WINMM). Volume: `FSOUND_SetVolume`, stream functions.
 - **Video:** Bink, sound via `BinkOpenDirectSound`.
 - **Dialogs:** `DivDialogSystem.dll` exports `StartDialog`, `GetNumQuestions`, `GetQuestion` (wide string), `GetAnswerText`, `GetAnswerSoundName`, `SelectQuestion`, `GetQuestionNodeID`, `GetAnswerNodeID` → Phase 6 can work at these exports.
 - **Osiris:** `OsirisDLL.dll` exports `COsiris::Event`, `Load`, `Save`, `InitGame`, `GetStoryVersion`, `ApplyPatchFile`, … (basis of OsirisRE).
@@ -41,4 +41,4 @@ dgVoodoo2 (`ddraw.dll` + `D3DImm.dll`) therefore covers Direct3D, DirectDraw and
 ## Decisions
 
 - **Proxy:** Ultimate ASI Loader as `winmm.dll`, Rivellon Renewed as `.asi`. `div.exe` imports only `winmm.dll` and `version.dll` as suitable system DLLs (`version.dll` = fallback; `dinput.dll` is never loaded; `ddraw.dll`/`D3DImm.dll` belong to dgVoodoo2). `fmod.dll`/`binkw32.dll` import WINMM too, so the loader must forward all WINMM exports (it does). Never install dgVoodoo2's optional `WinMM.dll` alongside it.
-- **Overlay:** base backend draws through the game's own DirectDraw/D3D6 at `DllSlashedEndFrame` – works with Windows ddraw, dgVoodoo2 and WineD3D (Deck). D3D11 via dgVoodoo2 only as an optional backend for Phase 8 shader effects. Backend swappable behind an interface in `src/overlay/`; per-frame logic runs on `DllSlashedStartFrame`/`EndFrame`. ImGui has no D3D6 backend → own renderer for ImGui draw lists. Details and the text-path choice: `overlay.md`, `renderer-d3d6.md`.
+- **Overlay:** base backend draws through the game's own DirectDraw/D3D6 at `DllSlashedEndFrame` – works with Windows ddraw, dgVoodoo2 and WineD3D (Deck). Backend swappable behind an interface in `src/overlay/`; per-frame logic runs on `DllSlashedStartFrame`/`EndFrame`. ImGui has no D3D6 backend. Details and the text-path choice: `overlay.md`, `renderer-d3d6.md`.

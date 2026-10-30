@@ -1,6 +1,6 @@
 # Decisions
 
-One line per decision with its reason; the human keeps these decisions (CLAUDE.md). Rejected approaches: [rejected.md](rejected.md). Full wording before the cleanup: [archive/plan-2026-10.md](archive/plan-2026-10.md).
+One line per decision with its reason; the human keeps these decisions (CLAUDE.md). Rejected approaches: [rejected.md](rejected.md).
 
 ## Project and release
 
@@ -9,33 +9,28 @@ One line per decision with its reason; the human keeps these decisions (CLAUDE.m
 - **MIT license for our code, copyright holder `ermerp`** – usual for mods, fits every bundled component (OFL/DejaVu ship with their license files, MinHook BSD-2 needs its notice); the pseudonym keeps the human's name out of the repo.
 - **Commits under the GitHub noreply address**; user paths and LAN IPs stay out of the repo (Deck IP in Claude's local memory).
 - **Branches: one per feature or fix, merged into `main` with a merge commit after its test, then deleted; a release is a tag on `main`** – simple for one person; `main` may be ahead of the latest release (`CHANGELOG.md` "Unreleased"), users install from Releases. Pushed branches may stay visible on GitHub (hiding them is not worth it).
-- **GitHub page like `ermerp/masterthesis`:** badges latest tag, release date, commits since latest release; releases in the sidebar; short README, details as Markdown sub-pages in `docs/` (GitHub Pages later – it costs money while the repo is private).
+- **GitHub page like `ermerp/masterthesis`:** badges latest tag, release date, commits since latest release; releases in the sidebar; short README, details as Markdown sub-pages in `docs/`.
 - **Release zip built only by `tools/release/New-Release.ps1` from a commit, the ASI loader fetched from its release, our `LICENSE` shipped as `RivellonRenewed\licenses\RivellonRenewed.txt`** – no local copies or uncommitted files can slip in; the loader zip has no license file, so its MIT text comes from the tag's commit; shipping our own license next to the binaries is common practice and shows players the terms (human's OK).
 - **Reproducible builds (`/Brepro`)** – the same commit gives the same `RivellonRenewed.asi` and zip, so anyone can check that a release matches its source (practice of Chromium, Debian, Tor); worth it for an unsigned DLL in the game folder, costs two lines (Claude's decision, delegated by the human).
 - **Credit everything used from others, also inspiration, in `docs/credits.md` (CLAUDE.md rule 14)** – fair to the community and the README thanks need a source; noted at the time of use, because it is forgotten later (human's request).
-- **README states the AI use openly** – honest towards players and modders; the project is developed with Claude Code (human's request).
 - **Every release gets a final run with the release build** – the human's release test plus one start of each earlier automated check (e.g. one new-game start for T1.21-W), not the full matrix.
 - **Docs hygiene check before every release, as a report** (skill `/release`) – rules and docs drift between releases; the human decides what changes (human's rule).
 - **Third-party versions checked before every release (skill `/release`)** – a newer version of dgVoodoo2, the ASI loader, MinHook, stb_truetype or a font is pinned only after the candidate passes its tests with it (human's request).
 - **`CLAUDE.md` under ~150 lines / ~12 KB, release checks in a skill** – it is loaded whole into every session; Anthropic's guidance (code.claude.com/docs/en/memory) targets under 200 lines because long files cost context and weaken adherence; a skill loads only when needed. The earlier ~8 KB had no recorded reason and was too tight.
-- **Sight-range fix in v0.02, not v0.01** – human's choice.
 
 ## Direction
 
-- **Original look, modernized gameplay; after v0.01 gameplay comfort before graphics/HD** – the order of gameplay features comes from the human's play phase (`docs/playtest-log.md`), not from guesses.
-- **The whole game in 16:9 and 16:10, filling the screen** – the Deck is 1280×800 (16:10), so layouts, upscaling and HD work must handle both; 4:3 is secondary. The Deck runs the game at 1280×800, not 1280×720 with bars.
-- **Two presets ("Rivellon Renewed recommended", "technical + fixes only"), exploits kept by default** – the base game stays as players know it; every feature and exploit fix individually switchable.
-- **Course after v0.01: replace subsystems step by step, no full rewrite** – each feature a module with its own logic behind a thin hook layer, only as deep into the engine as the feature needs; the game stays playable at every step and our functions can be compared with the original in-process. A full engine rebuild (roadmap Phase 11) stays an outlook.
-- **Replacements are clean-room, fonts first** – understand with the decompiler (scratchpad only), document in own words, own implementation, comparison test, switchable hook (rule 2). Fonts first (~90 functions, 22 entry points, pixel-exact comparison, no game state; `docs/re/engine-map.md`), then the UI through `CSubWindow`/`CBitmapControl`; the gameplay core only by targeted changes.
+- **The game in 16:9 and 16:10, filling the screen** – the Deck is 1280×800 (16:10); it runs the game at 1280×800, not 1280×720 with bars; 4:3 is secondary.
+- **Replacements are clean-room** – understand with the decompiler (scratchpad only), document in own words, own implementation, comparison test, switchable hook (rule 2). Fonts were the first (~90 functions, 22 entry points, pixel-exact comparison, no game state; `docs/re/engine-map.md`).
 - **No system dependencies (rule 13)** – bundled resources and own code, so one build looks the same on Windows and Proton; unavoidable system parts behind a thin hook layer.
 
 ## Platforms and versions
 
 - **Resolution by the mod: `[Display] Resolution=auto|config|<w>x<h>`, auto = the largest display mode of the primary monitor up to `AutoMaxHeight=1080` lines, the monitor's aspect ratio first; set in memory only, `config.div` untouched** – installation needs no settings (a fresh Steam install starts at 1024×768); the game does not scale, so above 1080 lines figures and text get small (the human plays 1920×1080 on 2560×1440); uninstalling leaves the old resolution. Working copies use `AutoMaxHeight=0`, since work at higher resolutions is the goal.
-- **Full-screen movies (`[Display] FullScreenMovies`, off by default since the desktop flashes during the mode switch – own scaling to be analyzed, `docs/re/open-questions.md`): `resolution switch` set in memory and every movie call allowed to switch to 640×480 and back; status line hidden while a movie plays; dgVoodoo `ScalingMode = stretched_ar` (`[DgVoodoo] Scaling=aspect`)** – Steam lacks the one movie that may switch, so the intro stayed a small box at high resolutions; aspect scaling keeps 4:3 movies undistorted with side bars and changes nothing for 16:9 game resolutions (human's request, T1.29-W).
+- **Full-screen movies (`[Display] FullScreenMovies`, off by default since the desktop flashes during the mode switch): `resolution switch` set in memory and every movie call allowed to switch to 640×480 and back; status line hidden while a movie plays; dgVoodoo `ScalingMode = stretched_ar` (`[DgVoodoo] Scaling=aspect`)** – Steam lacks the one movie that may switch, so the intro stayed a small box at high resolutions; aspect scaling keeps 4:3 movies undistorted with side bars and changes nothing for 16:9 game resolutions (human's request, T1.29-W).
 - **dgVoodoo2 by a setup script, not in the zip; the ASI loader in the zip** – the dgVoodoo2 package carries no license that allows redistribution, the loader is MIT; `RivellonRenewed-Setup.cmd` downloads the pinned version from the official release with visible progress and SHA-256 checks, and also uninstalls (human: the script must run visibly with progress).
 - **Target EXE 1.0062A** (Steam/GOG) – everyone has it, handles 2560×1440; 1.0034A needs a CD-path workaround (`docs/re/patch-134.md`).
-- **Language priority: 1. EN + DE, 2. FR, 3. RU** – EN/DE fully tested; FR same build, spot test per release (accents); RU (own EXE 1.0061) best effort: overlay and input run, original Cyrillic bitmap fonts, `[Fonts] Charset=auto` picks 1251 by EXE hash. Full RU support is open after v0.01.
+- **Language priority: 1. EN + DE, 2. FR, 3. RU** – EN/DE fully tested; FR same build, spot test per release (accents); RU (own EXE 1.0061) best effort: overlay and input run, original Cyrillic bitmap fonts, `[Fonts] Charset=auto` picks 1251 by EXE hash.
 - **Proxy: Ultimate ASI Loader as `winmm.dll`** – `div.exe` imports it; `ddraw.dll`/`D3DImm.dll` belong to dgVoodoo2; coexists with OsirisRE's `osi_extender`.
 - **dgVoodoo2 on Windows only** – it crashes under Proton (T0.6-D).
 - **Every phase tested in `dd-test` (DE) and `dd-test-en` (EN)** – same `div.exe`, different language files.
@@ -64,13 +59,12 @@ One line per decision with its reason; the human keeps these decisions (CLAUDE.m
 - **dgVoodoo's watermark switched by the mod (`[DgVoodoo] Watermark`, default off)** – rewriting one key in `dgVoodoo.conf` at every start is simpler than intercepting its config reads; `keep` leaves the file alone.
 - **Windows full-screen optimizations: README note only, no compatibility flag** – the reported crashes did not show in nine runs (T1.20-W); a registry change by the installer is more invasive.
 - **Fog on by default, the INI is the master (`[Features] Fog=1|0|keep`)** – Steam's `config.div` switches the ground fog off with `no fog`; the game's performance page writes its choice back into the INI.
-- **Overlay base backend: DirectDraw/D3D6 at `DllSlashedEndFrame`** – the only path that works with Windows ddraw, dgVoodoo2 and WineD3D; D3D11 via dgVoodoo2 only optional for Phase 8.
+- **Overlay base backend: DirectDraw/D3D6 at `DllSlashedEndFrame`** – the only path that works with Windows ddraw, dgVoodoo2 and WineD3D.
 - **Overlay text: own glyph blitter through the game's `CD3D6VideoMem`** (`DllSlashedGetInfo(3)`) – repeats the mid-scene lock/write/unlock the game does every frame, so the path is proven on all platforms and pixel formats and allows alpha blending.
 - **Overlay for v0.01: start banner for ~5 s, FPS off by default** (`[Overlay] Status=banner|always|off`, `ShowFps`, `[Keys] ToggleFps` Ctrl+Shift+F2) – the game reads the screen for a save's preview picture, so a permanent overlay ends up in every save. README known issue: FPS can appear in save pictures.
-- **Planned: `[Overlay] HideInCaptures` once the overlay shows lasting content** – hook `CD3D6VideoMem` `+0x30` (the game's only screen read) plus `DllSlashedStartFrame`; a read outside a frame gets the pixels under the panel written into the game's copy (`docs/re/renderer-d3d6.md`).
 - **Start banner in the game's look, top left at fixed pixel sizes (`[Overlay] BannerLook=game`)** – "RIVELLON RENEWED" in the menu family at `fontbig24`'s size, "v0.01" in the load list's white (`fontn2`), "ACTIVE" in the load title's green (`fontgr1`), pen x 18, baseline y 38; capitals because Uncial Antiqua's lowercase misreads. Human's choice (variant 1, `t1.17\03`).
 - **Own option arrows: plain triangles in the original's box and measured style (variant A)** – human's choice from five shapes; smooth like the original, no menu gloss.
-- **Workaround `[Fonts] ShortLabels` (DE "HINTERGRUNDGERÄUSCHE" → "HINTERGRUND")** – the only label over an arrow; back to the original texts when the menus are redesigned, then remove `src/features/shortlabels.*`.
+- **Workaround `[Fonts] ShortLabels` (DE "HINTERGRUNDGERÄUSCHE" → "HINTERGRUND")** – the only label over an arrow.
 
 ## Text and fonts
 

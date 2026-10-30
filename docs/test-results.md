@@ -1,6 +1,6 @@
 # Test results
 
-One line per finished test, newest first. `-W` = Windows, `-D` = Steam Deck. Full protocols up to T1.27: [archive/testing-2026-10.md](archive/testing-2026-10.md) (search for the ID). Procedures: [testing.md](testing.md).
+One line per finished test, newest first. `-W` = Windows, `-D` = Steam Deck. Full protocols up to T1.27: [archive/testing-2026-10.md](archive/testing-2026-10.md) (search for the ID).
 
 | ID | What | Where | Result | Date |
 |---|---|---|---|---|

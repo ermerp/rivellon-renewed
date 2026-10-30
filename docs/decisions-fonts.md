@@ -2,8 +2,8 @@
 
 One line per decision with its reason; part of [decisions.md](decisions.md), which holds all other topics. Rejected approaches: [rejected.md](rejected.md).
 
-- **Text only from vector fonts, no upscaled original glyphs** – scales to any size and is the first step to own material.
-- **Target architecture: one text renderer of our own** (vector glyph plus a style per family: color profile, rim, gloss, texture), shared by game texts, overlay and later own UI. From the originals only measured style parameters, no pixels; effects only where the original has them. Prototype `tools/fontpreview/scene.cpp`.
+- **Text only from vector fonts, no upscaled original glyphs** – scales to any size.
+- **Target architecture: one text renderer of our own** (vector glyph plus a style per family: color profile, rim, gloss, texture), shared by game texts and overlay. From the originals only measured style parameters, no pixels; effects only where the original has them. Prototype `tools/fontpreview/scene.cpp`.
 - **Game texts through own glyph tables in the bitmap path** – each `.fnt` font's glyphs replaced after loading: per-pixel color, per-family faces, own line height (the game re-paginates), no GDI in game; proven by T1.13-W.
 - **v0.01 ships the glyph-table renderer, the GDI path stays as fallback** (`[Fonts] Renderer=glyphs|gdi`).
 - **Faces per family (OFL, bundled):** menu **Uncial Antiqua** (weight 600, gloss variant 5 of `candidates6\Menue-Glanz.pdf`), diary title **Almendra SC** (measured style), interface **Marcellus SC** (600), books/letters **Fondamento** (400) – at the original's capital height; human's choice from five rounds of sheets. Books: at 12 px pitch neighboring lines touch – accepted; `[Family.Books] LineHeight=auto` widens it.
