@@ -19,7 +19,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Static CRT, so the plugin does not depend on a VC++ redistributable (also under Proton).
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 # Reproducible builds: no time stamps in objects and binaries, so the same commit gives the same
-# RivellonRenewed.asi and release zip on every build (tools/release/New-Release.ps1).
+# RivellonRenewed.asi and release zip on every build in the same folder (tools/release/New-Release.ps1;
+# anonymous namespace names depend on the absolute source path).
 add_compile_options(/Brepro)
 add_link_options(/Brepro)
 
