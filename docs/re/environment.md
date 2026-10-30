@@ -20,7 +20,7 @@ Quick static analysis without Ghidra: `dumpbin /disasm:nobytes [/range:a,b] div.
 
 ## Downloads (verified)
 
-- **Ultimate ASI Loader 9.7.4:** `github.com/ThirteenAG/Ultimate-ASI-Loader`, `Ultimate-ASI-Loader-NoPDB.zip` (SHA-256 = GitHub digest); x86 `dinput8.dll` SHA-256 `EC2F4824ECA58DD40F425756A4A7CEC77B8E381F21D11D7C846EC4B339B617AB`, installed as `winmm.dll` (forwards all WINMM exports).
+- **Ultimate ASI Loader 9.7.4:** `github.com/ThirteenAG/Ultimate-ASI-Loader`, `Ultimate-ASI-Loader-NoPDB.zip` SHA-256 `14b3a1ad018899571ac9aa01482977f3c6d49e6cba99f552d01c5acacd1315e1` (= GitHub digest; holds only `dinput8.dll`, no license – the release script takes `license` from the tag's commit `6b440669`, SHA-256 `ceca73c5…f5a1`, git blob checked against the tree); x86 `dinput8.dll` SHA-256 `EC2F4824ECA58DD40F425756A4A7CEC77B8E381F21D11D7C846EC4B339B617AB`, installed as `winmm.dll` (forwards all WINMM exports).
 - **dgVoodoo2 2.87.5:** `github.com/dege-diosg/dgVoodoo2`, `dgVoodoo2_87_5.zip` SHA-256 `5ffde6927f7355ca3fdd5d785b581256a8e6539fa13e395a891ade6ba1040850` (= GitHub digest). 2.87.3 also downloaded for a later Deck test.
 
 - **DejaVu 2.37 (comparison sheet, not shipped):** `dejavu-fonts-ttf-2.37.zip` from the project's GitHub release (`dejavu-fonts/dejavu-fonts`, tag `version_2_37`), in `C:\dev\downloads\dejavu_2_37`. No SHA-256 published; checked against the MD5 `33e1e61fab06a547851ed308b4ffef42` in the project's SourceForge file listing (second official download location). SHA-256 `7576310B219E04159D35FF61DD4A4EC4CDBA4F35C00E002A136F00E96A908B0A`. License: Bitstream Vera / DejaVu (free redistribution; modified versions must be renamed) – not OFL.
