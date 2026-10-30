@@ -13,7 +13,7 @@ This file holds only rules that apply in every session. Workflows and pitfalls: 
 | Long-term phases / decisions about planned work (local) | `local/roadmap.md` / `local/decisions-planned.md` |
 | Decisions / rejected approaches (one line + why) | `docs/decisions.md` (fonts: `docs/decisions-fonts.md`) / `docs/rejected.md` |
 | Incidents behind rules | `docs/lessons.md` |
-| RE findings by topic (index first) | `docs/re/README.md`, open questions (local) in `local/open-questions.md` |
+| RE findings by topic (index first) | `docs/re/README.md`, open questions (local) in `local/open-questions.md` (seen in tests/play) and `local/open-questions-re.md` (research) |
 | Test instructions for the human (local) / one-line results | `local/testing.md` / `docs/test-results.md` |
 | Commands, tools, pitfalls / Deck / input sequences | `docs/dev/workflow.md` / `docs/dev/steam-deck.md` / `docs/dev/test-sequences.md` |
 | Credits: everything used from others, also inspiration | `docs/credits.md` |
@@ -29,9 +29,9 @@ Read this file, `local/PLAN.md`, the first 10 lines of the table in `CHANGELOG.m
 - `CHANGELOG.md`: one line per finished step. A new or changed feature: its line in `README.md` "Features" and its section in `docs/features.md`; after v0.01 also a release-note line under "Unreleased".
 - `docs/decisions.md` / `docs/rejected.md`: one line each, with the reason. An incident that created a rule: one row in `docs/lessons.md`.
 - A new or changed feature: is its test still right, is one missing (`tests/`, `docs/dev/test-sequences.md`, `local/Run-ReleaseCheck.ps1`)? Only a look at the files – propose, no game start.
-- Findings into the matching `docs/re/<topic>.md` (a new file gets a line in `docs/re/README.md`); keep `local/open-questions.md` current. Test results: one line in `docs/test-results.md`.
+- Findings into the matching `docs/re/<topic>.md` (a new file gets a line in `docs/re/README.md`); keep `local/open-questions.md` and `local/open-questions-re.md` current. Test results: one line in `docs/test-results.md`.
 - New commands, tools and pitfalls go to `docs/dev/`, not here.
-- **Size check:** a file over ~15 KB (except `docs/archive/`) → propose a split.
+- **Size check:** a doc file (`.md`) over ~15 KB (except `docs/archive/`; scripts are split by their structure, not their size) → propose a split.
 - Propose a commit message (English, with the attribution line) and **commit only after the human confirms**.
 
 ## Language
@@ -94,4 +94,4 @@ Read this file, `local/PLAN.md`, the first 10 lines of the table in `CHANGELOG.m
 
 ## Workflow per feature
 
-Investigate → document in `docs/re/` → implement minimally behind a feature flag → test instructions in `local/testing.md` → expand and harden → commit. **Every phase is tested in `dd-test` (DE) and `dd-test-en` (EN)**; every graphics/overlay change on PC **and** Deck. Build and test commands: `docs/dev/workflow.md`.
+Investigate (first search `local/open-questions*.md` for the topic's `docs/re/` file) → document in `docs/re/` → implement minimally behind a feature flag → test instructions in `local/testing.md` → expand and harden → commit. **Every phase is tested in `dd-test` (DE) and `dd-test-en` (EN)**; every graphics/overlay change on PC **and** Deck. Build and test commands: `docs/dev/workflow.md`.
