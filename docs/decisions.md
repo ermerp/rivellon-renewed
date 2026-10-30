@@ -75,5 +75,6 @@ In [decisions-fonts.md](decisions-fonts.md).
 ## Testing
 
 - **Automated walkthroughs by real input (`Start-GameTest.ps1 -Steps`) with known sequences** – only when the human has said the PC is free.
+- **`Start-GameTest.ps1` runs in full screen by default (`-Windowed` for the old way), all-black shots are kept and marked `-BLACK`** – players run borderless full screen, and a real black screen must show up in the results instead of being skipped.
 - **`Start-GameTest.ps1 -Intro`** – the EN copy ships `startup logo 0`; DE and EN must run under the same conditions.
 - **Resolution tests set `config.div` and offsets 0x0C/0x10 of `slashed-d3d6.cfg` directly** instead of running `configtool.exe` – scriptable, same effect.
