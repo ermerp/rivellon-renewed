@@ -22,6 +22,7 @@ One line per finished step, newest first (`docs/test-results.md` for the tests).
 
 | Date | Step |
 |---|---|
+| 2026-10-30 | v0.01 step 7.2 done: installation without settings – setup by double click passed (T1.32-W); black screen at a new game not reproduced (T1.33-W) |
 | 2026-10-25 | Setup script: downloads the pinned dgVoodoo2 (progress, SHA-256 check) and uninstalls the mod; full-screen movies off by default (T1.31-W) |
 | 2026-10-25 | Resolution picked by the mod, full-screen movies, dgVoodoo aspect scaling; fresh Steam install analyzed (T1.28-W, T1.29-W, T1.30-D) |
 | 2026-10-25 | Play copy `dd-play` updated to the T1.27 build |
