@@ -2,19 +2,7 @@
 
 ## Unreleased (v0.01)
 
-Every feature can be switched off in `RivellonRenewed.ini`.
-
-- Game texts in vector faces in the game's own look: menu (Uncial Antiqua), diary title (Almendra SC), interface (Marcellus SC), books and letters (Fondamento, wider line pitch), dialog (DejaVu Sans Condensed Bold); the same pixels on Windows and Steam Deck.
-- The game starts in the monitor's resolution, up to 1080 lines by default (1280×800 on the Steam Deck) – no configuration tool needed; `config.div` stays unchanged.
-- Optional: intro and story movies fill the screen (`[Display] FullScreenMovies=1`, 4:3 with black bars at the sides).
-- Borderless full screen through dgVoodoo2 (Alt+Tab works), dgVoodoo watermark off.
-- Windows setup by double click (`RivellonRenewed-Setup.cmd`): fetches dgVoodoo2 from its official release and checks it; also uninstalls the mod.
-- F10 and a lone Alt no longer freeze the game.
-- Key repeat for Backspace, Delete, Left and Right in text fields.
-- Smaller walk/run circle (225 px at every resolution) and double click to run.
-- Ground fog on, kept in sync with the game's performance page.
-- Start banner "Rivellon Renewed v0.01 active" for a few seconds; FPS display on Ctrl+Shift+F2.
-- Russian edition: overlay and input only, original fonts (best effort).
+First release. Its features: [README.md](README.md#features-v001), in detail with their settings: [docs/features.md](docs/features.md).
 
 ## Steps
 
@@ -22,6 +10,7 @@ One line per finished step, newest first (`docs/test-results.md` for the tests).
 
 | Date | Step |
 |---|---|
+| 2026-10-30 | v0.01 step 7.4: README for players (install/uninstall on Windows and Deck, known issues, thanks, AI note), banner, `THIRD-PARTY-NOTICES.md`, `docs/features.md`, `docs/how-the-game-works.md` |
 | 2026-10-30 | Release zip ships the MinHook license (BSD-2 notice) (T1.36-W) |
 | 2026-10-30 | Original menu face identified as Lombardic (Marty Snyder's shareware copy of Goudy's capitals) – not usable (license) |
 | 2026-10-30 | Reproducible builds: the same commit gives a byte-identical release zip (T1.35-W) |

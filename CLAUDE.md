@@ -9,7 +9,7 @@ This file holds only rules that apply in every session. Workflows and pitfalls: 
 | What | File |
 |---|---|
 | Status, next step, release path (local) | `local/PLAN.md` |
-| Finished steps, release notes ("Unreleased") | `CHANGELOG.md` |
+| Finished steps, release notes ("Unreleased") / feature list for players, feature details | `CHANGELOG.md` / `README.md` "Features", `docs/features.md` |
 | Long-term phases / decisions about planned work (local) | `local/roadmap.md` / `local/decisions-planned.md` |
 | Decisions / rejected approaches (one line + why) | `docs/decisions.md` (fonts: `docs/decisions-fonts.md`) / `docs/rejected.md` |
 | Incidents behind rules | `docs/lessons.md` |
@@ -26,7 +26,7 @@ Read this file, `local/PLAN.md`, the first 10 lines of the table in `CHANGELOG.m
 ## Session wrap-up (`/wrapup`)
 
 - `local/PLAN.md` "Current status": replace, don't add – where we are, next concrete step, what waits for the human, state of the working copies.
-- `CHANGELOG.md`: one line per finished step (and the user-facing line under "Unreleased" for a new feature).
+- `CHANGELOG.md`: one line per finished step. A new or changed feature: its line in `README.md` "Features" and its section in `docs/features.md`; after v0.01 also a release-note line under "Unreleased".
 - `docs/decisions.md` / `docs/rejected.md`: one line each, with the reason. An incident that created a rule: one row in `docs/lessons.md`.
 - Findings into the matching `docs/re/<topic>.md` (a new file gets a line in `docs/re/README.md`); keep `local/open-questions.md` current. Test results: one line in `docs/test-results.md`.
 - New commands, tools and pitfalls go to `docs/dev/`, not here.
