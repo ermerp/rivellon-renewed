@@ -6,7 +6,7 @@ Everything from others that Rivellon Renewed uses – code, data, tools, knowled
 
 - **Ultimate ASI Loader** – ThirteenAG, `github.com/ThirteenAG/Ultimate-ASI-Loader` (MIT); loads `RivellonRenewed.asi`, shipped as `winmm.dll`.
 - **dgVoodoo2** – Dege, `github.com/dege-diosg/dgVoodoo2`; DirectX wrapper for borderless full screen and scaling, downloaded by the setup.
-- **MinHook** – Tsuda Kageyu, `github.com/TsudaKageyu/minhook` (BSD-2); function hooks.
+- **MinHook** – Tsuda Kageyu, `github.com/TsudaKageyu/minhook` (BSD-2), with the Hacker Disassembler Engine 32 by Vyacheslav Patkov (BSD-2); function hooks.
 - **stb_truetype** – Sean Barrett, `github.com/nothings/stb` (public domain / MIT); outlines of the bundled faces.
 - **Fonts** (via `github.com/google/fonts`, OFL): Uncial Antiqua, Fondamento and Marcellus SC by Brian J. Bonislawsky (Astigmatic); Almendra SC by Ana Sanfelippo. **DejaVu Sans Condensed Bold** – DejaVu fonts team, `dejavu-fonts.github.io` (Bitstream Vera license).
 

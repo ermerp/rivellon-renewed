@@ -97,6 +97,9 @@ $entries = [ordered]@{
     "$Stem/setup.ps1"                             = Join-Path $src 'setup\setup.ps1'
     "$Stem/licenses/$Stem.txt"                    = Join-Path $src 'LICENSE'
     "$Stem/licenses/Ultimate-ASI-Loader.txt"      = $loaderLicense
+    # Linked into RivellonRenewed.asi; BSD-2 asks for its notice with every binary. From the pinned
+    # FetchContent checkout (CMakeLists.txt). stb_truetype is used under its public-domain option.
+    "$Stem/licenses/MinHook.txt"                  = Join-Path $build '_deps\minhook-src\LICENSE.txt'
 }
 foreach ($font in Get-ChildItem -LiteralPath (Join-Path $src 'assets\fonts') -File | Sort-Object Name) {
     $entries["$Stem/fonts/$($font.Name)"] = $font.FullName
