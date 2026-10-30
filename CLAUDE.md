@@ -28,6 +28,7 @@ Read this file, `local/PLAN.md`, the first 10 lines of the table in `CHANGELOG.m
 - `local/PLAN.md` "Current status": replace, don't add – where we are, next concrete step, what waits for the human, state of the working copies.
 - `CHANGELOG.md`: one line per finished step. A new or changed feature: its line in `README.md` "Features" and its section in `docs/features.md`; after v0.01 also a release-note line under "Unreleased".
 - `docs/decisions.md` / `docs/rejected.md`: one line each, with the reason. An incident that created a rule: one row in `docs/lessons.md`.
+- A new or changed feature: is its test still right, is one missing (`tests/`, `docs/dev/test-sequences.md`, `local/Run-ReleaseCheck.ps1`)? Only a look at the files – propose, no game start.
 - Findings into the matching `docs/re/<topic>.md` (a new file gets a line in `docs/re/README.md`); keep `local/open-questions.md` current. Test results: one line in `docs/test-results.md`.
 - New commands, tools and pitfalls go to `docs/dev/`, not here.
 - **Size check:** a file over ~15 KB (except `docs/archive/`) → propose a split.
@@ -89,7 +90,7 @@ Read this file, `local/PLAN.md`, the first 10 lines of the table in `CHANGELOG.m
 
 ## Release
 
-- **Before every release candidate and before the tag run `/release`** (dependency check and docs hygiene check, `.claude/skills/release/`).
+- **Before every release candidate and before the tag run `/release`** (dependency check, test coverage check, docs hygiene check, `.claude/skills/release/`).
 
 ## Workflow per feature
 
