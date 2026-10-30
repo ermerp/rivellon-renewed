@@ -29,10 +29,11 @@ No game start – a comparison of the docs and test files. For every feature in 
 (a) Are the rules in `CLAUDE.md` and its documentation rules still current and useful? Name outdated or never-applied rules.
 
 (b) Are they kept?
-- File sizes: ≤ 15 KB except `docs/archive/`; `CLAUDE.md` within its limit.
+- File sizes: doc files (`.md`) ≤ 15 KB except `docs/archive/`; `CLAUDE.md` within its limit.
 - Every fact in one place only, no dead links.
 - `local/PLAN.md` status current; nothing planned or unfinished in the public files (CLAUDE.md, documentation rules).
 - `CHANGELOG.md` "Unreleased" complete as release notes; `README.md` "Features" and `docs/features.md` match what is built.
 - `docs/decisions.md` / `docs/rejected.md` without contradictions to the code.
+- `local/open-questions-re.md`: name the entries the next phase (`local/roadmap.md`) needs.
 
 Result: one report with proposals to the human.
