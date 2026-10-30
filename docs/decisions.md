@@ -17,6 +17,7 @@ One line per decision with its reason; the human keeps these decisions (CLAUDE.m
 - **Credit everything used from others, also inspiration, in `docs/credits.md` (CLAUDE.md rule 14)** – fair to the community and the README thanks need a source; noted at the time of use, because it is forgotten later (human's request).
 - **Every release gets a final run with the release build** – the human's release test plus one start of each earlier automated check (e.g. one new-game start for T1.21-W), not the full matrix.
 - **Docs hygiene check before every release, as a report** (skill `/release`) – rules and docs drift between releases; the human decides what changes (human's rule).
+- **Test coverage check before every release (`/release`) and a test look at every wrap-up with a new or changed feature** – tests only grew when someone remembered; a look at the files, no game start (human's rule).
 - **Third-party versions checked before every release (skill `/release`)** – a newer version of dgVoodoo2, the ASI loader, MinHook, stb_truetype or a font is pinned only after the candidate passes its tests with it (human's request).
 - **`CLAUDE.md` under ~150 lines / ~12 KB, release checks in a skill** – it is loaded whole into every session; Anthropic's guidance (code.claude.com/docs/en/memory) targets under 200 lines because long files cost context and weaken adherence; a skill loads only when needed. The earlier ~8 KB had no recorded reason and was too tight.
 
