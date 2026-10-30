@@ -69,7 +69,7 @@ Renders with the overlay's text code; game `.fnt` files are read from a working 
 
 ## README banner (`tools/banner/New-Banner.ps1`)
 
-Renders `docs/images/banner.png` (1280×640, also the GitHub social preview – upload it by hand under Settings → Social preview) from the bundled Uncial Antiqua; Windows PowerShell 5.1, deterministic (same bytes on every run).
+Renders the banner from the bundled Uncial Antiqua; Windows PowerShell 5.1, deterministic (same bytes on every run). README: `-Out docs\images\banner.png -Height 400 -Transparent`; social preview (1280×640 on dark stone, upload by hand under Settings → Social preview): `-Out docs\images\social-preview.png`.
 
 ## Function coverage (`ddmod_coverage`, `docs/re/engine-map.md`)
 

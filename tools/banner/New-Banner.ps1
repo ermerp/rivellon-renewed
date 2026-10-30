@@ -1,15 +1,16 @@
-# Renders the README banner and GitHub social preview (docs/images/banner.png, 1280x640):
-# "RIVELLON / RENEWED" in the bundled Uncial Antiqua (OFL), in the main menu's capital color with a
-# shine across the strokes, black edge and shadow, on dark stone. Our own drawing, no game content.
-# Windows PowerShell 5.1 (System.Drawing).
+# Renders the banner: "RIVELLON / RENEWED" in the bundled Uncial Antiqua (OFL), in the main menu's
+# capital color with a shine across the strokes, black edge and shadow, on dark stone (or
+# transparent). Our own drawing, no game content. Windows PowerShell 5.1 (System.Drawing).
 #
-#   tools\banner\New-Banner.ps1 [-Out docs\images\banner.png]
-param([string]$Out = (Join-Path $PSScriptRoot '..\..\docs\images\banner.png'))
+#   tools\banner\New-Banner.ps1 [-Out <png>] [-Height <px>] [-Transparent]
+#   social preview: -Height 640 (1280x640, GitHub's size); README: a flatter height
+param([string]$Out = (Join-Path $PSScriptRoot '..\..\docs\images\banner.png'), [int]$Height = 640, [switch]$Transparent)
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
-$W = 1280; $H = 640
+$W = 1280; $H = $Height
+$dy = ($H - 640) / 2  # the text is laid out for 640 lines and kept centered
 $fonts = New-Object System.Drawing.Text.PrivateFontCollection
 $fonts.AddFontFile((Join-Path $PSScriptRoot '..\..\assets\fonts\UncialAntiqua-Regular.ttf'))
 $family = $fonts.Families[0]
@@ -21,27 +22,29 @@ $g.SmoothingMode = 'AntiAlias'
 $rect = New-Object System.Drawing.Rectangle 0, 0, $W, $H
 
 # Background: dark stone with fine grain and a vignette.
-$g.FillRectangle((New-Object System.Drawing.Drawing2D.LinearGradientBrush $rect, (C '#1E1A16'), (C '#0A0908'), 90), $rect)
-$rnd = New-Object Random 7
-for ($i = 0; $i -lt ($W * $H / 18); $i++) {
-    $v = $rnd.Next(0, 255)
-    $grain = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(22, $v, $v, $v))
-    $g.FillRectangle($grain, $rnd.Next(0, $W), $rnd.Next(0, $H), 2, 2)
-    $grain.Dispose()
+if (-not $Transparent) {
+    $g.FillRectangle((New-Object System.Drawing.Drawing2D.LinearGradientBrush $rect, (C '#1E1A16'), (C '#0A0908'), 90), $rect)
+    $rnd = New-Object Random 7
+    for ($i = 0; $i -lt ($W * $H / 18); $i++) {
+        $v = $rnd.Next(0, 255)
+        $grain = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(22, $v, $v, $v))
+        $g.FillRectangle($grain, $rnd.Next(0, $W), $rnd.Next(0, $H), 2, 2)
+        $grain.Dispose()
+    }
+    $ellipse = New-Object System.Drawing.Drawing2D.GraphicsPath
+    $ellipse.AddEllipse(-$W * 0.25, -$H * 0.35, $W * 1.5, $H * 1.7)
+    $vignette = New-Object System.Drawing.Drawing2D.PathGradientBrush $ellipse
+    $vignette.CenterColor = [System.Drawing.Color]::FromArgb(0, 0, 0, 0)
+    $vignette.SurroundColors = @([System.Drawing.Color]::FromArgb(150, 0, 0, 0))
+    $g.FillRectangle($vignette, $rect)
 }
-$ellipse = New-Object System.Drawing.Drawing2D.GraphicsPath
-$ellipse.AddEllipse(-$W * 0.25, -$H * 0.35, $W * 1.5, $H * 1.7)
-$vignette = New-Object System.Drawing.Drawing2D.PathGradientBrush $ellipse
-$vignette.CenterColor = [System.Drawing.Color]::FromArgb(0, 0, 0, 0)
-$vignette.SurroundColors = @([System.Drawing.Color]::FromArgb(150, 0, 0, 0))
-$g.FillRectangle($vignette, $rect)
 
 # Lines: text, size in pixels, vertical center.
 $format = New-Object System.Drawing.StringFormat
 $format.Alignment = 'Center'; $format.LineAlignment = 'Center'
 foreach ($line in @(@('RIVELLON', 170, 260), @('RENEWED', 104, 430))) {
     $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $path.AddString($line[0], $family, 0, [single]$line[1], (New-Object System.Drawing.PointF ($W / 2), $line[2]), $format)
+    $path.AddString($line[0], $family, 0, [single]$line[1], (New-Object System.Drawing.PointF ($W / 2), ($line[2] + $dy)), $format)
     $shadow = $path.Clone()
     $offset = New-Object System.Drawing.Drawing2D.Matrix; $offset.Translate(5, 6); $shadow.Transform($offset)
     $g.FillPath((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(170, 0, 0, 0))), $shadow)
