@@ -36,6 +36,8 @@
 *.jpg
 *.jpeg
 *.webp
+# Exception: our own rendered images (no game content), made by tools/banner/
+!/docs/images/*.png
 
 # --- Local only: plan, open questions, test instructions (own private repo, CLAUDE.md) ---
 /local/

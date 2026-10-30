@@ -73,5 +73,7 @@ One line each, with why – so they are not tried again. Rejected test methods a
 
 ## Tools
 
+- Banner in brown ink on parchment with a matching README – GitHub strips styles from READMEs, so the rest of the page cannot follow the parchment look.
+
 - Coverage breakpoints from process start together with `RivellonRenewed.asi` – the mod's scans and MinHook read the patched entry bytes; `defer-window` starts at the game window.
 - Mapping exception funclets to their parent through the unwind tables – Ghidra keeps no usable chain; the handler stub after a function's funclets is referenced by the parent's prologue (forward scan).

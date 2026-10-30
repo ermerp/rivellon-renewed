@@ -24,7 +24,7 @@ For every third-party component we use (`THIRD-PARTY-NOTICES.md`: dgVoodoo2, Ult
 - File sizes: ≤ 15 KB except `docs/archive/`; `CLAUDE.md` within its limit.
 - Every fact in one place only, no dead links.
 - `local/PLAN.md` status current; nothing planned or unfinished in the public files (CLAUDE.md, documentation rules).
-- `CHANGELOG.md` "Unreleased" complete as release notes.
+- `CHANGELOG.md` "Unreleased" complete as release notes; `README.md` "Features" and `docs/features.md` match what is built.
 - `docs/decisions.md` / `docs/rejected.md` without contradictions to the code.
 
 Result: one report with proposals to the human.

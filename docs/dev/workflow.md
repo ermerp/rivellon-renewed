@@ -67,6 +67,10 @@ foreach ($dir in 'C:\dev\dd-test', 'C:\dev\dd-test-en') {
 
 Renders with the overlay's text code; game `.fnt` files are read from a working copy (copies only in the scratchpad).
 
+## README banner (`tools/banner/New-Banner.ps1`)
+
+Renders `docs/images/banner.png` (1280×640, also the GitHub social preview – upload it by hand under Settings → Social preview) from the bundled Uncial Antiqua; Windows PowerShell 5.1, deterministic (same bytes on every run).
+
 ## Function coverage (`ddmod_coverage`, `docs/re/engine-map.md`)
 
 `build/Release/ddmod_coverage.asi` plus `ddmod_coverage.in` (line `timestamp <PE TimeDateStamp hex>`, optional line `defer-window`, then one function address per line, made from the Ghidra export in the scratchpad) into a working copy. Without `defer-window` it measures from the start, but `RivellonRenewed.asi` must be renamed away (its scans read the patched bytes); with `defer-window` it starts at the game window and runs beside the mod. Result per start `ddmod_coverage-<start time>.out` (address, ms of first hit) – copy them out, then remove the tool's files.
