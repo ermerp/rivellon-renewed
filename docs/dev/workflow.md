@@ -9,6 +9,13 @@ Build, install, test scripts and tools on the Windows dev PC. Rules: `CLAUDE.md`
 - Unit tests (no game needed): `ctest -C Release --test-dir build --output-on-failure` – read the whole output, never filter it.
 - A new unit test must have failed once: build the defect it guards against in a separate `git worktree` (never by checkout in the working tree) and show the failure.
 
+## Release zip (`tools/release/New-Release.ps1`)
+
+- `.\tools\release\New-Release.ps1 [-Ref <commit>] [-Suffix rc1]` → `build\dist\RivellonRenewed-<version>[-<suffix>].zip` and `<zip>.sha256` (`MOD_VERSION` from `CMakeLists.txt`). Builds only committed files (`git archive` of `-Ref`, default `HEAD`; it warns about uncommitted changes), x86 Release, unit tests must pass; a few minutes (MinHook and stb are fetched fresh).
+- Fetches Ultimate ASI Loader from its GitHub release and its license from the tag's commit; pinned SHA-256 at the top of the script; the loader DLL must match `$AsiLoaderSha256` in `setup/setup.ps1`, so the uninstaller recognizes it. New version: `/release`, dependency check.
+- Layout (paths in the game folder): `winmm.dll` (the loader), `RivellonRenewed.asi`, `RivellonRenewed.ini`, `RivellonRenewed-Setup.cmd`, `RivellonRenewed\setup.ps1`, `RivellonRenewed\licenses\` (`RivellonRenewed.txt` = our `LICENSE`, `Ultimate-ASI-Loader.txt`), `RivellonRenewed\fonts\` (all of `assets\fonts`). The script reads the zip back and compares every entry with its source.
+- Smoke test of a zip: `robocopy C:\dev\dd-steam-clean C:\dev\dd-test-first /MIR`, `Expand-Archive <zip> C:\dev\dd-test-first`, `RivellonRenewed\setup.ps1 -Install -NoPause`, `Start-GameTest.ps1 -NoIntro`, `setup.ps1 -Uninstall -NoPause`, then `robocopy … /L /MIR` – only files the game writes itself may differ.
+
 ## Install into a working copy (`tools/testrun/DdTest.psm1`)
 
 The module refuses the Steam folder.
