@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased (v0.01)
+## Unreleased
+
+Nothing yet.
+
+## v0.01 – 2026-10-30
 
 First release. Its features: [README.md](README.md#features-v001), in detail with their settings: [docs/features.md](docs/features.md).
 
@@ -10,6 +14,7 @@ One line per finished step, newest first (`docs/test-results.md` for the tests).
 
 | Date | Step |
 |---|---|
+| 2026-10-30 | v0.01 step 7.6: release checks (versions kept, coverage and docs reports), secret scan and history rewrite before going public (T1.39-W); release zip `RivellonRenewed-0.01.zip` – same files as rc1 |
 | 2026-10-30 | v0.01 step 7.5: release test of rc1 by the human passed on Windows and the Deck (T1.38-W/-D); README Deck installation clarified, known issue for the paused new-game start; `/release` and wrap-up check test coverage |
 | 2026-10-30 | Automated tests in borderless full screen by default (`-Windowed` for the old way, all-black shots kept); release check of rc1 passed in DE and EN incl. a new-game start (T1.37-W) |
 | 2026-10-30 | v0.01 step 7.4: README for players (install/uninstall on Windows and Deck, known issues, thanks, AI note), banner, `THIRD-PARTY-NOTICES.md`, `docs/features.md`, `docs/how-the-game-works.md` |
