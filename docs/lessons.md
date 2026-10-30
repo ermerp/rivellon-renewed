@@ -4,6 +4,7 @@ Incidents that led to a rule or a way of working – what happened, and what we 
 
 | Date | What happened | What we do since |
 |---|---|---|
+| 2026-10-30 | The automated first-start test (T1.33-W) missed every time: timings were measured on a copy that had already been started (menu after ~48 s), but a first start plays the whole intro (~90 s); clicks only skipped movies, and the mouse at 0.9 hit "Beenden" at 1024×768. | First-start and new-game checks that depend on human-like input: the human runs them by hand from written steps; automated runs calibrate on the same state (never-started copy) and check the menu by a shot before clicking. |
 | 2026-10-25 | GDI accepted the font chain entry `Tahoma @ DejaVu…ttf` – it picks an installed font of the same name even when the given file does not hold it (T1.27). | A chain entry is checked against the file's own `name` table, never by asking the OS. |
 | 2026-10-25 | The T1.24-D click points for inventory, letter and book missed in the next save state – those windows open where the save puts them. | On the Deck navigate step by step with a shot after each action. |
 | 2026-10-24 | The Deck's game folder held a third-party font tweak from earlier (36 replaced `.fnt` files) – it falsified the interface sizes and the dialog font in T1.24-D. | Before a platform comparison: clean install, check the game folder for foreign changes first (`deck.sh check`). |
