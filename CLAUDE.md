@@ -11,7 +11,7 @@ This file holds only rules that apply in every session. Workflows and pitfalls: 
 | Status, next step, v0.01 path | `PLAN.md` |
 | Finished steps, release notes ("Unreleased") | `CHANGELOG.md` |
 | Long-term phases | `docs/roadmap.md` |
-| Decisions / rejected approaches (one line + why) | `docs/decisions.md` / `docs/rejected.md` |
+| Decisions / rejected approaches (one line + why) | `docs/decisions.md` (fonts: `docs/decisions-fonts.md`) / `docs/rejected.md` |
 | Incidents behind rules | `docs/lessons.md` |
 | RE findings by topic (index first) | `docs/re/README.md`, open questions in `docs/re/open-questions.md` |
 | Test instructions for the human / one-line results | `docs/testing.md` / `docs/test-results.md` |
@@ -58,7 +58,7 @@ Read this file, `PLAN.md`, the first 10 lines of the table in `CHANGELOG.md`, `g
 - **One place per fact:** every fact stands in exactly one file (table above); the others link to it.
 - **Update instead of append:** change the existing statement, delete what is outdated. No history in the maintained docs – dates only in `CHANGELOG.md`, `docs/lessons.md`, `docs/test-results.md`; `docs/archive/` is never updated.
 - **When shortening or moving text,** compare against the old version and report which numbers, addresses and dates are gone.
-- `CLAUDE.md` stays under ~8 KB: rules only, no findings, no status.
+- `CLAUDE.md` stays under ~150 lines / ~12 KB: rules only, no findings, no status; procedures needed only at times go into a skill (`.claude/skills/`).
 
 ## Paths (dev PC, Windows 11)
 
@@ -87,7 +87,7 @@ Read this file, `PLAN.md`, the first 10 lines of the table in `CHANGELOG.md`, `g
 
 ## Release
 
-- **Docs hygiene check before every release:** (a) are the rules in this file and the documentation rules still current and useful? Name outdated or never-applied rules. (b) Are they kept? File sizes (≤ 15 KB except `docs/archive/`), every fact in one place only, no dead links, `PLAN.md` status current, `CHANGELOG.md` "Unreleased" complete as release notes, `docs/decisions.md`/`docs/rejected.md` without contradictions to the code. Result as a report with proposals to the human – change nothing silently.
+- **Before every release candidate and before the tag run `/release`** (dependency check and docs hygiene check, `.claude/skills/release/`).
 
 ## Workflow per feature
 

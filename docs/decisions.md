@@ -11,7 +11,9 @@ One line per decision with its reason; the human keeps these decisions (CLAUDE.m
 - **Branches: one per feature or fix, merged into `main` with a merge commit after its test, then deleted; a release is a tag on `main`** – simple for one person; `main` may be ahead of the latest release (`CHANGELOG.md` "Unreleased"), users install from Releases. Pushed branches may stay visible on GitHub (hiding them is not worth it).
 - **GitHub page like `ermerp/masterthesis`:** badges latest tag, release date, commits since latest release; releases in the sidebar; short README, details as Markdown sub-pages in `docs/` (GitHub Pages later – it costs money while the repo is private).
 - **Every release gets a final run with the release build** – the human's release test plus one start of each earlier automated check (e.g. one new-game start for T1.21-W), not the full matrix.
-- **Docs hygiene check before every release, as a report** (`CLAUDE.md`, Release) – rules and docs drift between releases; the human decides what changes (human's rule).
+- **Docs hygiene check before every release, as a report** (skill `/release`) – rules and docs drift between releases; the human decides what changes (human's rule).
+- **Third-party versions checked before every release (skill `/release`)** – a newer version of dgVoodoo2, the ASI loader, MinHook, stb_truetype or a font is pinned only after the candidate passes its tests with it (human's request).
+- **`CLAUDE.md` under ~150 lines / ~12 KB, release checks in a skill** – it is loaded whole into every session; Anthropic's guidance (code.claude.com/docs/en/memory) targets under 200 lines because long files cost context and weaken adherence; a skill loads only when needed. The earlier ~8 KB had no recorded reason and was too tight.
 - **Sight-range fix in v0.02, not v0.01** – human's choice.
 
 ## Direction
@@ -68,18 +70,7 @@ One line per decision with its reason; the human keeps these decisions (CLAUDE.m
 
 ## Text and fonts
 
-- **Text only from vector fonts, no upscaled original glyphs** – scales to any size and is the first step to own material.
-- **Target architecture: one text renderer of our own** (vector glyph plus a style per family: color profile, rim, gloss, texture), shared by game texts, overlay and later own UI. From the originals only measured style parameters, no pixels; effects only where the original has them. Prototype `tools/fontpreview/scene.cpp`.
-- **Game texts through own glyph tables in the bitmap path** – each `.fnt` font's glyphs replaced after loading: per-pixel color, per-family faces, own line height (the game re-paginates), no GDI in game; proven by T1.13-W.
-- **v0.01 ships the glyph-table renderer, the GDI path stays as fallback** (`[Fonts] Renderer=glyphs|gdi`).
-- **Faces per family (OFL, bundled):** menu **Uncial Antiqua** (weight 600, gloss variant 5 of `candidates6\Menue-Glanz.pdf`), diary title **Almendra SC** (measured style), interface **Marcellus SC** (600), books/letters **Fondamento** (400) – at the original's capital height; human's choice from five rounds of sheets. Books: at 12 px pitch neighboring lines touch – accepted; `[Family.Books] LineHeight=auto` widens it.
-- **Dialog and overlay: the bundled DejaVu Sans Condensed Bold through the own rasterizer on every platform; Tahoma removed** – Tahoma is not shippable and Wine's look-alike is thinner (T1.26-D); DejaVu is pixel-identical on Windows and the Deck and has Cyrillic. The font chain takes only `Face @ file` entries whose file names that face.
-- **Own rasterizing of the bundled faces: stb_truetype plus own emboldening (plan B), not GDI (`[Fonts] Raster=own`)** – Wine's synthetic bold makes the faces narrower and thinner (T1.24-D); our code repeats GDI's measured sizing, sampling and overstrike bold, so the accepted Windows looks stay (`docs/re/gdi-raster.md`).
-- **Menu and diary title matched on all capitals (median over A–Z), not on the H** – Almendra SC's and Uncial Antiqua's H stand 5–6 px above their other capitals (T1.17-W). Interface, books and dialog stay on the H.
-- **Ink above the line top: accents move close, then the whole font lower (`[Family.*] TopFit=lower`, menu and diary title)** – the game cuts off everything above the line top there; menu 8 px lower (the whole D), diary title 6 px lower. Human's choice over `fit` (kept as an option), `squeeze`, `none`.
-- **Symbol slots get own vector symbols** – the menu fonts hold the ▶/◀ arrows in `[`/`]` (no other font has symbols); `keepOriginal` stays for `Arrows=original`.
-- **Russian edition keeps its Cyrillic bitmap glyphs** – the four OFL faces have no Cyrillic; DE/FR are fully covered, a missing single character keeps the original glyph.
-- **GDI path (`Renderer=gdi`):** `use8bitfont 0` set in memory by the font hook, not in `config.lcl` (no file change, same on the Deck); control characters get no glyph (Backspace works); `[Fonts] Spacing=font` by default (the game's touch test merges periods); `[Fonts] Colors=original` from a fixed table of the measured bitmap colors, applied only while the game's calls match it.
+In [decisions-fonts.md](decisions-fonts.md).
 
 ## Testing
 
