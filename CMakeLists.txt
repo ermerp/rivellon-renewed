@@ -18,6 +18,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 # Static CRT, so the plugin does not depend on a VC++ redistributable (also under Proton).
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+# Reproducible builds: no time stamps in objects and binaries, so the same commit gives the same
+# RivellonRenewed.asi and release zip on every build (tools/release/New-Release.ps1).
+add_compile_options(/Brepro)
+add_link_options(/Brepro)
 
 # --- MinHook (BSD-2-Clause), pinned to the commit of release v1.3.4 ---
 # Only the sources are fetched; we build them ourselves instead of using MinHook's own
