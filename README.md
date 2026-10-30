@@ -41,12 +41,12 @@ No administrator rights are needed. The mod sets dgVoodoo2's options (watermark 
 
 1. Switch to Desktop Mode and download the zip from [Releases](https://github.com/ermerp/rivellon-renewed/releases).
 2. Open the game folder: in Steam *Manage* → *Browse local files* (usually `~/.local/share/Steam/steamapps/common/divine_divinity`).
-3. Unpack the whole zip into it. `RivellonRenewed-Setup.cmd` and dgVoodoo2 are not used on the Deck.
-4. In the game's *Properties* → *Launch Options* enter:
+3. Unpack the whole zip into it. There is no setup to run on the Deck: `RivellonRenewed-Setup.cmd` is for Windows only (it installs dgVoodoo2, which the Deck does not need).
+4. Still in Desktop Mode, copy this line from this page in the browser and paste it into the game's *Properties* → *Launch Options* (Ctrl+V):
    ```
    WINEDLLOVERRIDES="winmm=n,b" %command%
    ```
-5. Start the game. On the very first start after installing the game, Steam runs the configuration tool and then the game once **without** the launch options – quit it from the main menu; from the next start on the mod is loaded.
+5. Switch back to Game Mode and start the game there. On the very first start after installing the game, Steam runs the configuration tool and then the game once **without** the mod (no banner) – quit it from the main menu; Steam then starts the game again by itself, now with the mod.
 
 ## Settings
 
@@ -61,6 +61,7 @@ The mod never changes your savegames or `config.div`.
 
 ## Known issues
 
+- After starting a new game the world can stay black with "Game paused" in a corner – click once into the game to continue.
 - While the frame-rate display is on, it can appear in the preview picture of a save made at that time. The same goes for the start banner if you save within its first seconds.
 - If the game crashes in full screen on Windows, turn off the full-screen optimizations for `div.exe` (right-click `div.exe` → *Properties* → *Compatibility*).
 - With dgVoodoo2 the Steam overlay does not show.

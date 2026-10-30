@@ -14,7 +14,7 @@ The Deck is usually off – announce beforehand when a task needs it and wait un
 - Launch options are set by the human in Steam (Game Mode); hand them over as a text file on `~/Desktop`. For the mod: `WINEDLLOVERRIDES="winmm=n,b" %command%`; `PROTON_LOG=1` writes `~/steam-214170.log` (overwritten on every start).
 - Steam screenshots (Steam+R1): `~/.local/share/Steam/userdata/*/760/remote/214170/screenshots/`.
 - Backups of the Deck's savegames and game-folder backups on the PC: `C:\dev\backups\deck-divine_divinity-<YYYYMMDD-HHMMSS>`; `deck.sh install` also keeps `_backup_rr_<time>` in the game folder.
-- **First start after a (re)install:** Steam runs the game's install script, then `configtool.exe` ("Slashed Configuration", display `:1`; "Apply & Close" deletes `slashed-d3d6.cfg`, the game writes it again on exit) – and that first `div.exe` runs **without the launch options** (no mod): quit it from the menu, the next start has them.
+- **First start after a (re)install:** Steam runs the game's install script, then `configtool.exe` ("Slashed Configuration", display `:1`; "Apply & Close" deletes `slashed-d3d6.cfg`, the game writes it again on exit) – and that first `div.exe` runs **without the launch options** (no mod): quit it from the menu, the next start has them. In Game Mode Steam started that next run by itself right after the quit (seen once, T1.38-D).
 
 ## `tools/testrun/deck.sh`
 
