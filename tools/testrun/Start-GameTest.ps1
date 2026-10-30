@@ -4,8 +4,9 @@
 
 .DESCRIPTION
     - Refuses to run from the original Steam folder.
-    - Windowed by default: temporarily sets FullScreenMode = false in dgVoodoo.conf and restores
-      that key (and AppControlledScreenMode) afterwards (requires dgVoodoo2 in the working copy).
+    - Full screen by default, as players run it (dgVoodoo.conf untouched). -Windowed temporarily
+      sets FullScreenMode = false in dgVoodoo.conf and restores that key (and
+      AppControlledScreenMode) afterwards (requires dgVoodoo2 in the working copy).
     - Takes -Count screenshots, the first after -Seconds, then every -Interval seconds.
     - -NoIntro temporarily sets "startup logo 0" in config.div (skips the intro movies) and
       restores config.div afterwards. -Intro does the opposite ("startup logo 1" in config.div and,
@@ -34,7 +35,9 @@
         alttab                Alt+Tab as real input (switches away; only from the game window)
         refocus               bring the game window back, like a click on its taskbar button
       Example: -Steps 'wait 20','mouse','key Down 2','key Enter','wait 3','shot load'
-    - Saves PNGs to -OutDir (default C:\dev\screenshots, outside the repo).
+    - Saves PNGs to -OutDir (default C:\dev\screenshots, outside the repo). An all-black shot is
+      saved too, with "-BLACK" in the file name and in the Method column (exclusive full screen
+      gives PrintWindow nothing, but the game can also really show black).
     - Reports whether the game exited early (crash) or stopped responding.
     - The script has to kill the game, which the game would treat as a crash on the next start
       ("Divinity was not correctly terminated ... reset the configuration?"). To avoid that, the
@@ -50,7 +53,7 @@ param(
     [int] $Seconds = 15,
     [int] $Count = 1,
     [int] $Interval = 10,
-    [switch] $FullScreen,
+    [switch] $Windowed,
     [switch] $NoIntro,
     [switch] $Intro,                # force the intro on (the English copy disables it in config.lcl)
     [int[]] $PressEscapeAt = @(),   # seconds after start at which Esc is sent (e.g. to skip videos)
@@ -311,26 +314,29 @@ public static class DdCapture {
 
     // Captures a window: PrintWindow first (works when covered), screen copy as fallback - but
     // only if the window is in the foreground and smaller than its monitor. A screen copy of a
-    // full-screen window would be a desktop-sized image (CLAUDE.md rule 11): skipped instead.
+    // full-screen window would be a desktop-sized image (CLAUDE.md rule 11): the black
+    // PrintWindow picture is returned instead, marked "all black" in the method.
     public static Bitmap CaptureWindow(IntPtr h, out string method) {
         RECT r = Bounds(h);
         int w = r.Right - r.Left, ht = r.Bottom - r.Top;
         if (w <= 0 || ht <= 0) { method = "none"; return null; }
         Bitmap bmp = new Bitmap(w, ht);
+        bool ok;
         using (Graphics g = Graphics.FromImage(bmp)) {
             IntPtr hdc = g.GetHdc();
-            bool ok = PrintWindow(h, hdc, 2 /* PW_RENDERFULLCONTENT */);
+            ok = PrintWindow(h, hdc, 2 /* PW_RENDERFULLCONTENT */);
             g.ReleaseHdc(hdc);
-            if (ok && !IsBlack(bmp)) { method = "PrintWindow"; return bmp; }
         }
+        if (!ok) { bmp.Dispose(); method = "none (PrintWindow failed)"; return null; }
+        if (!IsBlack(bmp)) { method = "PrintWindow"; return bmp; }
         var screen = System.Windows.Forms.Screen.FromHandle(h).Bounds;
         if (w >= screen.Width || ht >= screen.Height) {
-            bmp.Dispose(); method = "skipped (full screen, PrintWindow black)"; return null;
+            method = "PrintWindow, all black (full screen)"; return bmp;
         }
         SetForegroundWindow(h);
         System.Threading.Thread.Sleep(500);
         if (GetForegroundWindow() != h) {
-            bmp.Dispose(); method = "skipped (game window not in the foreground)"; return null;
+            method = "PrintWindow, all black (game window not in the foreground)"; return bmp;
         }
         using (Graphics g = Graphics.FromImage(bmp))
             g.CopyFromScreen(r.Left, r.Top, 0, 0, new Size(w, ht));
@@ -349,8 +355,8 @@ New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 $conf = Join-Path $dir 'dgVoodoo.conf'
 $confBackup = $null
-if (-not $FullScreen) {
-    if (-not (Test-Path -LiteralPath $conf)) { throw "Windowed mode needs dgVoodoo.conf in $dir (or use -FullScreen)" }
+if ($Windowed) {
+    if (-not (Test-Path -LiteralPath $conf)) { throw "-Windowed needs dgVoodoo.conf in $dir" }
     # Only these two keys are restored afterwards, not the whole file: the mod itself may change
     # dgVoodoo.conf during the run ([DgVoodoo] Watermark) and that change must stay.
     $confBackup = @(
@@ -392,7 +398,8 @@ function Save-Shot([System.Drawing.Bitmap] $bmp, [string] $suffix, [string] $met
     $file = '-'
     $size = '-'
     if ($bmp) {
-        $file = Join-Path $OutDir ('{0}_{1}_{2}.png' -f $Label, $stamp, $suffix)
+        $black = if ($method -like '*all black*') { '-BLACK' } else { '' }
+        $file = Join-Path $OutDir ('{0}_{1}_{2}{3}.png' -f $Label, $stamp, $suffix, $black)
         $bmp.Save($file, [System.Drawing.Imaging.ImageFormat]::Png)
         $size = "$($bmp.Width)x$($bmp.Height)"
         $bmp.Dispose()
