@@ -90,3 +90,6 @@ Renders with the overlay's text code; game `.fnt` files are read from a working 
 - Windowed runs at 2560×1440: the window (2562×1474) is taller than the screen and the taskbar covers its bottom – no `click` in the bottom part; use the game's keys (`keylist.txt`).
 - `-FullScreen` runs: in the borderless full screen `PrintWindow` captures the game window normally; with `exclusive` it returns black and the script skips the shot (also a real all-black picture).
 - In heredocs of the Bash tool, backslash escapes in inline Python and Windows paths in `sed` replacements get mangled – write scripts with the Write tool and change text with the Edit tool.
+- A new git repo (e.g. `local\`) takes the global e-mail – set `git config user.email` to the noreply address in it before the first commit. `git merge -F -` reads no message from a heredoc here; use `-m`.
+- `build\release` and `build\Release` are the same folder (case-insensitive) – release output goes to `build\dist`.
+- Fandom wikis: Cloudflare answers `curl` on pages and files with a bot check (never work around it); the MediaWiki API (`<wiki>/api.php?action=query…`) returns page text and CSS; files the human downloads in the browser (Chrome may save a font as `.sfnt`).
