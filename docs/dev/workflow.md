@@ -85,6 +85,8 @@ Renders the banner from the bundled Uncial Antiqua; Windows PowerShell 5.1, dete
 
 ## Pitfalls
 
+- Windows paths in Python string literals (e.g. in a heredoc script editing docs): `\b`, `\n`, `\t` become control characters (`docs\images\banner.png` lost its `\b`) – use raw strings or `/`, and grep the result for control characters.
+
 - The game treats a kill as a crash (run markers); **never answer "Yes"** to the reset dialog – it resets the configuration.
 - After repeated crashes the game may reset `config.div` and delete `slashed-d3d6.cfg` → restore from backup. Back up any config file before changing it in a test.
 - The game rewrites `config.div` on exit. The resolution lives in `config.div` **and** `slashed-d3d6.cfg` (offsets 0x0C/0x10).
