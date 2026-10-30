@@ -22,6 +22,7 @@ One line per finished step, newest first (`docs/test-results.md` for the tests).
 
 | Date | Step |
 |---|---|
+| 2026-10-30 | Reproducible builds: the same commit gives a byte-identical release zip (T1.35-W) |
 | 2026-10-30 | v0.01 step 7.3: release script – clean build from a commit, ASI loader and its license fetched and SHA-256 checked, zip with its SHA-256 (T1.34-W) |
 | 2026-10-30 | v0.01 step 7.2 done: installation without settings – setup by double click passed (T1.32-W); black screen at a new game not reproduced (T1.33-W) |
 | 2026-10-25 | Setup script: downloads the pinned dgVoodoo2 (progress, SHA-256 check) and uninstalls the mod; full-screen movies off by default (T1.31-W) |
