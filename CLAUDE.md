@@ -16,6 +16,7 @@ This file holds only rules that apply in every session. Workflows and pitfalls: 
 | RE findings by topic (index first) | `docs/re/README.md`, open questions in `docs/re/open-questions.md` |
 | Test instructions for the human / one-line results | `docs/testing.md` / `docs/test-results.md` |
 | Commands, tools, pitfalls / Deck / input sequences | `docs/dev/workflow.md` / `docs/dev/steam-deck.md` / `docs/dev/test-sequences.md` |
+| Credits: everything used from others, also inspiration | `docs/credits.md` |
 | Old full texts (not maintained, search only) | `docs/archive/` |
 
 ## Session start (`/catchup`)
@@ -52,6 +53,7 @@ Read this file, `PLAN.md`, the first 10 lines of the table in `CHANGELOG.md`, `g
 11. **Screenshots only of the game window, never of the desktop.** No game window (exited, not started, another program's dialog) → no screenshot, report it. Never open desktop-sized images from our own scripts. **Exception – the human's captures:** when the human says they took screenshots, open images in `%USERPROFILE%\Videos\Captures` from that test period, whatever their name (only the human's own captures land there), never copy them into the repo. **Exception – Steam Deck:** any screen may be captured there.
 12. **Stay true to the original look:** new visible elements follow the game's original style; faithfulness takes precedence over a modern look. For design decisions show the human variants side by side (images outside the repo) and let them choose.
 13. **No system dependencies:** bundled resources (free-licensed fonts) and our own code instead of what an OS or runtime provides, so one build looks and behaves the same on Windows and Proton. Unavoidable system parts (DirectDraw, input) sit behind a thin hook layer, noted in `docs/re/`.
+14. **Credit what we use from others:** code, data, tools, knowledge, ideas – also mere inspiration (another mod, a forum post, a video) – get one line in `docs/credits.md` (who, what, where, what it gave us) the moment it is used, so the README can credit it.
 
 ## Documentation rules
 
