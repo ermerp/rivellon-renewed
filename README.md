@@ -2,9 +2,7 @@
 
 *A modernization mod for Divine Divinity* – unofficial, for the Steam/GOG version 1.0062A of **Divine Divinity** (Larian Studios, 2002).
 
-> Status: in development (Phase 1 – foundation: plugin, overlay, game texts in a scalable font). No release yet.
-
-Planned: quality-of-life features, better readability at high resolutions, WASD and controller support, audio logs for books and letters – while keeping the game's original look. See [PLAN.md](PLAN.md) for details.
+> Status: in development, no release yet. What it does so far: [CHANGELOG.md](CHANGELOG.md) ("Unreleased").
 
 ## Building (developers)
 

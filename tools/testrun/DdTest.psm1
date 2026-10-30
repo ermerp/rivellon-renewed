@@ -57,7 +57,7 @@ function Get-IniValue {
 }
 
 function Set-DgVoodooProfile {
-    # Applies the dgVoodoo2 settings from PLAN.md Phase 0, step 6 to <GameDir>\dgVoodoo.conf.
+    # Applies the dgVoodoo2 settings from docs/re/environment.md to <GameDir>\dgVoodoo.conf.
     param(
         [Parameter(Mandatory)] [string] $GameDir,
         [int] $Adapter = 1,          # DXGI adapter ordinal of the real GPU
@@ -121,7 +121,7 @@ function Set-DivConfigValue {
 }
 
 function Set-DivConfig {
-    # Applies the game settings from PLAN.md Phase 0, step 6: resolution, smoothness on, alpha bit off.
+    # Applies the game settings (docs/re/environment.md): resolution, smoothness on, alpha bit off.
     # The renderer itself is selected in slashed.cfg (first DWORD: 0 = Direct3D 6, 1 = Glide,
     # 2 = DirectDraw, 3 = Software).
     param(

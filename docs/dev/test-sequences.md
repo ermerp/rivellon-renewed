@@ -35,7 +35,7 @@ The in-game menu starts at "Continue", "Save" is the 4th entry.
 | Key repeat in the save name | save dialog as above, `'type abcdefghijkl'`, `'hold Back 1000'`, `'hold Left 1000'`, `'key Right'`, `'key Del'` |
 | Window state around Alt+Tab (full screen) | `'wait 16','state menu','mouse','key F10','wait 2','key 0x12','wait 2','alttab','wait 3','state away','refocus','wait 3','state back'` |
 
-Full screen (`-FullScreen`, borderless): the "New game" clicks hit unchanged (the client area is 2560×1440 in both modes); the other rows are not yet run in full screen (planned with the release check, `PLAN.md`).
+Full screen (`-FullScreen`, borderless): the "New game" clicks hit unchanged (the client area is 2560×1440 in both modes); the other rows are not yet run in full screen.
 
 ## Windows, 1600×900 windowed (DE and EN)
 

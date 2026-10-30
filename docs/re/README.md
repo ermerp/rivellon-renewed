@@ -4,7 +4,6 @@ Findings in our own words – **no decompiled code, no pseudocode** (CLAUDE.md r
 
 | File | Topic |
 |---|---|
-| [open-questions.md](open-questions.md) | Open questions and next RE tasks, by priority |
 | [game-version.md](game-version.md) | 1.0062A hashes, PE header, German vs. English files, version history |
 | [engine-map.md](engine-map.md) | Map of `div.exe`: function count and sizes, regions of `.text` (game code, built-in editor, libjpeg/libpng/zlib), subsystems by Larian's source folders with address ranges, dependencies and layers from the call graph, runtime share (coverage), what it means for replacing subsystems |
 | [engine-classes.md](engine-classes.md) | Class hierarchies from RTTI (root classes, UI base classes `CSubWindow`/`CBitmapControl`), Larian DLL sizes |

@@ -5,7 +5,7 @@ description: Checks before a Rivellon Renewed release or release candidate – t
 
 # Release checks
 
-Run both checks before every release candidate goes to the human and again before the tag. Report in German; change nothing silently – the human decides on every proposal. The release path itself (release script, candidate test, tag) is in `PLAN.md`.
+Run both checks before every release candidate goes to the human and again before the tag. Report in German; change nothing silently – the human decides on every proposal. The release path itself (release script, candidate test, tag) is in `local/PLAN.md`.
 
 ## 1. Dependency check
 
@@ -23,7 +23,7 @@ For every third-party component we use (`THIRD-PARTY-NOTICES.md`: dgVoodoo2, Ult
 (b) Are they kept?
 - File sizes: ≤ 15 KB except `docs/archive/`; `CLAUDE.md` within its limit.
 - Every fact in one place only, no dead links.
-- `PLAN.md` status current.
+- `local/PLAN.md` status current; nothing planned or unfinished in the public files (CLAUDE.md, documentation rules).
 - `CHANGELOG.md` "Unreleased" complete as release notes.
 - `docs/decisions.md` / `docs/rejected.md` without contradictions to the code.
 

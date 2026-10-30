@@ -1,4 +1,4 @@
-# --- Game files by Larian: never commit (PLAN.md, rule 1) ---
+# --- Game files by Larian: never commit (rule 1) ---
 *.exe
 *.dll
 *.asi
@@ -37,12 +37,13 @@
 *.jpeg
 *.webp
 
-# --- Derived, locally generated content (rule 5) ---
+# --- Local only: plan, open questions, test instructions (own private repo, CLAUDE.md) ---
+/local/
+
+# --- Locally generated content ---
 cache/
 generated/
-tools/upscale/output/
-tools/tts/output/
-tools/extract/output/
+tools/*/output/
 
 # --- Disassembly projects and dumps (rule 2) ---
 *.gpr

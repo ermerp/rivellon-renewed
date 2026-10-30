@@ -39,7 +39,7 @@ Working copies: `C:\dev\dd-test` (DE), `dd-test-en`, `dd-test-fr`, `dd-test-ru` 
 
 **Russian:** built on the German slot – `config.lcl` says `language 2` (no `debug on`), the texts are in `localizations/german/` and `dat/German/` (Russian content, code page 1251), dialogs per gender in `male/`, `female/` (no `dlg.v2`), `voice.cmp` 271 MB. Besides the binaries above, **all 61 `fonts/*.fnt` differ** (Cyrillic bitmap fonts, larger files), plus `dat/global.cmp`, three `static/back*.tga` (menu backgrounds, 26 bytes larger) and an HTML manual in `manual/`; no `Story.pdf`.
 
-Language matters for the dialog loader (gender folders), text lengths in custom dialog boxes (Phase 6) and TTS voices (Phase 7).
+Language matters for the dialog loader (gender folders).
 
 **Rivellon Renewed per language (automated start, `FontHook=1`, windowed 2560×1440):**
 - FR: EXE verified, all hooks and the font mode as in DE/EN, French main menu in Tahoma Bold, overlay normal. Accents are not on the main menu; they are part of the in-game check.

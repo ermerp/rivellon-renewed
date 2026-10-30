@@ -1,6 +1,6 @@
 # Hero movement by mouse (walk/run)
 
-How mouse input makes the hero walk or run. Addresses for 1.0062A (`game-version.md`); code must find them by signature (rule 8). Found statically; confirmed at runtime (human in game, T1.19-W with log hooks on the run setter and the always-run getter). Open points: `open-questions.md`.
+How mouse input makes the hero walk or run. Addresses for 1.0062A (`game-version.md`); code must find them by signature (rule 8). Found statically; confirmed at runtime (human in game, T1.19-W with log hooks on the run setter and the always-run getter).
 
 ## Running in the agent
 
