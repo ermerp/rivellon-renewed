@@ -13,6 +13,7 @@ Build, install, test scripts and tools on the Windows dev PC. Rules: `CLAUDE.md`
 
 The module refuses the Steam folder.
 - `Install-DdMod -GameDir <copy> [-ResetIni]` – copies the ASI loader as `winmm.dll` (never replaces a foreign `winmm.dll`), `RivellonRenewed.asi`, `RivellonRenewed\fonts\`, `RivellonRenewed.ini` – rebuilt from the repo default every time (new keys and comments) with the values of the existing INI taken over (`-ResetIni`: pure default). Migrates a pre-rename install: removes `ddmod.asi`/`ddmod_fonts`, takes the values of `ddmod.ini` over (old file kept as `ddmod.ini.migrated`).
+- `Install-DdMod` also copies the user setup (`RivellonRenewed-Setup.cmd`, `RivellonRenewed\setup.ps1`; `docs/re/environment.md`); it refuses `C:\dev\dd-steam-clean`.
 - `Uninstall-DdMod -GameDir <copy>` – removes `winmm.dll` (only if it is the loader), `RivellonRenewed.asi`, `RivellonRenewed\fonts\` and **all logs** (`RivellonRenewed.log`, `RivellonRenewed.prev.log`, `RivellonRenewed\logs\`; also leftover `ddmod*` files) – copy the logs to `C:\dev\screenshots` first if they are still needed.
 - `Set-ModIniValue -Path <copy>\RivellonRenewed.ini -Section … -Key … -Value …` – changes one INI value.
 - `Set-DgVoodooProfile -GameDir … -Adapter 1 [-Watermark]`, `Set-DivConfig -GameDir … -Width … -Height …`.

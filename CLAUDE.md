@@ -11,7 +11,7 @@ This file holds only rules that apply in every session. Workflows and pitfalls: 
 | Status, next step, v0.01 path | `PLAN.md` |
 | Finished steps, release notes ("Unreleased") | `CHANGELOG.md` |
 | Long-term phases | `docs/roadmap.md` |
-| Decisions / rejected approaches (one line + why) | `docs/decisions.md` / `docs/rejected.md` |
+| Decisions / rejected approaches (one line + why) | `docs/decisions.md` (fonts: `docs/decisions-fonts.md`) / `docs/rejected.md` |
 | Incidents behind rules | `docs/lessons.md` |
 | RE findings by topic (index first) | `docs/re/README.md`, open questions in `docs/re/open-questions.md` |
 | Test instructions for the human / one-line results | `docs/testing.md` / `docs/test-results.md` |
@@ -58,7 +58,7 @@ Read this file, `PLAN.md`, the first 10 lines of the table in `CHANGELOG.md`, `g
 - **One place per fact:** every fact stands in exactly one file (table above); the others link to it.
 - **Update instead of append:** change the existing statement, delete what is outdated. No history in the maintained docs – dates only in `CHANGELOG.md`, `docs/lessons.md`, `docs/test-results.md`; `docs/archive/` is never updated.
 - **When shortening or moving text,** compare against the old version and report which numbers, addresses and dates are gone.
-- `CLAUDE.md` stays under ~8 KB: rules only, no findings, no status.
+- `CLAUDE.md` stays under ~150 lines / ~12 KB: rules only, no findings, no status; procedures needed only at times go into a skill (`.claude/skills/`).
 
 ## Paths (dev PC, Windows 11)
 
@@ -67,7 +67,7 @@ Read this file, `PLAN.md`, the first 10 lines of the table in `CHANGELOG.md`, `g
 | Original game (Steam, German, 1.0062A) | `C:\Program Files (x86)\Steam\steamapps\common\divine_divinity` – **read only, never modify** |
 | Working copies (1.0062A + dgVoodoo2 2.87.5 + mod, 2560×1440, originals of changed configs as `*.orig`) | `C:\dev\dd-test` (DE), `C:\dev\dd-test-en` (EN), `C:\dev\dd-test-fr` (FR), `C:\dev\dd-test-ru` (RU, **own EXE 1.0061**) |
 | **Play copy of the human** (1920×1080, coverage always on; feedback in `docs/playtest-log.md`) | `C:\dev\dd-play` – the human's **real saves**: no automated tests, never touch `savegames\`; mod updates only after asking, with a save backup first (`C:\dev\backups\dd-play-savegames-<YYYYMMDD-HHMMSS>`) |
-| Fresh Steam install (DE, before the first start), **never modify** – copy it for a fresh working copy | `C:\dev\dd-steam-clean` |
+| Fresh Steam install (DE, before the first start), **never modify** – copy it for a fresh working copy | `C:\dev\dd-steam-clean`; copy for setup tests: `C:\dev\dd-test-fresh` |
 | Reference copy 1.0034A (on hold, do not change) | `C:\dev\dd-test-134` |
 | Test saves (one per situation, `T-*`) | `C:\dev\testsaves\de` – copy into a working copy's `savegames\`, never over the human's own saves |
 | Downloads (verified, outside repo) | `C:\dev\downloads` |
@@ -87,7 +87,7 @@ Read this file, `PLAN.md`, the first 10 lines of the table in `CHANGELOG.md`, `g
 
 ## Release
 
-- **Docs hygiene check before every release:** (a) are the rules in this file and the documentation rules still current and useful? Name outdated or never-applied rules. (b) Are they kept? File sizes (≤ 15 KB except `docs/archive/`), every fact in one place only, no dead links, `PLAN.md` status current, `CHANGELOG.md` "Unreleased" complete as release notes, `docs/decisions.md`/`docs/rejected.md` without contradictions to the code. Result as a report with proposals to the human – change nothing silently.
+- **Before every release candidate and before the tag run `/release`** (dependency check and docs hygiene check, `.claude/skills/release/`).
 
 ## Workflow per feature
 

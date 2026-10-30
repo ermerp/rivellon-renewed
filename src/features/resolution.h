@@ -69,9 +69,10 @@ bool InstallResolution();
 // Full-screen movies: the game's video player switches the renderer to the movie's 640x480 (and
 // back) only if "resolution switch" is set, which Steam's config files do not do; otherwise it draws
 // the movie centered in the full frame, smaller the higher the resolution. [Display]
-// FullScreenMovies=1 (default) sets the field after every read (config.div keeps its own value)
+// FullScreenMovies=1 sets the field after every read (config.div keeps its own value)
 // and lets every movie switch and switch back (hook on the video player); dgVoodoo2 or gamescope
-// then scale the 640x480 picture to the screen. 0 = as in the original.
+// then scale the 640x480 picture to the screen. 0 (default until the switch is replaced, see
+// docs/re/open-questions.md) = as in the original.
 bool InstallFullScreenMovies();
 // Same with fixed reader/writer addresses (unit tests).
 bool InstallFullScreenMoviesAt(void* configReader, void* configWriter);

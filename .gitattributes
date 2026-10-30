@@ -2,3 +2,5 @@
 *.ttf binary
 # Shell scripts run on the Steam Deck (sent through ssh); CRLF breaks them.
 *.sh text eol=lf
+# Windows batch files need CRLF.
+*.cmd text eol=crlf
