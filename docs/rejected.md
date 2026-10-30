@@ -42,6 +42,7 @@ One line each, with why – so they are not tried again. Rejected test methods a
 
 - Bundling a free font that only roughly matches (Noto Sans, Alegreya SC, Cormorant SC, Alegreya Sans SC) – too far from the original look (rule 12).
 - Mixed menu faces (roman capitals with uncial A, E, H, M, W) and Celtica, Cormorant Unicase, Montaga, Junge and others for the menu – none convinced the human more than Uncial Antiqua.
+- Lombardic (Marty Snyder, probable menu source face) – shareware with a per-user fee, no permission to change it (umlauts, accents), author not reachable, no digits; our only copy comes from Larian's fansite kit (rule 1).
 - Vinque (probable diary source face) – Typodermic's free license excludes games and software that include the font.
 - Upscaled or smoothed original glyphs (Scale2x, xBRZ, MMPX, distance field, auto-trace) – good only up to about 2×, keep Larian's pixels.
 - Making Uncial Antiqua thinner by eroding its outline – breaks its hairlines (the E's bars vanish at ¼ px); its weight-400 cut looked worse than 600.

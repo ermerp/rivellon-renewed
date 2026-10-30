@@ -15,6 +15,7 @@ Everything from others that Rivellon Renewed uses – code, data, tools, knowled
 - **atom0s** (Steam forum, 2020): the one-byte developer-mode patch of `div.exe` 1.0062A – the lead for `docs/re/developer-mode.md` (we never patch the EXE).
 - **Steam forum** (author not recorded): the name "divineevent.dat" for the key event file (`docs/re/key-events.md`).
 - **Raanar**, Divinity_Graphics_Extender (`github.com/Raan/Divinity_Graphics_Extender`, README only): sprite packs are decodable and re-encodable, size fixed on import – shaped the plan for HD sprites (`docs/re/file-formats.md`).
+- **Divinity Wiki** (Fandom, `divinity.fandom.com`): its heading font, from Larian's Divinity II fansite kit, identified the original menu face as Lombardic; **DaFont** (`dafont.com/lombardic.font`) holds the original package with the author's readme – the license terms (`docs/re/fonts-mod.md`).
 - **usernameak**, OsirisRE (`github.com/usernameak/OsirisRE`): Osiris notes and `osi_extender` as `.asi` – the mod is built to coexist with it (`docs/decisions.md`).
 
 ## Tools used in development
