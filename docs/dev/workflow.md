@@ -44,7 +44,7 @@ foreach ($dir in 'C:\dev\dd-test', 'C:\dev\dd-test-en') {
 }
 ```
 
-- Windowed by default (temporarily sets `FullScreenMode = false` in `dgVoodoo.conf`); `-FullScreen` disables that.
+- Full screen by default, as players run it (`dgVoodoo.conf` untouched, so `[DgVoodoo] FullScreen` of the mod decides borderless or exclusive); `-Windowed` temporarily sets `FullScreenMode = false` in `dgVoodoo.conf`.
 - `-NoIntro` temporarily sets `startup logo 0`; `-Intro` temporarily sets `startup logo 1` in `config.div` and, where present, in `config.lcl` (overrides `config.div`; the English copy ships `startup logo 0` there) – use it so DE and EN run under the same conditions. `-PressEscapeAt` posts Esc at the given seconds.
 - `-PostKeyAt` posts `-PostKeyVk` (default F3, no modifiers) to the game window – no real input, safe while someone else uses the PC; enough for a modifier-less hotkey.
 - `-PressHotkeyAt` types the `-HotkeyVk` chord (default Ctrl+Shift+F3) as real input via `SendInput` – only if the game window could be brought to the foreground, otherwise it reports "NOT sent".
@@ -52,7 +52,7 @@ foreach ($dir in 'C:\dev\dd-test', 'C:\dev\dd-test-en') {
 - `-PressHotkeyAt` and `-Steps` are real input – **only when the human has said the PC is free**; nobody touches mouse or keyboard during the run.
 - Restores `dgVoodoo.conf`, `config.div` (with `-NoIntro`) and the run markers `init.cfg`/`sinfo.000` afterwards, so the "not correctly terminated" dialog does not appear next time; if it appears anyway, the script answers **No**.
 - Reports an early exit (crash) with its exit code; crash details: Windows event log, Application, event ID 1000.
-- Captures **only the game's own window**; no game window, no shot (rule 11).
+- Captures **only the game's own window**; no game window, no shot (rule 11). An all-black `PrintWindow` picture is saved anyway, with `-BLACK` in the file name and "all black" in the Method column.
 
 **Judging screenshots:** the Read tool shows 2560×1440 images downscaled, which fakes glyph defects in small text – judge text details only from full-resolution crops (System.Drawing in PowerShell, output to the scratchpad).
 
@@ -92,9 +92,9 @@ Renders the banner from the bundled Uncial Antiqua; Windows PowerShell 5.1, dete
 - The game rewrites `config.div` on exit. The resolution lives in `config.div` **and** `slashed-d3d6.cfg` (offsets 0x0C/0x10).
 - `config.lcl` needs `flat files` and `quickstart` – without them the game does not start.
 - Before a run check that no `div.exe` is left (`Get-Process div`): a second instance exits at once. A `div.exe` hung on exit ignores `Stop-Process`/`taskkill /F` – ask the human to end it in Task Manager, then check `config.div`, `dgVoodoo.conf` and the run markers of that copy.
-- An aborted `Start-GameTest.ps1` leaves `dgVoodoo.conf` windowed and `startup logo` in `config.div` – restore both.
+- An aborted `Start-GameTest.ps1` leaves `dgVoodoo.conf` windowed (with `-Windowed`) and `startup logo` in `config.div` – restore both.
 - Windowed runs at 2560×1440: the window (2562×1474) is taller than the screen and the taskbar covers its bottom – no `click` in the bottom part; use the game's keys (`keylist.txt`).
-- `-FullScreen` runs: in the borderless full screen `PrintWindow` captures the game window normally; with `exclusive` it returns black and the script skips the shot (also a real all-black picture).
+- Full-screen runs: in the borderless full screen `PrintWindow` captures the game window normally; with `exclusive` it returns black (`-BLACK` shot) – a real all-black picture looks the same, so judge it from the run (movie, loading screen).
 - In heredocs of the Bash tool, backslash escapes in inline Python and Windows paths in `sed` replacements get mangled – write scripts with the Write tool and change text with the Edit tool.
 - A new git repo (e.g. `local\`) takes the global e-mail – set `git config user.email` to the noreply address in it before the first commit. `git merge -F -` reads no message from a heredoc here; use `-m`.
 - `build\release` and `build\Release` are the same folder (case-insensitive) – release output goes to `build\dist`.

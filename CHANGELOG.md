@@ -10,6 +10,7 @@ One line per finished step, newest first (`docs/test-results.md` for the tests).
 
 | Date | Step |
 |---|---|
+| 2026-10-30 | Automated tests in borderless full screen by default (`-Windowed` for the old way, all-black shots kept); release check of rc1 passed in DE and EN incl. a new-game start (T1.37-W) |
 | 2026-10-30 | v0.01 step 7.4: README for players (install/uninstall on Windows and Deck, known issues, thanks, AI note), banner, `THIRD-PARTY-NOTICES.md`, `docs/features.md`, `docs/how-the-game-works.md` |
 | 2026-10-30 | Release zip ships the MinHook license (BSD-2 notice) (T1.36-W) |
 | 2026-10-30 | Original menu face identified as Lombardic (Marty Snyder's shareware copy of Goudy's capitals) – not usable (license) |

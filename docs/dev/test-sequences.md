@@ -10,14 +10,14 @@ Input for `Start-GameTest.ps1 -Steps` (Windows) and `deck.sh … steps` (Deck) �
 - "New game" needs a mouse click on a character in character creation; keys alone do not get past it.
 - **First start of a never-started copy:** the whole intro plays (~90 s) before the main menu; a click or key during a movie only skips that movie. Without the mod the game runs at 1024×768 (`config.div`), where the main menu reaches down to the bottom – `mouse 0.5 0.9` lands on "Beenden"; there "Neu" is at (0.5, 0.501), the rightmost character (archer) at (0.903, 0.443), ✓ at (0.942, 0.938).
 - Text fields (save name) take keys only after a click into them. The load dialog's name field takes typed letters, but they do nothing (as in the original) – edit keys and key repeat are tested in the save dialog.
-- **No clicks in the bottom part of the window:** windowed, the game window with its title bar is 2562×1474 – taller than the 1440 screen – and the taskbar lies over its bottom edge; a click on the game's icon bar (y ≈ 0.96) opened the Start menu. Use the game's keys instead (`keylist.txt` in the copy lists them, e.g. **Q** = diary/quests, **I** = inventory, **M** = map, **T** = status).
+- **No clicks in the bottom part of the window with `-Windowed`:** the game window with its title bar is 2562×1474 – taller than the 1440 screen – and the taskbar lies over its bottom edge; a click on the game's icon bar (y ≈ 0.96) opened the Start menu. Use the game's keys instead (`keylist.txt` in the copy lists them, e.g. **Q** = diary/quests, **I** = inventory, **M** = map, **T** = status). In full screen (the default) no taskbar covers the window; clicks on the icon bar are not yet tried there.
 - Waiting times (DE): the main menu takes input about 10 s after the start (`-NoIntro`), a loaded save about 12 s after Enter – verified by the diary run; the tables below still have the older, longer waits. The first frame comes about 8.5 s after the game window appears.
-- Test saves: `C:\dev\testsaves\de\`, one per situation (`T-Brief-Buch-Inventar`, `T-Dialog-links`, `T-Händler-links`, `T-Nebel`, `T-draussen`, `T-Trank-F2` = wounded hero with a healing potion on quick slot F2). Copy them into the copy's `savegames\`, never over the human's own saves. The load list is sorted by date, newest first.
-- Reading windows (inventory, letter, book) open at places stored in the save: in `T-Brief-Buch-Inventar` the EN (and FR) letter opens top left, so the DE close click walks the hero out there.
+- Test saves: `C:\dev\testsaves\de\`, one per situation (`T-Brief-Buch-Inventar`, `T-Dialog-links`, `T-Händler-links`, `T-Nebel`, `T-draussen`, `T-Trank-F2` = wounded hero with a healing potion on quick slot F2). Copy them into the copy's `savegames\`, never over the human's own saves. The load list is sorted by date, newest first – in `dd-test`/`-en`: `T-Trank-F2`, `T-Brief-Buch-Inventar`, `T-Truhe`, `T-draussen`, `T-wasser`, `T-Nebel`, `T-verdeckt-Haus`, `T-Händler-links`, `T-Dialog-links` (EN: plus `1111` at the end). A new save shifts every position – check with a `shot` after moving in the list.
+- Reading windows (inventory, letter, book) open at places stored in the save: in `T-Brief-Buch-Inventar` the DE letter opens right of the inventory, the EN (and FR) letter top left – a click meant for one language's letter walks the hero out in the other. Closing the letter leaves the inventory open (another `key I` would close it).
 
-## Windows, 2560×1440 windowed (DE and EN, `-NoIntro`)
+## Windows, 2560×1440 (DE and EN, `-NoIntro`)
 
-The in-game menu starts at "Continue", "Save" is the 4th entry.
+Every row verified in borderless full screen, DE and EN (2026-10-30, rc1 build; book 2 not run); the client area is 2560×1440 windowed too, so the coordinates hold for `-Windowed`. The in-game menu starts at "Continue", "Save" is the 4th entry.
 
 | Goal | `-Steps` |
 |---|---|
@@ -26,18 +26,18 @@ The in-game menu starts at "Continue", "Save" is the 4th entry.
 | … then the save dialog, name field focused | `'key Esc','wait 2','mouse 0.5 0.9','wait 1','key Up 9','key Down 3','key Enter','wait 2','click 0.508 0.6056'` |
 | Leave the save dialog without saving | `'key Esc'` |
 | Letter and books (`T-Brief-Buch-Inventar`, after loading it): inventory, chest tab "Miscellaneous", then letter / book 1 / book 2 | `'key I','wait 2','click 0.3402 0.2986','wait 1'`, then `'click 0.2508 0.3354'` / `'click 0.2727 0.3340'` / `'click 0.2934 0.3368'` |
-| … next page / close (where the reading window opened in the middle) | `'click 0.4117 0.5972'` / `'click 0.3602 0.5979'` |
+| … letter next page / close | DE `'click 0.4551 0.4847'` / `'click 0.4039 0.4854'`; EN `'click 0.2738 0.3833'` / `'click 0.2230 0.3847'` (then book 1 without `key I`) |
 | Diary (quests page) of the newest save (DE) | `'wait 10','mouse 0.5 0.8','wait 1','key Up 9','key Down','key Enter','wait 3','key Enter','wait 12','mouse 0.5 0.5','wait 1','key Q','wait 3','shot diary'` |
 | New game (character creation, then the first room) | `'wait 17','mouse 0.5 0.9','wait 1','key Up 9','key Enter','wait 6','click 0.474 0.466','wait 2','click 0.680 0.733'` (3rd character, then ✓; the first room is visible after about 3 s) |
-| NPC dialog (`T-Dialog-links`, 8th in the load list – from the main menu; reloading in game asks for confirmation) | load dialog, `'key Down 7','key Enter','wait 25','click 0.02 0.5','wait 6'` (a click at the left edge walks the hero into the dialog) |
+| NPC dialog (`T-Dialog-links`, 9th in the load list – from the main menu; reloading in game asks for confirmation) | load dialog, `'key Down 8','key Enter','wait 25','click 0.02 0.5','wait 6'` (a click at the left edge walks the hero into the dialog) |
 | Options → performance page; fog row left arrow (off) / right arrow (on); apply | `'key Down 2','key Enter','wait 3','key Up 9','key Enter','wait 3','key Up 9','key Down','key Enter'`; `'click 0.5156 0.5855'` / `'click 0.6897 0.5855'`; `'click 0.6027 0.7234'` – the keys move nothing on this page, and Esc does not leave it |
-| Walk/run in `T-draussen` (3rd in the load list) | load dialog, `'key Down 2','key Enter','wait 25'`, then `'press 0.5 0.4 1500'` (144 px from the center), `'press 0.5 0.3 1500'` (288 px), `'press 0.5 0.12 1500'` (547 px), `'click 0.62 0.5'`, `'dclick 0.38 0.5'` |
+| Walk/run in `T-draussen` (4th in the load list) | load dialog, `'key Down 3','key Enter','wait 25'`, then `'press 0.5 0.4 1500'` (144 px from the center), `'press 0.5 0.3 1500'` (288 px), `'press 0.5 0.12 1500'` (547 px), `'click 0.62 0.5'`, `'dclick 0.38 0.5'` |
 | Key repeat in the save name | save dialog as above, `'type abcdefghijkl'`, `'hold Back 1000'`, `'hold Left 1000'`, `'key Right'`, `'key Del'` |
-| Window state around Alt+Tab (full screen) | `'wait 16','state menu','mouse','key F10','wait 2','key 0x12','wait 2','alttab','wait 3','state away','refocus','wait 3','state back'` |
-
-Full screen (`-FullScreen`, borderless): the "New game" clicks hit unchanged (the client area is 2560×1440 in both modes); the other rows are not yet run in full screen.
+| Window state around Alt+Tab (full screen) | `'wait 16','state menu','mouse','key F10','wait 2','key 0x12','wait 2','alttab','wait 3','state away','refocus','wait 3','state back'` (borderless: popup 2560×1440 in all three states) |
 
 ## Windows, 1600×900 windowed (DE and EN)
+
+Valid only at 1600×900 windowed – not run in full screen, and the load-list positions are from an older save set.
 
 The main menu skips disabled entries: from the top `key Up 9` lands on "New", `Down` = Load, `Down 2` = Options, `Down 4` = Credits. Esc leaves neither an options page nor an open letter – Esc in game opens the game menu.
 
