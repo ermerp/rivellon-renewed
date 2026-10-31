@@ -5,7 +5,7 @@ description: Checks before a Rivellon Renewed release or release candidate – t
 
 # Release checks
 
-Run all three checks before every release candidate goes to the human and again before the tag. Report in German; change nothing silently – the human decides on every proposal. The release path itself (release script, candidate test, tag) is in `local/PLAN.md`.
+Run all three checks before every release candidate goes to the human and again before the tag. Report in German; change nothing silently – the human decides on every proposal. The release path itself (release script, candidate test, tag) is in `local/PLAN.md`; publishing (tag, GitHub release): `tools/release/Publish-Release.ps1`, `docs/dev/workflow.md`.
 
 ## 1. Dependency check
 

@@ -22,7 +22,7 @@ Everything from others that Rivellon Renewed uses – code, data, tools, knowled
 
 ## Tools used in development
 
-Ghidra (NSA), x32dbg, Cheat Engine, CMake, MSVC build tools, 7-Zip; Shields.io (`shields.io`) for the README badges; Claude Code (Anthropic) as development assistant – its memory guidance (`code.claude.com/docs/en/memory`) set the `CLAUDE.md` size limit.
+Ghidra (NSA), x32dbg, Cheat Engine, CMake, MSVC build tools, 7-Zip; Shields.io (`shields.io`) for the README badges; GitHub CLI (`cli.github.com`) for publishing releases; Claude Code (Anthropic) as development assistant – its memory guidance (`code.claude.com/docs/en/memory`) set the `CLAUDE.md` size limit.
 
 ## Game
 

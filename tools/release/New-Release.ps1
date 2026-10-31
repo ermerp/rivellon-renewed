@@ -8,7 +8,8 @@
 #    repository at the release commit; every download is checked against a pinned SHA-256, the
 #    loader DLL against $AsiLoaderSha256 in setup/setup.ps1 (the uninstaller recognizes it by it).
 # 3. Packs RivellonRenewed-<version>[-<suffix>].zip (layout: docs/dev/workflow.md, "Release zip")
-#    and writes its SHA-256 next to it (<zip>.sha256).
+#    and writes its SHA-256 (<zip>.sha256) and the commit it was built from (<zip>.commit)
+#    next to it; publishing: Publish-Release.ps1.
 # Windows PowerShell 5.1; needs git, cmake and the MSVC build tools (docs/dev/workflow.md).
 [CmdletBinding()]
 param(
@@ -134,6 +135,7 @@ try {
 
 $zipSha256 = Hash $zip
 [IO.File]::WriteAllText("$zip.sha256", "$($zipSha256.ToLowerInvariant())  $name.zip`n")
+[IO.File]::WriteAllText("$zip.commit", "$commit`n")  # Publish-Release.ps1 tags this commit
 Remove-Item -LiteralPath $work -Recurse -Force
 Say ''
 Say "$zip" 'Green'
