@@ -1,6 +1,6 @@
 ---
 name: release
-description: Checks before a Rivellon Renewed release or release candidate – third-party dependency check, test coverage check and docs hygiene check, each as a report to the human. Use when a release, release candidate, tag or GitHub release is being prepared.
+description: Checks before a Rivellon Renewed release or release candidate – third-party dependency check (plus a dev tool report), test coverage check and docs hygiene check, each as a report to the human. Use when a release, release candidate, tag or GitHub release is being prepared.
 ---
 
 # Release checks
@@ -22,6 +22,8 @@ For every third-party component we use (`THIRD-PARTY-NOTICES.md`: dgVoodoo2, Ult
 - If there is one: download it to `C:\dev\downloads`, verify its SHA-256 against the published digest, test the candidate with it (DE and EN; graphics on PC and Deck). Fonts: the human compares the texts in game – metrics can shift.
 - Tests pass → pin the new version (version + SHA-256 where it is pinned: `setup/setup.ps1`, the release script, `docs/re/environment.md`, `THIRD-PARTY-NOTICES.md`).
 - Tests fail → keep the old version, one line with the reason in `docs/rejected.md`.
+
+**Dev tools (report only):** for every tool in the table of `docs/re/environment.md` (compiler, CMake, Python, Ghidra, debuggers, Cheat Engine, `gh`, 7-Zip, video tools, …) look up the newest version from its official source and list installed vs. newest. Updating a dev tool needs no player test: show the command (winget or download with SHA-256), install only after the human's OK, then update the version in `docs/re/environment.md` (and in `docs/dev/` where a path holds the version). After an MSVC or CMake update, build the same commit twice and check the two zips are still byte-identical (reproducible builds, `docs/dev/workflow.md`) – if not, say so before the release.
 
 ## 2. Test coverage check
 

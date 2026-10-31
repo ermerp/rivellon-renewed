@@ -12,6 +12,7 @@ Windows 11 Home (build 26200). Paths: see CLAUDE.md.
 | Node.js | 24.20.0 | winget |
 | x64dbg (incl. x32dbg) | 2026.05.27 | winget |
 | 7-Zip | 26.04 | winget |
+| GitHub CLI `gh` | 2.103.3 | winget |
 | Ghidra | 12.1.4 | official NSA GitHub release, SHA-256 verified |
 | Cheat Engine | 7.7 | installed by the human (64-bit build attaches to the 32-bit game; `cheatengine-i386.exe` available) |
 | MinHook | 1.3.4 | CMake FetchContent, pinned commit `c3fcafdc…` |
