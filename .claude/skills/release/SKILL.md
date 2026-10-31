@@ -5,7 +5,14 @@ description: Checks before a Rivellon Renewed release or release candidate – t
 
 # Release checks
 
-Run all three checks before every release candidate goes to the human and again before the tag. Report in German; change nothing silently – the human decides on every proposal. The release path itself (release script, candidate test, tag) is in `local/PLAN.md`; publishing (tag, GitHub release): `tools/release/Publish-Release.ps1`, `docs/dev/workflow.md`.
+Run all three checks before every release candidate goes to the human and again before the tag. Report in German; change nothing silently – the human decides on every proposal.
+
+## Release path
+
+1. Candidate: `New-Release.ps1 -Suffix rc<n>` (`docs/dev/workflow.md`), its files into `dd-test`/`-en`, `local/Run-ReleaseCheck.ps1` (DE and EN, every 2560×1440 sequence in borderless full screen incl. one new-game start).
+2. The human's release test on a clean install on the PC (`dd-test-fresh` from `dd-steam-clean`) and the Deck: install following only the README – Claude does not help, every stumble is a README bug –, play with a checklist of every feature (`local/testing.md`), uninstall following the README (game runs original again). Passed when installation needs no help and no settings and the play test finds no defect.
+3. `CHANGELOG.md` "Unreleased" → `## v<version> – <date>` as full release notes (features, known issues), commit; final zip from that commit (`New-Release.ps1`, default `build\dist`); the three checks below; secret scan of the history; `main` pushed.
+4. `tools/release/Publish-Release.ps1 -Version <version>` – tag, GitHub release (`docs/dev/workflow.md`).
 
 ## 1. Dependency check
 
