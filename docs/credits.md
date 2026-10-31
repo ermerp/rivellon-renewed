@@ -18,11 +18,12 @@ Everything from others that Rivellon Renewed uses – code, data, tools, knowled
 - **Divinity Wiki** (Fandom, `divinity.fandom.com`): its heading font, from Larian's Divinity II fansite kit, identified the original menu face as Lombardic; **DaFont** (`dafont.com/lombardic.font`) holds the original package with the author's readme – the license terms (`docs/re/fonts-mod.md`).
 - **Ry.Morrow** (YouTube, `youtube.com/@ry.morrow`): three videos on Divine Divinity as a first-time player today – Impressions (`youtube.com/watch?v=A-X-WXEi52I`, 2026-04-01), Beginner's Guide (`youtube.com/watch?v=IC6wEYPu2y4`, 2026-04-22), Review (`youtube.com/watch?v=d6iXilG0qq8`, 2026-06-30): the lead to the F10 softlock (`docs/re/input.md`), confirmation of the readability problem at today's resolutions (the 1280×720 recommendation on a 1440p screen) and the reports of crashes with Windows' full-screen optimizations (README known issues).
 - **Magilla Grodd** (YouTube, `youtube.com/@magillagrodd`): videos on patching Divine Divinity – the patch history (the lost 1.33/1.34 fixes and the lost source code) behind the choice of 1.0062A (`docs/decisions.md`, `docs/re/game-version.md`) and the setup of the dgVoodoo2 wrapper (`docs/re/environment.md`).
+- **vvoland**, OpenDivine (`github.com/vvoland/opendivine`, GPL-3.0, its `re_docs/messages.md`): the lead that the `mplayer` code is the command bus used in single-player too – checked in our EXE and written in our own words (`docs/re/engine-map.md`); no code taken.
 - **usernameak**, OsirisRE (`github.com/usernameak/OsirisRE`): Osiris notes and `osi_extender` as `.asi` – the mod is built to coexist with it (`docs/decisions.md`).
 
 ## Tools used in development
 
-Ghidra (NSA), x32dbg, Cheat Engine, CMake, MSVC build tools, 7-Zip; Shields.io (`shields.io`) for the README badges; GitHub CLI (`cli.github.com`) for publishing releases; Claude Code (Anthropic) as development assistant – its memory guidance (`code.claude.com/docs/en/memory`) set the `CLAUDE.md` size limit.
+Ghidra (NSA), x32dbg, Cheat Engine, CMake, MSVC build tools, 7-Zip; Shields.io (`shields.io`) for the README badges; GitHub CLI (`cli.github.com`) for publishing releases; yt-dlp (`github.com/yt-dlp/yt-dlp`), FFmpeg (`ffmpeg.org`, build by BtbN) and faster-whisper (SYSTRAN, `github.com/SYSTRAN/faster-whisper`, with OpenAI's Whisper model) for reading video captions and transcripts in research; Claude Code (Anthropic) as development assistant – its memory guidance (`code.claude.com/docs/en/memory`) set the `CLAUDE.md` size limit.
 
 ## Game
 
