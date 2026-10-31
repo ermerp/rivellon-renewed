@@ -130,7 +130,7 @@ add_test(NAME ddmod_tests COMMAND ddmod_tests)
 add_executable(ddmod_fontpreview tools/fontpreview/main.cpp tools/fontpreview/scale.cpp tools/fontpreview/scene.cpp
                tools/fontpreview/arrows.cpp tools/fontpreview/labels.cpp)
 target_link_libraries(ddmod_fontpreview PRIVATE ddmod_core gdiplus)
-# Function coverage of div.exe at runtime (docs/re/engine-map.md): build/Release/ddmod_coverage.asi
+# Function coverage of div.exe at runtime (docs/re/coverage.md): build/Release/ddmod_coverage.asi
 add_library(ddmod_coverage SHARED tools/coverage/coverage.cpp)
 target_compile_options(ddmod_coverage PRIVATE /W4 /permissive-)
 target_compile_definitions(ddmod_coverage PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
