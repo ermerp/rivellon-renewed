@@ -5,7 +5,8 @@ Findings in our own words – **no decompiled code, no pseudocode** (CLAUDE.md r
 | File | Topic |
 |---|---|
 | [game-version.md](game-version.md) | 1.0062A hashes, PE header, German vs. English files, version history |
-| [engine-map.md](engine-map.md) | Map of `div.exe`: function count and sizes, regions of `.text` (game code, built-in editor, libjpeg/libpng/zlib), subsystems by Larian's source folders with address ranges, dependencies and layers from the call graph, runtime share (coverage), what it means for replacing subsystems |
+| [engine-map.md](engine-map.md) | Map of `div.exe`: function count and sizes, regions of `.text` (game code, built-in editor, libjpeg/libpng/zlib), subsystems by Larian's source folders with address ranges, dependencies and layers from the call graph, what it means for replacing subsystems |
+| [coverage.md](coverage.md) | Runtime share of `div.exe`: scripted runs and play sessions, share by source folder, font code |
 | [engine-classes.md](engine-classes.md) | Class hierarchies from RTTI (root classes, UI base classes `CSubWindow`/`CBitmapControl`), Larian DLL sizes |
 | [architecture.md](architecture.md) | Imports, renderer plugins (`slash*.dll`), input/audio/video/dialog APIs, proxy and overlay decisions |
 | [renderer-d3d6.md](renderer-d3d6.md) | `slash1.dll` internals: how `div.exe` binds it, exports, DirectDraw/D3D6 objects, `DllSlashedGetInfo`, `CD3D6VideoMem` methods and members, `slashed-d3d6.cfg` layout |

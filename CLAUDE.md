@@ -75,7 +75,7 @@ Read this file, `local/PLAN.md`, the first 10 lines of the table in `CHANGELOG.m
 | Test saves (one per situation, `T-*`) | `C:\dev\testsaves\de` – copy into a working copy's `savegames\`, never over the human's own saves |
 | Downloads (verified, outside repo) | `C:\dev\downloads` |
 | Screenshots / fetched logs (never commit) | `C:\dev\screenshots` (Deck: `deck\`) |
-| Tools (Ghidra, Cheat Engine, x32dbg, MSVC, 7-Zip) | `docs/dev/workflow.md` |
+| Tools (Ghidra, Cheat Engine, x32dbg, MSVC, 7-Zip) | `docs/dev/workflow.md` (build), `docs/dev/research-tools.md` (analysis) |
 
 ## Working agreements
 
