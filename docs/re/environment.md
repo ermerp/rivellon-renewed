@@ -6,14 +6,14 @@ Windows 11 Home (build 26200). Paths: see CLAUDE.md.
 |---|---|---|
 | Git | 2.55.0 | winget |
 | VS Build Tools 2022 (MSVC x86) | 17.14 | winget |
-| CMake / Ninja | 4.4.4 / 1.13.2 | winget |
+| CMake / Ninja | 4.4.5 / 1.13.2 | CMake: official GitHub MSI (`C:\Program Files\CMake`, user PATH), SHA-256 verified – winget had only 4.4.4; Ninja: winget |
 | Python | 3.13.15 | winget (no Pillow) |
-| JDK (Temurin) | 21.0.12 | winget |
+| JDK (Temurin) | 25.0.5 (system `JAVA_HOME`, for Ghidra 12.2) and 21.0.12 | winget |
 | Node.js | 24.20.0 | winget |
 | x64dbg (incl. x32dbg) | 2026.05.27 | winget |
 | 7-Zip | 26.04 | winget |
 | GitHub CLI `gh` | 2.103.3 | winget |
-| Ghidra | 12.1.4 | official NSA GitHub release, SHA-256 verified |
+| Ghidra | 12.2 | official NSA GitHub release, SHA-256 verified |
 | Cheat Engine | 7.7 | installed by the human (64-bit build attaches to the 32-bit game; `cheatengine-i386.exe` available) |
 | MinHook | 1.3.4 | CMake FetchContent, pinned commit `c3fcafdc…` |
 | yt-dlp | 2026.10.26 | official GitHub release, SHA-256 verified |
