@@ -14,6 +14,7 @@ One line per finished step, newest first (`docs/test-results.md` for the tests).
 
 | Date | Step |
 |---|---|
+| 2026-10-31 | `/release` also reports updates of the dev tools (table in `docs/re/environment.md`, GitHub CLI added) |
 | 2026-10-31 | Knowledge base: "Touches" column and "Other sources" in `docs/re/README.md`, conflict check in the feature workflow |
 | 2026-10-31 | Docs split by the size rule: research tools into `docs/dev/research-tools.md`, runtime coverage into `docs/re/coverage.md` |
 | 2026-10-31 | Research after v0.01: how the hero's sight is built and that it also gates click targeting (`docs/re/visibility.md`), the `mplayer` block is the single-player command bus (`docs/re/engine-map.md`), video research tools (yt-dlp, FFmpeg, faster-whisper) |
