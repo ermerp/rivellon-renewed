@@ -14,6 +14,7 @@ One line per finished step, newest first (`docs/test-results.md` for the tests).
 
 | Date | Step |
 |---|---|
+| 2026-10-31 | Dev tools: CMake 4.4.5 (v0.01 rebuilt byte-identical), Ghidra 12.2 with JDK 25 |
 | 2026-10-31 | `/release` also reports updates of the dev tools (table in `docs/re/environment.md`, GitHub CLI added) |
 | 2026-10-31 | Knowledge base: "Touches" column and "Other sources" in `docs/re/README.md`, conflict check in the feature workflow |
 | 2026-10-31 | Docs split by the size rule: research tools into `docs/dev/research-tools.md`, runtime coverage into `docs/re/coverage.md` |
