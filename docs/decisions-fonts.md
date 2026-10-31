@@ -1,6 +1,6 @@
 # Decisions – text and fonts
 
-One line per decision with its reason; part of [decisions.md](decisions.md), which holds all other topics. Rejected approaches: [rejected.md](rejected.md).
+One line per decision with its reason; part of [decisions.md](decisions.md) (project, direction, platforms) and [decisions-tech.md](decisions-tech.md) (plugin and engine work). Rejected approaches: [rejected.md](rejected.md).
 
 - **Text only from vector fonts, no upscaled original glyphs** – scales to any size.
 - **Target architecture: one text renderer of our own** (vector glyph plus a style per family: color profile, rim, gloss, texture), shared by game texts and overlay. From the originals only measured style parameters, no pixels; effects only where the original has them. Prototype `tools/fontpreview/scene.cpp`.

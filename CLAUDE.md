@@ -11,7 +11,7 @@ This file holds only rules that apply in every session. Workflows and pitfalls: 
 | Status, next step, release path (local) | `local/PLAN.md` |
 | Finished steps, release notes ("Unreleased") / feature list for players, feature details | `CHANGELOG.md` / `README.md` "Features", `docs/features.md` |
 | Long-term phases / decisions about planned work (local) | `local/roadmap.md` / `local/decisions-planned.md` |
-| Decisions / rejected approaches (one line + why) | `docs/decisions.md` (fonts: `docs/decisions-fonts.md`) / `docs/rejected.md` |
+| Decisions / rejected approaches (one line + why) | `docs/decisions.md` (plugin/engine: `docs/decisions-tech.md`, fonts: `docs/decisions-fonts.md`) / `docs/rejected.md` |
 | Incidents behind rules | `docs/lessons.md` |
 | RE findings by topic (index first) | `docs/re/README.md`, open questions (local) in `local/open-questions.md` (seen in tests/play) and `local/open-questions-re.md` (research) |
 | Test instructions for the human (local) / one-line results | `local/testing.md` / `docs/test-results.md` |
