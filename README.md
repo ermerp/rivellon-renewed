@@ -1,8 +1,8 @@
 ![Rivellon Renewed](docs/images/banner.png)
 
-[![Latest tag](https://img.shields.io/github/v/tag/ermerp/rivellon-renewed)](https://github.com/ermerp/rivellon-renewed/tags)
-[![Release date](https://img.shields.io/github/release-date/ermerp/rivellon-renewed)](https://github.com/ermerp/rivellon-renewed/releases/latest)
-[![Commits since latest release](https://img.shields.io/github/commits-since/ermerp/rivellon-renewed/latest)](https://github.com/ermerp/rivellon-renewed/commits/main)
+[![Latest tag](https://img.shields.io/github/v/tag/ermerp/rivellon-renewed?labelColor=2b2b2b&color=8a7f5f)](https://github.com/ermerp/rivellon-renewed/tags)
+[![Release date](https://img.shields.io/github/release-date/ermerp/rivellon-renewed?labelColor=2b2b2b&color=8a7f5f)](https://github.com/ermerp/rivellon-renewed/releases/latest)
+[![Commits since latest release](https://img.shields.io/github/commits-since/ermerp/rivellon-renewed/latest?labelColor=2b2b2b&color=8a7f5f)](https://github.com/ermerp/rivellon-renewed/commits/main)
 
 # Rivellon Renewed
 
