@@ -55,7 +55,7 @@ Bytes = functions labeled directly or by fill (1 334 229 of 1 518 633 bytes, 88 
 | `automap` | 4 | 90 | 20 797 | `0x44BFE0`–`0x4514E6` | map, mini map, user notes |
 | `managers` | 7 | 79 | 18 039 | `0x4E7B30`–`0x4EC6EC` | image, animation, index and RAM-file managers |
 | `stats` | 1 | 38 | 16 903 | `0x559C60`–`0x55E05F` | character statistics |
-| `mplayer` | 2 | 78 | 16 402 | `0x506200`–`0x50A66D` | multiplayer remains (`Message.cpp`, `Server.cpp`) |
+| `mplayer` | 2 | 78 | 16 402 | `0x506200`–`0x50A66D` | **command bus** (`Message.cpp`, `Server.cpp`): player and NPC actions go as request messages through a client/server layer also in single-player – dispatcher `0x509F10` (codes 0…`0x37` mapped by a byte table at `0x50A254` onto a jump table at `0x50A1DC`, handlers in this block), queue processed from the main loop (`0x505BC0`); called from `game` 32, `plate` 27, `osiris` 17, `agents` 16, `world` 11, `magic` 6, `skills` 5 times; no network transport in the EXE |
 | `effect` | 3 | 37 | 10 669 | `0x490240`–`0x49329A` | screen effects, filters, fire |
 | `invent` | 1 | 30 | 9 781 | `0x4AE420`–`0x4B0CC4` | inventory model |
 | 13 small folders | 14 | 73 | 20 080 | | `npc` (combine), `unicode` (`0x55F030`), `scanner`, `font` (`0x493A30`), `divshell` (settings `0x48D130`), `party`, `cube`, `sortspr`, `savegame`, `cluebook`, `dialog` (calls `DivDialogSystem`), `global`, `credits` |
@@ -105,7 +105,7 @@ Class hierarchies (RTTI) and the Larian DLLs: `engine-classes.md`.
 - **Size of Larian's own runtime code:** about 1.5 MB machine code in about 5 900 functions in `div.exe` (without editor, libraries and funclets), plus about 0.3 MB in Osiris, the dialog system and one renderer (without CRT). As a rough order of magnitude for optimized x86 at 8–15 bytes per source line: 100 000–200 000 lines of C++ – an estimate, not measured.
 - **Clear seams:** each folder is one contiguous block, so a subsystem's code, its entry points (calls from other blocks) and its size can be listed before work starts. The renderer is already behind a DLL interface (15 exports), the story engine and dialogs too – the cheapest places to put our own implementation behind the original interface.
 - **Sizes of candidates:** font code about 21 KB (`font` + `0x494440` gap, plus the setup in `bmgui`) – a good REA trial size; sound about 50 KB; UI about 300 KB (many small windows, each replaceable on its own); gameplay about 730 KB – only targeted changes, no rebuild.
-- **The editor (218 KB) and multiplayer remains (16 KB) can be ignored** for every player-facing feature.
+- **The editor (218 KB) can be ignored** for every player-facing feature. The `mplayer` block is not a leftover but the **command bus** every action passes through – a natural hook point for features that act for the player (walk, use, take, attack) and the seam a network transport would need.
 - **About 55 % of the game code ran in 45 minutes of real play plus the scripted runs** (runtime share below) – the part a replacement must reproduce is smaller than the static size, though every subsystem keeps rare paths (spells, ranged combat, later chapters) that these sessions miss.
 
 ## Runtime share
