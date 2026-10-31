@@ -14,6 +14,7 @@ One line per finished step, newest first (`docs/test-results.md` for the tests).
 
 | Date | Step |
 |---|---|
+| 2026-10-31 | Research after v0.01: how the hero's sight is built and that it also gates click targeting (`docs/re/visibility.md`), the `mplayer` block is the single-player command bus (`docs/re/engine-map.md`), video research tools (yt-dlp, FFmpeg, faster-whisper) |
 | 2026-10-31 | Release publishing by script: `Publish-Release.ps1` tags the tested zip's commit and creates the GitHub release with notes from `CHANGELOG.md`; README badges in the banner's colors |
 | 2026-10-31 | v0.01 released: repo public, tag `v0.01` on `c43e512`, GitHub release with `RivellonRenewed-0.01.zip` and its SHA-256; README badges (latest tag, release date, commits since release) |
 | 2026-10-30 | v0.01 step 7.6: release checks (versions kept, coverage and docs reports), secret scan and history rewrite before going public (T1.39-W); release zip `RivellonRenewed-0.01.zip` – same files as rc1 |
