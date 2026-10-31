@@ -1,5 +1,9 @@
 ![Rivellon Renewed](docs/images/banner.png)
 
+[![Latest tag](https://img.shields.io/github/v/tag/ermerp/rivellon-renewed)](https://github.com/ermerp/rivellon-renewed/tags)
+[![Release date](https://img.shields.io/github/release-date/ermerp/rivellon-renewed)](https://github.com/ermerp/rivellon-renewed/releases/latest)
+[![Commits since latest release](https://img.shields.io/github/commits-since/ermerp/rivellon-renewed/latest)](https://github.com/ermerp/rivellon-renewed/commits/main)
+
 # Rivellon Renewed
 
 *A modernization mod that brings Divine Divinity to today's PCs and the Steam Deck* – unofficial, for the Steam/GOG version 1.0062A of the game (Larian Studios, 2002).
