@@ -94,4 +94,4 @@ Read this file, `local/PLAN.md`, the first 10 lines of the table in `CHANGELOG.m
 
 ## Workflow per feature
 
-Investigate (first search `local/open-questions*.md` for the topic's `docs/re/` file) → document in `docs/re/` → implement minimally behind a feature flag → test instructions in `local/testing.md` → expand and harden → commit. **Every phase is tested in `dd-test` (DE) and `dd-test-en` (EN)**; every graphics/overlay change on PC **and** Deck. Build and test commands: `docs/dev/workflow.md`.
+Investigate (first search `local/open-questions*.md` for the topic's `docs/re/` file) → **conflict check:** list the mechanics the feature touches, search `docs/re/` (column "Touches", English and German names) and the "Other sources" of `docs/re/README.md` for each, note conflicts and reused mechanics in the feature's plan item → document in `docs/re/` → implement minimally behind a feature flag → test instructions in `local/testing.md` → expand and harden → commit. **Every phase is tested in `dd-test` (DE) and `dd-test-en` (EN)**; every graphics/overlay change on PC **and** Deck. Build and test commands: `docs/dev/workflow.md`.

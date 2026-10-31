@@ -31,6 +31,7 @@ One line per decision with its reason; the human keeps these decisions (CLAUDE.m
 
 - **The game in 16:9 and 16:10, filling the screen** – the Deck is 1280×800 (16:10); it runs the game at 1280×800, not 1280×720 with bars; 4:3 is secondary.
 - **Replacements are clean-room** – understand with the decompiler (scratchpad only), document in own words, own implementation, comparison test, switchable hook (rule 2). Fonts were the first (~90 functions, 22 entry points, pixel-exact comparison, no game state; `docs/re/engine-map.md`).
+- **Knowledge base: our verified findings in `docs/re/`, other people's knowledge bases as one line each, a conflict check before every feature** – OpenDivine and divproxy already cover our exact EXE, so we verify and write only what a feature needs instead of building a second KB; the "Touches" column lets a search find every file about a mechanic (e.g. the sight fix also touches click targeting) (human, 2026-10-31).
 - **No system dependencies (rule 13)** – bundled resources and own code, so one build looks the same on Windows and Proton; unavoidable system parts behind a thin hook layer.
 
 ## Platforms and versions
